@@ -26,6 +26,10 @@ const Dashboard = () => {
   const [expandedMembers, setExpandedMembers] = useState({})
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showMonthModal, setShowMonthModal] = useState(false)
+  
+  // Pagination state
+  const [displayLimit, setDisplayLimit] = useState(20) // Initial display limit
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   // September 2025 Sunday dates
   const sundayDates = [
@@ -48,6 +52,16 @@ const Dashboard = () => {
       fetchAttendanceForDate(new Date(date))
     })
   }, [fetchAttendanceForDate])
+
+  // Reset pagination when search term changes
+  useEffect(() => {
+    if (searchTerm) {
+      // When searching, we show all results, so no need for pagination
+    } else {
+      // When search is cleared, reset to initial display limit
+      setDisplayLimit(20)
+    }
+  }, [searchTerm])
 
   const handleDelete = async (member) => {
     if (window.confirm(`Are you sure you want to delete ${member['Full Name']}?`)) {
@@ -168,7 +182,18 @@ const Dashboard = () => {
 
       {/* Members List */}
       <div className="space-y-3">
-        {filteredMembers.map((member) => {
+        {/* Calculate displayed members based on search and pagination */}
+        {(() => {
+          // When searching, show all matching results for better UX
+          const membersToShow = searchTerm 
+            ? filteredMembers 
+            : filteredMembers.slice(0, displayLimit)
+          
+          const hasMoreMembers = !searchTerm && filteredMembers.length > displayLimit
+          
+          return (
+            <>
+              {membersToShow.map((member) => {
           const isExpanded = expandedMembers[member.id]
           
           return (
@@ -343,7 +368,47 @@ const Dashboard = () => {
             </div>
           )
         })}
-      </div>
+        
+        {/* Load More Button */}
+        {hasMoreMembers && (
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={async () => {
+                setIsLoadingMore(true)
+                // Simulate a small delay for better UX
+                await new Promise(resolve => setTimeout(resolve, 300))
+                setDisplayLimit(prev => prev + 20)
+                setIsLoadingMore(false)
+              }}
+              disabled={isLoadingMore}
+              className="px-6 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+            >
+              {isLoadingMore ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  <span>Load More ({filteredMembers.length - displayLimit} remaining)</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        
+        {/* Members count info */}
+        {!searchTerm && filteredMembers.length > 0 && (
+          <div className="text-center mt-4 text-sm text-gray-600 dark:text-gray-400">
+            Showing {Math.min(displayLimit, filteredMembers.length)} of {filteredMembers.length} members
+          </div>
+        )}
+        
+        </>
+      )
+    })()}
+  </div>
 
       {/* Empty State */}
       {filteredMembers.length === 0 && !loading && (
