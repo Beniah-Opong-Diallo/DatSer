@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { Calendar, Database, Users, Activity, LogOut, RefreshCw, Filter, Edit } from 'lucide-react'
+import { Calendar, Database, Users, Activity, LogOut, RefreshCw, Filter, Edit, Search } from 'lucide-react'
 import EditMemberModal from './EditMemberModal'
 
 const AdminPanel = ({ onLogout }) => {
@@ -22,6 +22,9 @@ const AdminPanel = ({ onLogout }) => {
   
   // Edit member modal state
   const [editingMember, setEditingMember] = useState(null)
+  
+  // Search functionality state
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     setSystemStats({
@@ -31,6 +34,14 @@ const AdminPanel = ({ onLogout }) => {
       lastUpdated: new Date().toLocaleString()
     })
   }, [members, currentTable, monthlyTables])
+
+
+
+  // Filter members based on search term
+  const filteredMembers = members.filter(member =>
+    member['Full Name']?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.Gender?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleTableSwitch = (tableName) => {
     setCurrentTable(tableName)
@@ -66,7 +77,7 @@ const AdminPanel = ({ onLogout }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6 pb-24">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -302,10 +313,17 @@ const AdminPanel = ({ onLogout }) => {
 
         {/* Member Names Display */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">All Members</h2>
-          {members.length > 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">All Members</h2>
+            <div className="text-sm text-gray-600">
+              {filteredMembers.length} of {members.length} members
+              {searchTerm && ` (filtered by "${searchTerm}")`}
+            </div>
+          </div>
+
+          {filteredMembers.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-              {members.map((member) => (
+              {filteredMembers.map((member) => (
                 <div key={member.id} className="bg-gray-50 rounded-lg p-3 text-center relative group">
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
                     <Users className="w-4 h-4 text-blue-600" />
@@ -329,11 +347,49 @@ const AdminPanel = ({ onLogout }) => {
           ) : (
             <div className="text-center py-8">
               <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No members found in the current table</p>
+              <p className="text-gray-600">
+                {searchTerm 
+                  ? `No members found matching "${searchTerm}"` 
+                  : "No members found in the current table"
+                }
+              </p>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  Clear search to see all members
+                </button>
+              )}
             </div>
           )}
         </div>
 
+      </div>
+
+      {/* Fixed Search Bar at bottom of viewport */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 p-4 shadow-lg z-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search members by name or gender..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
       </div>
       
       {/* Edit Member Modal */}
