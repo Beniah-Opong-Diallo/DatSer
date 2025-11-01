@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext'
 const DateSelector = () => {
   const { 
     selectedAttendanceDate, 
-    setSelectedAttendanceDate, 
+    setAndSaveAttendanceDate, 
     availableSundayDates 
   } = useApp()
   const { isDarkMode } = useTheme()
@@ -64,7 +64,7 @@ const DateSelector = () => {
   }
 
   const handleDateSelect = (date) => {
-    setSelectedAttendanceDate(date)
+    setAndSaveAttendanceDate(date)
     setIsOpen(false)
   }
 

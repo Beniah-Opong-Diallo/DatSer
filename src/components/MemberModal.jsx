@@ -4,8 +4,14 @@ import { useTheme } from '../context/ThemeContext'
 import { X, User, Phone, Calendar, BookOpen } from 'lucide-react'
 
 const MemberModal = ({ isOpen, onClose }) => {
-  const { addMember, markAttendance } = useApp()
+  const { addMember, markAttendance, currentTable } = useApp()
   const { isDarkMode } = useTheme()
+  
+  // Helper function to get month display name from table name
+  const getMonthDisplayName = (tableName) => {
+    // Convert table name like "October_2025" to "October 2025"
+    return tableName.replace('_', ' ')
+  }
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
@@ -15,14 +21,55 @@ const MemberModal = ({ isOpen, onClose }) => {
     current_level: ''
   })
 
-  // Sunday dates for September 2025
-  const sundayDates = ['2025-09-07', '2025-09-14', '2025-09-21', '2025-09-28']
-  const [sundayAttendance, setSundayAttendance] = useState({
-    '2025-09-07': null, // null = not set, true = present, false = absent
-    '2025-09-14': null,
-    '2025-09-21': null,
-    '2025-09-28': null
-  })
+  // Helper function to generate Sunday dates for the current month/year
+  const generateSundayDates = (currentTable) => {
+    if (!currentTable) return []
+    
+    try {
+      const [monthName, year] = currentTable.split('_')
+      const yearNum = parseInt(year)
+      
+      const monthIndex = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ].indexOf(monthName)
+      
+      if (monthIndex === -1) return []
+      
+      const sundays = []
+      const date = new Date(yearNum, monthIndex, 1)
+      
+      // Find the first Sunday of the month
+      while (date.getDay() !== 0) {
+        date.setDate(date.getDate() + 1)
+      }
+      
+      // Collect all Sundays in the month
+      while (date.getMonth() === monthIndex) {
+        sundays.push(date.toISOString().split('T')[0]) // Format as YYYY-MM-DD
+        date.setDate(date.getDate() + 7)
+      }
+      
+      return sundays
+    } catch (error) {
+      console.error('Error generating Sunday dates:', error)
+      return []
+    }
+  }
+
+  // Generate Sunday dates dynamically based on current table
+  const sundayDates = generateSundayDates(currentTable)
+  
+  // Initialize Sunday attendance state dynamically
+  const initializeSundayAttendance = () => {
+    const attendance = {}
+    sundayDates.forEach(date => {
+      attendance[date] = null // null = not set, true = present, false = absent
+    })
+    return attendance
+  }
+
+  const [sundayAttendance, setSundayAttendance] = useState(initializeSundayAttendance())
 
   const levels = [
     'SHS1', 'SHS2', 'SHS3', 
@@ -53,19 +100,14 @@ const MemberModal = ({ isOpen, onClose }) => {
       }
       
       // Reset form and close modal
-      setFormData({
-        full_name: '',
-        gender: '',
-        phone_number: '',
-        age: '',
-        current_level: ''
-      })
-      setSundayAttendance({
-        '2025-09-07': null,
-        '2025-09-14': null,
-        '2025-09-21': null,
-        '2025-09-28': null
-      })
+       setFormData({
+         full_name: '',
+         gender: '',
+         phone_number: '',
+         age: '',
+         current_level: ''
+       })
+       setSundayAttendance(initializeSundayAttendance())
       onClose()
       
       // Show success message (would use toast in real implementation)
@@ -221,7 +263,7 @@ const MemberModal = ({ isOpen, onClose }) => {
           {/* Sunday Attendance */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              September 2025 Sunday Attendance (Optional)
+              {getMonthDisplayName(currentTable)} Sunday Attendance (Optional)
             </label>
             <div className="space-y-3">
               {sundayDates.map(date => {

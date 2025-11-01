@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronRight, UserPlus, Award, Star, UserCheck } from 'lucide-react'
+import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronRight, UserPlus, Award, Star, UserCheck, Check } from 'lucide-react'
 import EditMemberModal from './EditMemberModal'
 import MemberModal from './MemberModal'
 import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
+import { toast } from 'react-toastify'
+
+// Helper function to get month display name from table name
+const getMonthDisplayName = (tableName) => {
+  // Convert table name like "October_2025" to "October 2025"
+  return tableName.replace('_', ' ')
+}
 
 const Dashboard = ({ isAdmin = false }) => {
   const { 
@@ -21,9 +28,13 @@ const Dashboard = ({ isAdmin = false }) => {
     currentTable,
     members,
     calculateMemberBadge,
-    assignManualBadge,
+
+    toggleMemberBadge,
+    memberHasBadge,
     updateMemberBadges,
-    selectedAttendanceDate
+    selectedAttendanceDate,
+    badgeFilter,
+    toggleBadgeFilter
   } = useApp()
   const { isDarkMode } = useTheme()
   const [editingMember, setEditingMember] = useState(null)
@@ -37,17 +48,47 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   
   // Badge management state
-  const [badgeFilter, setBadgeFilter] = useState('all')
   const [isUpdatingBadges, setIsUpdatingBadges] = useState(false)
   const [badgeAssignmentLoading, setBadgeAssignmentLoading] = useState({})
 
-  // September 2025 Sunday dates
-  const sundayDates = [
-    '2025-09-07',
-    '2025-09-14', 
-    '2025-09-21',
-    '2025-09-28'
-  ]
+  // Helper function to generate Sunday dates for the current month/year
+  const generateSundayDates = (currentTable) => {
+    if (!currentTable) return []
+    
+    try {
+      const [monthName, year] = currentTable.split('_')
+      const yearNum = parseInt(year)
+      
+      const monthIndex = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ].indexOf(monthName)
+      
+      if (monthIndex === -1) return []
+      
+      const sundays = []
+      const date = new Date(yearNum, monthIndex, 1)
+      
+      // Find the first Sunday of the month
+      while (date.getDay() !== 0) {
+        date.setDate(date.getDate() + 1)
+      }
+      
+      // Collect all Sundays in the month
+      while (date.getMonth() === monthIndex) {
+        sundays.push(date.toISOString().split('T')[0]) // Format as YYYY-MM-DD
+        date.setDate(date.getDate() + 7)
+      }
+      
+      return sundays
+    } catch (error) {
+      console.error('Error generating Sunday dates:', error)
+      return []
+    }
+  }
+
+  // Generate Sunday dates dynamically based on current table
+  const sundayDates = generateSundayDates(currentTable)
 
   // Fetch attendance when date changes
   useEffect(() => {
@@ -87,11 +128,32 @@ const Dashboard = ({ isAdmin = false }) => {
   const handleAttendance = async (memberId, present) => {
     setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
-      await markAttendance(memberId, new Date(selectedAttendanceDate), present)
-      // Show success message
+      const member = members.find(m => m.id === memberId)
+      const memberName = member ? member['Full Name'] : 'Member'
+      const attendanceKey = `${memberId}_${selectedAttendanceDate}`
+      const currentStatus = attendanceData[attendanceKey]
+      
+      // Toggle functionality: if clicking the same status, deselect it (set to null)
+      if (currentStatus === present) {
+        await markAttendance(memberId, new Date(selectedAttendanceDate), null)
+        toast.success(`Attendance cleared for: ${memberName}`, {
+          style: {
+            background: '#f3f4f6',
+            color: '#374151'
+          }
+        })
+      } else {
+        await markAttendance(memberId, new Date(selectedAttendanceDate), present)
+        toast.success(`Marked ${present ? 'present' : 'absent'} for: ${memberName}`, {
+          style: {
+            background: present ? '#10b981' : '#ef4444',
+            color: '#ffffff'
+          }
+        })
+      }
     } catch (error) {
       console.error('Error marking attendance:', error)
-      alert('Error marking attendance. Please try again.')
+      toast.error('Failed to update attendance. Please try again.')
     } finally {
       setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
     }
@@ -101,10 +163,20 @@ const Dashboard = ({ isAdmin = false }) => {
     const loadingKey = `${memberId}_${specificDate}`
     setAttendanceLoading(prev => ({ ...prev, [loadingKey]: true }))
     try {
-      await markAttendance(memberId, new Date(specificDate), present)
+      const attendanceKey = `${memberId}_${specificDate}`
+      const currentStatus = attendanceData[attendanceKey]
+      
+      // Toggle functionality: if clicking the same status, deselect it (set to null)
+      if (currentStatus === present) {
+        await markAttendance(memberId, new Date(specificDate), null)
+        toast.success(`Attendance cleared for ${new Date(specificDate).toLocaleDateString()}`)
+      } else {
+        await markAttendance(memberId, new Date(specificDate), present)
+        toast.success(`Marked as ${present ? 'present' : 'absent'} for ${new Date(specificDate).toLocaleDateString()}`)
+      }
     } catch (error) {
       console.error('Error marking attendance:', error)
-      alert('Error marking attendance. Please try again.')
+      toast.error('Failed to update attendance. Please try again.')
     } finally {
       setAttendanceLoading(prev => ({ ...prev, [loadingKey]: false }))
     }
@@ -149,7 +221,10 @@ const Dashboard = ({ isAdmin = false }) => {
       setIsUpdatingBadges(true)
       try {
         for (const member of filteredMembers) {
-          await assignManualBadge(member.id, badgeName)
+          // Only add the badge if the member doesn't already have it
+          if (!memberHasBadge(member, badgeType)) {
+            await toggleMemberBadge(member.id, badgeType)
+          }
         }
         await updateMemberBadges()
         alert(`Successfully assigned "${badgeName}" to ${memberCount} member${memberCount !== 1 ? 's' : ''}!`)
@@ -163,31 +238,57 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const getFilteredMembersByBadge = () => {
-    if (badgeFilter === 'all') return filteredMembers
+    // If no filters selected, show all members
+    if (badgeFilter.length === 0) return filteredMembers
     
     return filteredMembers.filter(member => {
       const badge = calculateMemberBadge(member)
-      switch (badgeFilter) {
-        case 'member':
-          return badge === 'Member Badge'
-        case 'regular':
-          return badge === 'Regular Attendee'
-        case 'newcomer':
-          return badge === 'Newcomer'
-        default:
-          return true
-      }
+      return badgeFilter.includes(badge)
     })
   }
+
+
 
   const handleIndividualBadgeAssignment = async (memberId, badgeType) => {
     setBadgeAssignmentLoading(prev => ({ ...prev, [memberId]: badgeType }))
     
     try {
-      await assignManualBadge(memberId, badgeType)
+      const member = members.find(m => m.id === memberId)
+      const memberName = member ? member['Full Name'] : 'Member'
+      const hasBadge = memberHasBadge(member, badgeType)
+      
+      // Badge colors matching the icon colors
+      const badgeColors = {
+        'member': '#3b82f6', // Blue
+        'regular': '#f59e0b', // Amber/Gold
+        'newcomer': '#10b981'  // Green
+      }
+      
+      // Toggle the badge
+      await toggleMemberBadge(memberId, badgeType)
+      
+      const badgeName = badgeType.charAt(0).toUpperCase() + badgeType.slice(1)
+      
+      if (hasBadge) {
+        toast.success(`${badgeName} badge removed for: ${memberName}`, {
+          style: {
+            background: '#f3f4f6',
+            color: '#374151'
+          }
+        })
+      } else {
+        toast.success(`${badgeName} badge assigned to: ${memberName}`, {
+          style: {
+            background: badgeColors[badgeType],
+            color: '#ffffff'
+          }
+        })
+      }
+      
       await updateMemberBadges()
     } catch (error) {
-      console.error('Error assigning badge:', error)
+      console.error('Error managing badge:', error)
+      toast.error('Failed to update badge. Please try again.')
     } finally {
       setBadgeAssignmentLoading(prev => ({ ...prev, [memberId]: null }))
     }
@@ -227,29 +328,65 @@ const Dashboard = ({ isAdmin = false }) => {
           {/* Badge Filter */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-primary-600" />
-              Badge Management
+              <Filter className="w-5 h-5 text-primary-600" />
+              Filter by Badge
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">(Select multiple)</span>
             </h3>
             <div className="flex flex-wrap gap-2">
               {[
-                { key: 'all', label: 'All Members', icon: Users },
                 { key: 'member', label: 'Member Badge', icon: Award },
                 { key: 'regular', label: 'Regular', icon: UserCheck },
                 { key: 'newcomer', label: 'Newcomer', icon: Star }
-              ].map(({ key, label, icon: Icon }) => (
+              ].map(({ key, label, icon: Icon }) => {
+                const isSelected = badgeFilter.includes(key)
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleBadgeFilter(key)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 transform relative ${
+                      isSelected
+                        ? 'bg-primary-600 dark:bg-primary-700 text-white shadow-lg scale-105 ring-2 ring-primary-300 dark:ring-primary-500'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 hover:scale-102'
+                    }`}
+                    title={isSelected ? `Remove ${label} filter` : `Add ${label} filter`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </div>
+                    {isSelected && (
+                      <Check className="w-4 h-4 bg-white text-primary-600 rounded-full p-0.5" />
+                    )}
+                  </button>
+                )
+              })}
+              
+              {/* Multi-select controls */}
+              <div className="flex gap-1 ml-2 border-l border-gray-300 dark:border-gray-600 pl-2">
                 <button
-                  key={key}
-                  onClick={() => setBadgeFilter(key)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    badgeFilter === key
-                      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
+                  onClick={() => {
+                    const allBadges = ['member', 'regular', 'newcomer']
+                    allBadges.forEach(badge => {
+                      if (!badgeFilter.includes(badge)) {
+                        toggleBadgeFilter(badge)
+                      }
+                    })
+                  }}
+                  className="px-2 py-1 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                  title="Select all badge filters"
                 >
-                  <Icon className="w-4 h-4" />
-                  {label}
+                  All
                 </button>
-              ))}
+                <button
+                  onClick={() => {
+                    badgeFilter.forEach(badge => toggleBadgeFilter(badge))
+                  }}
+                  className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                  title="Clear all badge filters"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           </div>
 
@@ -337,7 +474,7 @@ const Dashboard = ({ isAdmin = false }) => {
           const isExpanded = expandedMembers[member.id]
           
           return (
-            <div key={member.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden hover:shadow-md transition-all duration-200">
+            <div key={member.id} className="bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden hover:bg-white dark:hover:bg-gray-750 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg transition-all duration-200">
               {/* Compact Header Row */}
               <div className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
@@ -361,13 +498,13 @@ const Dashboard = ({ isAdmin = false }) => {
                       {(() => {
                         const badge = calculateMemberBadge(member)
                         const badgeConfig = {
-                          'Member Badge': { color: 'blue', icon: Award },
-                          'Regular Attendee': { color: 'green', icon: UserCheck },
-                          'Newcomer': { color: 'yellow', icon: UserCheck },
-                          'VIP Member': { color: 'purple', icon: Award },
-                          'Youth Leader': { color: 'indigo', icon: Award }
+                          'member': { color: 'blue', icon: Award, display: 'Member Badge' },
+                          'regular': { color: 'green', icon: UserCheck, display: 'Regular Attendee' },
+                          'newcomer': { color: 'yellow', icon: UserCheck, display: 'Newcomer' },
+                          'VIP Member': { color: 'purple', icon: Award, display: 'VIP Member' },
+                          'Youth Leader': { color: 'indigo', icon: Award, display: 'Youth Leader' }
                         }
-                        const config = badgeConfig[badge] || { color: 'gray', icon: Award }
+                        const config = badgeConfig[badge] || { color: 'gray', icon: Award, display: badge }
                         const Icon = config.icon
                         
                         return (
@@ -380,11 +517,11 @@ const Dashboard = ({ isAdmin = false }) => {
                             'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300'
                           }`}>
                             <Icon className="w-3 h-3" />
-                            <span className="hidden sm:inline">{badge}</span>
+                            <span className="hidden sm:inline">{config.display}</span>
                             <span className="sm:hidden">
-                              {badge === 'Member Badge' ? 'Member' :
-                               badge === 'Regular Attendee' ? 'Regular' :
-                               badge === 'Newcomer' ? 'New' :
+                              {badge === 'member' ? 'Member' :
+                               badge === 'regular' ? 'Regular' :
+                               badge === 'newcomer' ? 'New' :
                                badge === 'VIP Member' ? 'VIP' :
                                badge === 'Youth Leader' ? 'Leader' : badge}
                             </span>
@@ -397,18 +534,20 @@ const Dashboard = ({ isAdmin = false }) => {
                   {/* Right side: Attendance and Badge buttons */}
                   <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
                     {/* Attendance buttons */}
-                    <div className="flex space-x-1">
+                    <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-md py-1 px-2">
                       <button
                         onClick={() => handleAttendance(member.id, true)}
                         disabled={attendanceLoading[member.id]}
-                        className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
+                        className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-bold transition-all duration-200 ${
                           attendanceData[`${member.id}_${selectedAttendanceDate}`] === true
-                            ? 'bg-green-600 text-white'
+                            ? 'bg-green-700 dark:bg-green-600 text-white shadow-lg transform scale-110 ring-2 ring-green-400 dark:ring-green-500 border-2 border-green-800 dark:border-green-400'
                             : attendanceLoading[member.id]
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
+                            : attendanceData[`${member.id}_${selectedAttendanceDate}`] === false
+                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-100 dark:hover:bg-green-900 hover:text-green-700 dark:hover:text-green-300'
+                            : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 border border-green-300 dark:border-green-700'
                         }`}
-                        title="Mark present"
+                        title={attendanceData[`${member.id}_${selectedAttendanceDate}`] === true ? "Click to clear attendance" : "Mark present"}
                       >
                         {attendanceLoading[member.id] ? '...' : <span className="hidden sm:inline">Present</span>}
                         {attendanceLoading[member.id] ? '...' : <span className="sm:hidden">P</span>}
@@ -416,14 +555,16 @@ const Dashboard = ({ isAdmin = false }) => {
                       <button
                         onClick={() => handleAttendance(member.id, false)}
                         disabled={attendanceLoading[member.id]}
-                        className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
+                        className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-bold transition-all duration-200 ${
                           attendanceData[`${member.id}_${selectedAttendanceDate}`] === false
-                            ? 'bg-red-600 text-white'
+                            ? 'bg-red-700 dark:bg-red-600 text-white shadow-lg transform scale-110 ring-2 ring-red-400 dark:ring-red-500 border-2 border-red-800 dark:border-red-400'
                             : attendanceLoading[member.id]
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
+                            : attendanceData[`${member.id}_${selectedAttendanceDate}`] === true
+                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-red-100 dark:hover:bg-red-900 hover:text-red-700 dark:hover:text-red-300'
+                            : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 border border-red-300 dark:border-red-700'
                         }`}
-                        title="Mark absent"
+                        title={attendanceData[`${member.id}_${selectedAttendanceDate}`] === false ? "Click to clear attendance" : "Mark absent"}
                       >
                         {attendanceLoading[member.id] ? '...' : <span className="hidden sm:inline">Absent</span>}
                         {attendanceLoading[member.id] ? '...' : <span className="sm:hidden">A</span>}
@@ -431,46 +572,46 @@ const Dashboard = ({ isAdmin = false }) => {
                     </div>
 
                     {/* Badge assignment buttons */}
-                    <div className="flex space-x-1 ml-2 border-l border-gray-300 dark:border-gray-600 pl-2">
+                    <div className="flex space-x-1 ml-2 border-l-2 border-gray-300 dark:border-gray-600 pl-2 bg-gray-100 dark:bg-gray-700 rounded-r-md py-1 px-2">
                       <button
                         onClick={() => handleIndividualBadgeAssignment(member.id, 'member')}
                         disabled={badgeAssignmentLoading[member.id]}
-                        className={`p-1 rounded transition-colors ${
-                          calculateMemberBadge(member) === 'member'
-                            ? 'bg-blue-600 text-white'
+                        className={`p-1 rounded transition-all duration-200 ${
+                          memberHasBadge(member, 'member')
+                            ? 'bg-blue-700 dark:bg-blue-600 text-white shadow-lg transform scale-110 ring-2 ring-blue-400 dark:ring-blue-500 border-2 border-blue-800 dark:border-blue-400'
                             : badgeAssignmentLoading[member.id] === 'member'
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800'
+                            : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-300 dark:border-blue-700'
                         }`}
-                        title="Assign Member Badge"
+                        title={memberHasBadge(member, 'member') ? "Click to remove Member badge" : "Assign Member Badge"}
                       >
                         {badgeAssignmentLoading[member.id] === 'member' ? '...' : <Award className="w-3 h-3 sm:w-4 sm:h-4" />}
                       </button>
                       <button
                         onClick={() => handleIndividualBadgeAssignment(member.id, 'regular')}
                         disabled={badgeAssignmentLoading[member.id]}
-                        className={`p-1 rounded transition-colors ${
-                          calculateMemberBadge(member) === 'regular'
-                            ? 'bg-green-600 text-white'
+                        className={`p-1 rounded transition-all duration-200 ${
+                          memberHasBadge(member, 'regular')
+                            ? 'bg-green-700 dark:bg-green-600 text-white shadow-lg transform scale-110 ring-2 ring-green-400 dark:ring-green-500 border-2 border-green-800 dark:border-green-400'
                             : badgeAssignmentLoading[member.id] === 'regular'
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
+                            : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 border border-green-300 dark:border-green-700'
                         }`}
-                        title="Assign Regular Badge"
+                        title={memberHasBadge(member, 'regular') ? "Click to remove Regular badge" : "Assign Regular Badge"}
                       >
                         {badgeAssignmentLoading[member.id] === 'regular' ? '...' : <Star className="w-3 h-3 sm:w-4 sm:h-4" />}
                       </button>
                       <button
                         onClick={() => handleIndividualBadgeAssignment(member.id, 'newcomer')}
                         disabled={badgeAssignmentLoading[member.id]}
-                        className={`p-1 rounded transition-colors ${
-                          calculateMemberBadge(member) === 'newcomer'
-                            ? 'bg-yellow-600 text-white'
+                        className={`p-1 rounded transition-all duration-200 ${
+                          memberHasBadge(member, 'newcomer')
+                            ? 'bg-yellow-700 dark:bg-yellow-600 text-white shadow-lg transform scale-110 ring-2 ring-yellow-400 dark:ring-yellow-500 border-2 border-yellow-800 dark:border-yellow-400'
                             : badgeAssignmentLoading[member.id] === 'newcomer'
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800'
+                            : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800 border border-yellow-300 dark:border-yellow-700'
                         }`}
-                        title="Assign Newcomer Badge"
+                        title={memberHasBadge(member, 'newcomer') ? "Click to remove Newcomer badge" : "Assign Newcomer Badge"}
                       >
                         {badgeAssignmentLoading[member.id] === 'newcomer' ? '...' : <UserCheck className="w-3 h-3 sm:w-4 sm:h-4" />}
                       </button>
@@ -484,7 +625,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
                   <div className="pt-3 sm:pt-4">
                     {/* Member Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                       <div className="space-y-2 sm:space-y-3">
                         <h4 className="font-medium text-gray-900 dark:text-white mb-1 sm:mb-2 text-sm sm:text-base">Member Information</h4>
                         <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
@@ -502,7 +643,7 @@ const Dashboard = ({ isAdmin = false }) => {
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-gray-600 dark:text-gray-300">Level:</span>
-                            <span className="font-medium text-primary-600 dark:text-primary-400 capitalize truncate ml-2">
+                            <span className="font-medium text-primary-600 dark:text-primary-400 capitalize ml-2">
                               {member['Current Level']?.toLowerCase() || 'N/A'}
                             </span>
                           </div>
@@ -531,9 +672,9 @@ const Dashboard = ({ isAdmin = false }) => {
                       </div>
                     </div>
 
-                    {/* September 2025 Sunday Attendance */}
+                    {/* Sunday Attendance */}
                     <div className="border-t border-gray-200 dark:border-gray-600 pt-4 transition-colors">
-                      <h4 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">September 2025 Sunday Attendance</h4>
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-3 transition-colors">{getMonthDisplayName(currentTable)} Sunday Attendance</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {sundayDates.map(date => {
                           const dateKey = date

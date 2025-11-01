@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { toast } from 'react-hot-toast'
+import { toast } from 'react-toastify'
 
 const AppContext = createContext()
 
@@ -82,11 +82,18 @@ export const AppProvider = ({ children }) => {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [attendanceData, setAttendanceData] = useState({})
   const [currentTable, setCurrentTable] = useState(getLatestTable())
   const [monthlyTables, setMonthlyTables] = useState(FALLBACK_MONTHLY_TABLES)
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState(null)
   const [availableSundayDates, setAvailableSundayDates] = useState([])
+  
+  // Badge filter state - persisted across all components
+  const [badgeFilter, setBadgeFilter] = useState(() => {
+    const saved = localStorage.getItem('badgeFilter')
+    return saved ? JSON.parse(saved) : [] // Start with no badges selected
+  })
 
   // Check if Supabase is properly configured
   const isSupabaseConfigured = () => {
@@ -130,7 +137,7 @@ export const AppProvider = ({ children }) => {
         const validMembers = (data || []).filter(member => member['Full Name'])
         setMembers(validMembers)
         console.log(`Successfully loaded ${validMembers.length} members from ${tableName}`)
-        toast.success(`Loaded ${validMembers.length} members from ${tableName}`)
+        // Removed automatic toast notification on page load
       }
     } catch (error) {
       console.error('Unexpected error in fetchMembers:', error)
@@ -154,7 +161,7 @@ export const AppProvider = ({ children }) => {
           'Age': memberData.age || memberData['Age'],
           'Current Level': memberData.currentLevel || memberData['Current Level'],
           'Member Status': 'New', // Default status for new members
-          'Badge Type': 'New Member', // Default badge
+          'Badge Type': 'newcomer', // Default badge
           'Join Date': new Date().toISOString().split('T')[0], // Join date
           'Manual Badge': null, // For manually assigned badges
           inserted_at: new Date().toISOString()
@@ -305,8 +312,28 @@ export const AppProvider = ({ children }) => {
     const sundays = await getAvailableSundayDates()
     setAvailableSundayDates(sundays)
     
-    // Set default to 2nd Sunday if available, otherwise first available Sunday
     if (sundays.length > 0) {
+      // Try to restore user's last selected date from localStorage
+      const savedDateKey = `selectedAttendanceDate_${currentTable}`
+      const savedDate = localStorage.getItem(savedDateKey)
+      
+      if (savedDate) {
+        // Check if the saved date is still available in current month
+        const savedDateTime = new Date(savedDate)
+        const matchingDate = sundays.find(sunday => {
+          // Compare dates by year, month, and day (ignore time differences)
+          return sunday.getFullYear() === savedDateTime.getFullYear() &&
+                 sunday.getMonth() === savedDateTime.getMonth() &&
+                 sunday.getDate() === savedDateTime.getDate()
+        })
+        
+        if (matchingDate) {
+          setSelectedAttendanceDate(matchingDate)
+          return
+        }
+      }
+      
+      // Fallback: Set default to 2nd Sunday if available, otherwise first available Sunday
       const defaultDate = sundays.length >= 2 ? sundays[1] : sundays[0]
       setSelectedAttendanceDate(defaultDate)
     }
@@ -341,18 +368,16 @@ export const AppProvider = ({ children }) => {
     
     // New member (less than 30 days)
     if (daysSinceJoin < 30) {
-      return 'New Member'
+      return 'newcomer'
     }
     
     // Regular member badges based on attendance
-    if (attendanceRate >= 90) {
-      return 'Super Regular'
-    } else if (attendanceRate >= 75) {
-      return 'Regular Member'
+    if (attendanceRate >= 75) {
+      return 'regular'
     } else if (attendanceRate >= 50) {
-      return 'Active Member'
+      return 'member'
     } else {
-      return 'Occasional Member'
+      return 'newcomer'
     }
   }
 
@@ -360,27 +385,51 @@ export const AppProvider = ({ children }) => {
   const updateMemberBadges = () => {
     setMembers(prev => prev.map(member => ({
       ...member,
-      'Badge Type': calculateMemberBadge(member),
+      // Only update Badge Type if there's no Manual Badge assigned
+      'Badge Type': member['Manual Badge'] || calculateMemberBadge(member),
       'Attendance Rate': calculateAttendanceRate(member)
     })))
   }
 
-  // Manually assign badge to member
-  const assignManualBadge = async (memberId, badgeType) => {
+  // Toggle badge for member (supports multiple badges)
+  const toggleMemberBadge = async (memberId, badgeType) => {
     try {
       if (!isSupabaseConfigured()) {
         // Demo mode - update local state
-        setMembers(prev => prev.map(member => 
-          member.id === memberId 
-            ? { ...member, 'Manual Badge': badgeType, 'Badge Type': badgeType }
-            : member
-        ))
-        toast.success('Badge assigned successfully! (Demo Mode)')
+        setMembers(prev => prev.map(member => {
+          if (member.id === memberId) {
+            const currentBadges = member['Manual Badges'] || []
+            let updatedBadges
+            
+            if (currentBadges.includes(badgeType)) {
+              // Remove badge if already selected
+              updatedBadges = currentBadges.filter(badge => badge !== badgeType)
+            } else {
+              // Add badge if not selected
+              updatedBadges = [...currentBadges, badgeType]
+            }
+            
+            const updatedMember = { ...member, 'Manual Badges': updatedBadges }
+            return updatedMember
+          }
+          return member
+        }))
         return { success: true }
       }
 
+      // For Supabase, we'll store the badges as a JSON array
+      const member = members.find(m => m.id === memberId)
+      const currentBadges = member['Manual Badges'] || []
+      let updatedBadges
+      
+      if (currentBadges.includes(badgeType)) {
+        updatedBadges = currentBadges.filter(badge => badge !== badgeType)
+      } else {
+        updatedBadges = [...currentBadges, badgeType]
+      }
+
       // Prepare update object
-      const updateData = { 'Manual Badge': badgeType }
+      const updateData = { 'Manual Badges': JSON.stringify(updatedBadges) }
       
       // If current table is November_2025, also update role columns
       if (currentTable === 'November_2025') {
@@ -389,12 +438,14 @@ export const AppProvider = ({ children }) => {
         updateData.Regular = null
         updateData.Newcomer = null
         
-        // Set the appropriate role column based on badge type
-        if (badgeType === 'member') {
+        // Set role columns based on selected badges
+        if (updatedBadges.includes('member')) {
           updateData.Member = 'Yes'
-        } else if (badgeType === 'regular') {
+        }
+        if (updatedBadges.includes('regular')) {
           updateData.Regular = 'Yes'
-        } else if (badgeType === 'newcomer') {
+        }
+        if (updatedBadges.includes('newcomer')) {
           updateData.Newcomer = 'Yes'
         }
       }
@@ -407,17 +458,27 @@ export const AppProvider = ({ children }) => {
 
       if (error) throw error
 
-      setMembers(prev => prev.map(member => 
-        member.id === memberId 
-          ? { ...member, 'Manual Badge': badgeType, 'Badge Type': badgeType }
-          : member
-      ))
+      setMembers(prev => prev.map(member => {
+        if (member.id === memberId) {
+          const updatedMember = { 
+            ...member, 
+            'Manual Badges': updatedBadges,
+            // Update role columns for November_2025 table
+            ...(currentTable === 'November_2025' && {
+              'Member': updatedBadges.includes('member') ? 'Yes' : null,
+              'Regular': updatedBadges.includes('regular') ? 'Yes' : null,
+              'Newcomer': updatedBadges.includes('newcomer') ? 'Yes' : null
+            })
+          }
+          
+          return updatedMember
+        }
+        return member
+      }))
 
-      toast.success('Badge assigned successfully!')
       return { success: true }
     } catch (error) {
       console.error('Error assigning badge:', error)
-      toast.error('Failed to assign badge')
       return { success: false, error }
     }
   }
@@ -494,7 +555,6 @@ export const AppProvider = ({ children }) => {
           : member
       ))
 
-      toast.success('Attendance marked successfully!')
       return { success: true }
     } catch (error) {
       console.error('Error marking attendance:', error)
@@ -610,6 +670,8 @@ export const AppProvider = ({ children }) => {
         const updatedMember = { ...members.find(m => m.id === id), ...updates }
         setMembers(prev => prev.map(m => m.id === id ? updatedMember : m))
         toast.success('Member updated successfully! (Demo Mode)')
+        // Refresh search results to ensure updated data is visible
+        setTimeout(() => refreshSearch(), 100)
         return updatedMember
       }
 
@@ -622,6 +684,8 @@ export const AppProvider = ({ children }) => {
       if (error) throw error
       setMembers(prev => prev.map(m => m.id === id ? data[0] : m))
       toast.success(`Member updated successfully in ${currentTable}!`)
+      // Refresh search results to ensure updated data is visible
+      setTimeout(() => refreshSearch(), 100)
       return data[0]
     } catch (error) {
       console.error('Error updating member:', error)
@@ -758,7 +822,7 @@ export const AppProvider = ({ children }) => {
         
         setMonthlyTables(availableTables)
         console.log('Found monthly tables:', availableTables)
-        toast.success(`Found ${availableTables.length} monthly tables`)
+        // Removed automatic toast notification on page load
       } else {
         console.log('No monthly tables found, using fallback')
       }
@@ -767,10 +831,84 @@ export const AppProvider = ({ children }) => {
     }
   }
 
-  // Filter members based on search term
-  const filteredMembers = members.filter(member =>
-    member['Full Name']?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Debounce search term to improve performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500) // 500ms debounce delay for better performance
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Enhanced filter members based on debounced search term with robust matching
+  // Pre-compute searchable data for better performance
+  const membersWithSearchData = useMemo(() => {
+    return members.map(member => {
+      const fullName = member['Full Name']?.toLowerCase() || ''
+      const gender = member.Gender?.toLowerCase() || ''
+      const phoneNumber = member['Phone Number']?.toString().toLowerCase() || ''
+      const currentLevel = member['Current Level']?.toLowerCase() || ''
+      const age = member.Age?.toString().toLowerCase() || ''
+      
+      // Pre-compute phone number without separators for faster matching
+      const cleanPhoneNumber = phoneNumber.replace(/[-\s()]/g, '')
+      
+      // Create a single searchable text for faster single-pass searching
+      const searchableText = `${fullName} ${gender} ${phoneNumber} ${currentLevel} ${age} ${cleanPhoneNumber}`
+      
+      return {
+        ...member,
+        _searchData: {
+          fullName,
+          gender,
+          phoneNumber,
+          currentLevel,
+          age,
+          cleanPhoneNumber,
+          searchableText,
+          nameWords: fullName.split(/\s+/).filter(word => word.length > 0)
+        }
+      }
+    })
+  }, [members])
+
+  const filteredMembers = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) {
+      return membersWithSearchData
+    }
+
+    // Split search term into individual words for partial matching
+    const searchWords = debouncedSearchTerm.toLowerCase().trim().split(/\s+/)
+    
+    return membersWithSearchData.filter(member => {
+      const { searchableText, nameWords } = member._searchData
+      
+      // Check if ALL search words match somewhere in the member data
+      return searchWords.every(searchWord => {
+        // First check the combined searchable text (fastest)
+        if (searchableText.includes(searchWord)) {
+          return true
+        }
+        
+        // If not found in combined text, check individual name words
+        return nameWords.some(nameWord => nameWord.includes(searchWord))
+      })
+    })
+  }, [membersWithSearchData, debouncedSearchTerm])
+
+  // Function to refresh search results
+  const refreshSearch = useCallback(() => {
+    // Force immediate update of debounced search term
+    setDebouncedSearchTerm(searchTerm)
+  }, [searchTerm])
+
+  // Wrapper function to set attendance date and save to localStorage
+  const setAndSaveAttendanceDate = useCallback((date) => {
+    setSelectedAttendanceDate(date)
+    // Save to localStorage with current table as key
+    const savedDateKey = `selectedAttendanceDate_${currentTable}`
+    localStorage.setItem(savedDateKey, date.toISOString())
+  }, [currentTable])
 
   // Fetch monthly tables on component mount
   useEffect(() => {
@@ -793,12 +931,32 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('selectedMonthTable', tableName)
   }
 
+  // Badge filter functions
+  const toggleBadgeFilter = (badgeType) => {
+    setBadgeFilter(prev => {
+      const newFilter = prev.includes(badgeType)
+        ? prev.filter(type => type !== badgeType)
+        : [...prev, badgeType]
+      
+      // Save to localStorage
+      localStorage.setItem('badgeFilter', JSON.stringify(newFilter))
+      return newFilter
+    })
+  }
+
+  // Helper function to check if member has a specific badge
+  const memberHasBadge = (member, badgeType) => {
+    const manualBadges = member['Manual Badges'] || []
+    return manualBadges.includes(badgeType)
+  }
+
   const value = {
     members,
     filteredMembers,
     loading,
     searchTerm,
     setSearchTerm,
+    refreshSearch,
     addMember,
     updateMember,
     deleteMember,
@@ -819,13 +977,18 @@ export const AppProvider = ({ children }) => {
     calculateAttendanceRate,
     calculateMemberBadge,
     updateMemberBadges,
-    assignManualBadge,
+    
+    toggleMemberBadge,
+    memberHasBadge,
     selectedAttendanceDate,
     setSelectedAttendanceDate,
+    setAndSaveAttendanceDate,
     availableSundayDates,
     getAvailableSundayDates,
     initializeAttendanceDates,
-    getSundaysInMonth
+    getSundaysInMonth,
+    badgeFilter,
+    toggleBadgeFilter
   }
 
   return (

@@ -21,14 +21,24 @@ import {
 const AttendanceAnalytics = () => {
   const { 
     supabase, 
-    isSupabaseConfigured, 
+    isSupabaseConfigured,
     members, 
     calculateAttendanceRate, 
     calculateMemberBadge,
     updateMemberBadges,
-    assignManualBadge
+    toggleMemberBadge
   } = useApp()
   const { isDarkMode } = useTheme()
+
+  // Helper function to convert badge types to display names
+  const getBadgeDisplayName = (badgeType) => {
+    const badgeNames = {
+      'member': 'Member',
+      'regular': 'Regular Attendee',
+      'newcomer': 'Newcomer'
+    }
+    return badgeNames[badgeType] || badgeType
+  }
   
   const [analytics, setAnalytics] = useState({
     regularAttendees: [],
@@ -238,16 +248,15 @@ const AttendanceAnalytics = () => {
           >
             <div className="text-center">
               <div className={`text-2xl font-bold ${
-                badgeType === 'Super Regular' ? 'text-green-500' :
-                badgeType === 'Regular Member' ? 'text-blue-500' :
-                badgeType === 'New Member' ? 'text-yellow-500' :
-                badgeType === 'Active Member' ? 'text-orange-500' :
+                badgeType === 'regular' ? 'text-green-500' :
+                badgeType === 'member' ? 'text-blue-500' :
+                badgeType === 'newcomer' ? 'text-yellow-500' :
                 'text-gray-500'
               }`}>
                 {badgeMembers.length}
               </div>
               <div className={`text-sm font-medium transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {badgeType}
+                {getBadgeDisplayName(badgeType)}
               </div>
             </div>
           </div>
@@ -260,14 +269,13 @@ const AttendanceAnalytics = () => {
           <div key={badgeType} className="space-y-3">
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${
-                badgeType === 'Super Regular' ? 'bg-green-500' :
-                badgeType === 'Regular Member' ? 'bg-blue-500' :
-                badgeType === 'New Member' ? 'bg-yellow-500' :
-                badgeType === 'Active Member' ? 'bg-orange-500' :
+                badgeType === 'regular' ? 'bg-green-500' :
+                badgeType === 'member' ? 'bg-blue-500' :
+                badgeType === 'newcomer' ? 'bg-yellow-500' :
                 'bg-gray-500'
               }`}></div>
               <h4 className={`font-semibold transition-colors ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {badgeType} ({badgeMembers.length})
+                {getBadgeDisplayName(badgeType)} ({badgeMembers.length})
               </h4>
             </div>
             
@@ -280,10 +288,9 @@ const AttendanceAnalytics = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ${
-                        badgeType === 'Super Regular' ? 'bg-green-500' :
-                        badgeType === 'Regular Member' ? 'bg-blue-500' :
-                        badgeType === 'New Member' ? 'bg-yellow-500' :
-                        badgeType === 'Active Member' ? 'bg-orange-500' :
+                        badgeType === 'regular' ? 'bg-green-500' :
+                        badgeType === 'member' ? 'bg-blue-500' :
+                        badgeType === 'newcomer' ? 'bg-yellow-500' :
                         'bg-gray-500'
                       }`}>
                         {member['Full Name']?.charAt(0) || '?'}
@@ -519,7 +526,37 @@ const AttendanceAnalytics = () => {
       
       setIsAssigning(true)
       try {
-        await assignManualBadge(selectedMember.id, selectedBadge || null)
+        // For special badges in analytics, we'll use the old single-badge approach
+        // by clearing existing manual badges and setting the new one
+        if (selectedBadge) {
+          // Clear existing manual badges first, then add the new one
+          const member = members.find(m => m.id === selectedMember.id)
+          if (member && member['Manual Badges']) {
+            // Remove all existing manual badges
+            const existingBadges = Array.isArray(member['Manual Badges']) 
+              ? member['Manual Badges'] 
+              : JSON.parse(member['Manual Badges'] || '[]')
+            
+            for (const badge of existingBadges) {
+              await toggleMemberBadge(selectedMember.id, badge)
+            }
+          }
+          // Add the new badge
+          await toggleMemberBadge(selectedMember.id, selectedBadge)
+        } else {
+          // Remove all manual badges if selectedBadge is empty
+          const member = members.find(m => m.id === selectedMember.id)
+          if (member && member['Manual Badges']) {
+            const existingBadges = Array.isArray(member['Manual Badges']) 
+              ? member['Manual Badges'] 
+              : JSON.parse(member['Manual Badges'] || '[]')
+            
+            for (const badge of existingBadges) {
+              await toggleMemberBadge(selectedMember.id, badge)
+            }
+          }
+        }
+        
         setShowBadgeModal(false)
         setSelectedMember(null)
         setSelectedBadge('')

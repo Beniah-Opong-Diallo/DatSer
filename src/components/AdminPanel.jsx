@@ -5,7 +5,18 @@ import { Calendar, Database, Users, Activity, LogOut, RefreshCw, Filter, Edit, S
 import EditMemberModal from './EditMemberModal'
 
 const AdminPanel = ({ onLogout }) => {
-  const { monthlyTables, currentTable, setCurrentTable, members, markAttendance, attendanceLoading } = useApp()
+  const { 
+    monthlyTables, 
+    currentTable, 
+    setCurrentTable, 
+    members, 
+    markAttendance, 
+    attendanceLoading,
+    searchTerm,
+    setSearchTerm,
+    filteredMembers,
+    refreshSearch
+  } = useApp()
   const { isDarkMode } = useTheme()
   
   // September 2025 Sunday dates
@@ -24,9 +35,6 @@ const AdminPanel = ({ onLogout }) => {
   
   // Edit member modal state
   const [editingMember, setEditingMember] = useState(null)
-  
-  // Search functionality state
-  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     setSystemStats({
@@ -40,10 +48,7 @@ const AdminPanel = ({ onLogout }) => {
 
 
   // Filter members based on search term
-  const filteredMembers = members.filter(member =>
-    member['Full Name']?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.Gender?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+
 
   const handleTableSwitch = (tableName) => {
     console.log(`Switching to table: ${tableName}`)
@@ -253,7 +258,7 @@ const AdminPanel = ({ onLogout }) => {
           )}
         </div>
 
-        {/* September 2025 Sunday Attendance */}
+        {/* Sunday Attendance */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 transition-colors">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
