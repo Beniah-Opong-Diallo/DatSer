@@ -7,7 +7,8 @@ import {
   Plus,
   Calendar,
   Moon,
-  Sun
+  Sun,
+  TrendingUp
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -17,6 +18,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   const navigation = [
     { id: 'dashboard', label: 'Dashboard', icon: Users },
     { id: 'statistics', label: 'Statistics', icon: BarChart3 },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
   ]
 
   if (isAdmin) {

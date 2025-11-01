@@ -70,7 +70,29 @@ const MonthModal = ({ isOpen, onClose }) => {
       alert(`${monthName} ${selectedYear} created successfully with ${sundays.length} Sundays!`)
     } catch (error) {
       console.error('Error creating month:', error)
-      alert('Error creating month. Please try again.')
+      
+      // Show detailed error message
+      let errorMessage = 'Error creating month. Please try again.'
+      
+      if (error.message) {
+        errorMessage = `Error creating month: ${error.message}`
+      } else if (error.error) {
+        errorMessage = `Error creating month: ${error.error}`
+      } else if (error.details) {
+        errorMessage = `Error creating month: ${error.details}`
+      }
+      
+      // Log full error details to console for debugging
+      console.error('Full error details:', {
+        message: error.message,
+        error: error.error,
+        details: error.details,
+        code: error.code,
+        hint: error.hint,
+        fullError: error
+      })
+      
+      alert(errorMessage)
     } finally {
       setLoading(false)
     }

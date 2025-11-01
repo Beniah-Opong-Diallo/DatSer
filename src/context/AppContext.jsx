@@ -16,14 +16,14 @@ const getCurrentMonthTable = () => {
   return `${currentMonth}_${currentYear}`
 }
 
-// Available monthly tables (you can update this list as needed)
-const MONTHLY_TABLES = [
+// Fallback monthly tables for when Supabase is not configured
+const FALLBACK_MONTHLY_TABLES = [
   'January_2025', 'February_2025', 'April_2025', 'May_2025', 
   'June_2025', 'July_2025', 'August_2025', 'September_2025', 'October_2025'
 ]
 
-// Get the latest available table (September_2025 as specified)
-const getLatestTable = () => 'September_2025'
+// Get the latest available table (October_2025 as the template)
+const getLatestTable = () => 'October_2025'
 
 // Mock data for development when Supabase is not configured
 const mockMembers = [
@@ -70,7 +70,7 @@ export const AppProvider = ({ children }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [attendanceData, setAttendanceData] = useState({})
   const [currentTable, setCurrentTable] = useState(getLatestTable())
-  const [monthlyTables, setMonthlyTables] = useState(MONTHLY_TABLES)
+  const [monthlyTables, setMonthlyTables] = useState(FALLBACK_MONTHLY_TABLES)
 
   // Check if Supabase is properly configured
   const isSupabaseConfigured = () => {
@@ -169,19 +169,77 @@ export const AppProvider = ({ children }) => {
     return `Attendance ${day}${suffix}`
   }
 
+  // Get all attendance columns for the current table
+  const getAttendanceColumns = async () => {
+    try {
+      if (!isSupabaseConfigured()) return []
+      
+      const { data, error } = await supabase.rpc('get_table_columns', {
+        table_name: currentTable
+      })
+      
+      if (error) {
+        console.error('Error getting table columns:', error)
+        return []
+      }
+      
+      // Filter for attendance columns
+      return data?.filter(col => col.column_name.startsWith('Attendance ')) || []
+    } catch (error) {
+      console.error('Error getting attendance columns:', error)
+      return []
+    }
+  }
+
+  // Get available attendance dates for the current table
+  const getAvailableAttendanceDates = async () => {
+    try {
+      const attendanceColumns = await getAttendanceColumns()
+      
+      // Extract dates from column names and sort them
+      const dates = attendanceColumns
+        .map(col => {
+          const match = col.column_name.match(/Attendance (\d+)(st|nd|rd|th)/)
+          return match ? parseInt(match[1]) : null
+        })
+        .filter(date => date !== null)
+        .sort((a, b) => a - b)
+      
+      return dates
+    } catch (error) {
+      console.error('Error getting available attendance dates:', error)
+      return []
+    }
+  }
+
+  const findAttendanceColumnForDate = async (date) => {
+    try {
+      const attendanceColumns = await getAttendanceColumns()
+      const dayOfMonth = date.getDate()
+      
+      // Find the column that matches this day of month
+      const matchingColumn = attendanceColumns.find(col => {
+        const match = col.column_name.match(/Attendance (\d+)(st|nd|rd|th)/)
+        return match && parseInt(match[1]) === dayOfMonth
+      })
+      
+      return matchingColumn ? matchingColumn.column_name : null
+    } catch (error) {
+      console.error('Error finding attendance column for date:', error)
+      return null
+    }
+  }
+
   // Check if attendance column exists in the current table
   const checkAttendanceColumnExists = async (attendanceColumn) => {
     try {
       if (!isSupabaseConfigured()) return true
       
-      // Try a simple query to see if the column exists
-      const { error } = await supabase
-        .from(currentTable)
-        .select(`"${attendanceColumn}"`)
-        .limit(1)
-      
-      return !error || error.code !== '42703' // 42703 is "column does not exist" error
+      // Get all attendance columns and check if the requested one exists
+      const attendanceColumns = await getAttendanceColumns()
+      return attendanceColumns.some(col => col.column_name === attendanceColumn)
     } catch (error) {
+      console.error('Error checking attendance column:', error)
       return false
     }
   }
@@ -203,12 +261,10 @@ export const AppProvider = ({ children }) => {
         return { success: true }
       }
 
-      const attendanceColumn = getAttendanceColumn(date)
+      const attendanceColumn = await findAttendanceColumnForDate(date)
       
-      // Check if the column exists before updating
-      const columnExists = await checkAttendanceColumnExists(attendanceColumn)
-      if (!columnExists) {
-        toast.error(`Attendance column for this date does not exist in ${currentTable}`)
+      if (!attendanceColumn) {
+        toast.error(`No attendance column found for this date in ${currentTable}`)
         return { success: false, error: 'Column does not exist' }
       }
       
@@ -258,12 +314,10 @@ export const AppProvider = ({ children }) => {
         return { success: true }
       }
 
-      const attendanceColumn = getAttendanceColumn(date)
+      const attendanceColumn = await findAttendanceColumnForDate(date)
       
-      // Check if the column exists before updating
-      const columnExists = await checkAttendanceColumnExists(attendanceColumn)
-      if (!columnExists) {
-        toast.error(`Attendance column for this date does not exist in ${currentTable}`)
+      if (!attendanceColumn) {
+        toast.error(`No attendance column found for this date in ${currentTable}`)
         return { success: false, error: 'Column does not exist' }
       }
       
@@ -310,12 +364,10 @@ export const AppProvider = ({ children }) => {
         return attendanceData[dateKey] || {}
       }
 
-      const attendanceColumn = getAttendanceColumn(date)
+      const attendanceColumn = await findAttendanceColumnForDate(date)
       
-      // Check if the column exists before querying
-      const columnExists = await checkAttendanceColumnExists(attendanceColumn)
-      if (!columnExists) {
-        console.log(`Attendance column "${attendanceColumn}" does not exist in ${currentTable}`)
+      if (!attendanceColumn) {
+        console.log(`No attendance column found for this date in ${currentTable}`)
         return {}
       }
       
@@ -393,81 +445,115 @@ export const AppProvider = ({ children }) => {
     }
   }
 
-  // Create new month table with copied member data
+  // Create new month by copying October's structure
   const createNewMonth = async ({ month, year, monthName, sundays }) => {
     try {
-      const newTableName = `${monthName}_${year}`
+      const monthIdentifier = `${monthName}_${year}`
       
       if (!isSupabaseConfigured()) {
         // Demo mode - just show success message
-        toast.success(`${newTableName} created successfully! (Demo Mode)`)
-        return { success: true, tableName: newTableName }
+        toast.success(`${monthIdentifier} created successfully! (Demo Mode)`)
+        return { success: true, tableName: monthIdentifier }
       }
 
-      // Build complete migration SQL
-      let migrationSQL = `
-        CREATE TABLE IF NOT EXISTS "${newTableName}" (
-          id BIGSERIAL PRIMARY KEY,
-          "Full Name" TEXT NOT NULL,
-          "Gender" TEXT NOT NULL,
-          "Phone Number" BIGINT,
-          "Age" TEXT,
-          "Current Level" TEXT,
-          inserted_at TIMESTAMPTZ DEFAULT NOW()
-        );
-      `
+      console.log(`Creating new month table: ${monthIdentifier}`)
 
-      // Add attendance columns for each Sunday to the migration
-      for (let i = 0; i < sundays.length; i++) {
-        const sunday = sundays[i]
-        const day = sunday.getDate()
-        let suffix = 'th'
-        if (day === 1 || day === 21 || day === 31) suffix = 'st'
-        else if (day === 2 || day === 22) suffix = 'nd'
-        else if (day === 3 || day === 23) suffix = 'rd'
-        
-        const columnName = `Attendance ${day}${suffix}`
-        
-        migrationSQL += `
-        ALTER TABLE "${newTableName}" 
-        ADD COLUMN IF NOT EXISTS "${columnName}" BOOLEAN DEFAULT NULL;
-        `
-      }
-
-      // Execute the migration SQL directly
-       const { error: createError } = await supabase.rpc('exec_sql', {
-         sql: migrationSQL
-       })
+      // Use our new function to create month table by copying October's structure
+      const { data: result, error: createError } = await supabase.rpc(
+        'create_new_month_table',
+        {
+          new_month_name: monthIdentifier
+        }
+      )
 
       if (createError) {
-        console.error('Error creating table:', createError)
-        throw createError
+        console.error('Error creating month table:', createError)
+        throw new Error(`Failed to create month table: ${createError.message}`)
       }
 
-      // Copy member data from current table (excluding attendance columns)
-      const { data: currentMembers, error: fetchError } = await supabase
-        .from(currentTable)
-        .select('Full Name, Gender, Phone Number, Age, Current Level')
+      console.log('Month table creation result:', result)
 
-      if (fetchError) throw fetchError
-
-      if (currentMembers && currentMembers.length > 0) {
-        const { error: insertError } = await supabase
-          .from(newTableName)
-          .insert(currentMembers)
-
-        if (insertError) throw insertError
-      }
-
-      // Update monthly tables list
-      setMonthlyTables(prev => [...prev, newTableName])
+      toast.success(`Month ${monthName} ${year} created successfully! Table copied from October template.`)
       
-      toast.success(`${newTableName} created successfully with ${sundays.length} Sunday dates!`)
-      return { success: true, tableName: newTableName }
+      // Refresh the monthly tables list from database
+      await fetchMonthlyTables()
+      
+      // Switch to the new month
+      setCurrentTable(monthIdentifier)
+      
+      console.log(`Successfully created month: ${monthIdentifier}`)
+      return { success: true, tableName: monthIdentifier, result }
     } catch (error) {
       console.error('Error creating new month:', error)
-      toast.error('Failed to create new month')
+      
+      // Provide detailed error information
+      let errorMessage = 'Failed to create new month'
+      if (error.message) {
+        errorMessage += `: ${error.message}`
+      } else if (error.error) {
+        errorMessage += `: ${error.error}`
+      }
+      
+      toast.error(errorMessage)
       throw error
+    }
+  }
+
+  // Fetch available month tables from database
+  const fetchMonthlyTables = async () => {
+    try {
+      if (!isSupabaseConfigured()) {
+        console.log('Using fallback monthly tables - Supabase not configured')
+        return
+      }
+
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December']
+      const years = ['2024', '2025', '2026']
+      const availableTables = []
+
+      // Check each potential month table by trying to fetch from it
+      for (const year of years) {
+        for (const month of months) {
+          const tableName = `${month}_${year}`
+          try {
+            // Try to fetch just one record to check if table exists
+            const { data, error } = await supabase
+              .from(tableName)
+              .select('id')
+              .limit(1)
+
+            if (!error) {
+              availableTables.push(tableName)
+            }
+          } catch (err) {
+            // Table doesn't exist, skip it
+            continue
+          }
+        }
+      }
+
+      if (availableTables.length > 0) {
+        // Sort tables by year and then by month
+        availableTables.sort((a, b) => {
+          const [monthA, yearA] = a.split('_')
+          const [monthB, yearB] = b.split('_')
+          
+          if (yearA !== yearB) {
+            return parseInt(yearA) - parseInt(yearB)
+          }
+          
+          return months.indexOf(monthA) - months.indexOf(monthB)
+        })
+        
+        setMonthlyTables(availableTables)
+        console.log('Found monthly tables:', availableTables)
+        toast.success(`Found ${availableTables.length} monthly tables`)
+      } else {
+        console.log('No monthly tables found, using fallback')
+      }
+    } catch (error) {
+      console.error('Error fetching monthly tables:', error)
     }
   }
 
@@ -475,6 +561,11 @@ export const AppProvider = ({ children }) => {
   const filteredMembers = members.filter(member =>
     member['Full Name']?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Fetch monthly tables on component mount
+  useEffect(() => {
+    fetchMonthlyTables()
+  }, [])
 
   // Fetch members on component mount and when current table changes
   useEffect(() => {
@@ -499,7 +590,37 @@ export const AppProvider = ({ children }) => {
     currentTable,
     monthlyTables,
     setCurrentTable,
-    createNewMonth
+    createNewMonth,
+    fetchMonthlyTables,
+    getAttendanceColumns,
+    getAvailableAttendanceDates,
+    findAttendanceColumnForDate,
+    getSundaysInMonth: (monthName, year) => {
+      const monthIndex = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ].indexOf(monthName)
+      
+      if (monthIndex === -1) {
+        throw new Error(`Invalid month name: ${monthName}`)
+      }
+      
+      const sundays = []
+      const date = new Date(year, monthIndex, 1)
+      
+      // Find the first Sunday of the month
+      while (date.getDay() !== 0) {
+        date.setDate(date.getDate() + 1)
+      }
+      
+      // Collect all Sundays in the month
+      while (date.getMonth() === monthIndex) {
+        sundays.push(new Date(date))
+        date.setDate(date.getDate() + 7)
+      }
+      
+      return sundays
+    }
   }
 
   return (
