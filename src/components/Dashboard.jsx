@@ -63,6 +63,11 @@ const Dashboard = ({ isAdmin = false }) => {
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
   const [isSundayPopupOpen, setIsSundayPopupOpen] = useState(false)
 
+  // Multi-select state (members + Sundays)
+  const [selectedMemberIds, setSelectedMemberIds] = useState(new Set())
+  const [selectedBulkSundayDates, setSelectedBulkSundayDates] = useState(new Set())
+  const [isBulkApplying, setIsBulkApplying] = useState(false)
+
   // Quick filter: set badge filter exclusively to the given key
   const setExclusiveBadgeFilter = (badgeKey) => {
     const allBadges = ['member', 'regular', 'newcomer']
@@ -180,6 +185,12 @@ const Dashboard = ({ isAdmin = false }) => {
     setSelectedSundayDate(null)
   }, [currentTable])
 
+  // Clear selections when month changes
+  useEffect(() => {
+    setSelectedMemberIds(new Set())
+    setSelectedBulkSundayDates(new Set())
+  }, [currentTable])
+
   // Reset pagination when search term changes
   useEffect(() => {
     if (searchTerm) {
@@ -279,6 +290,76 @@ const Dashboard = ({ isAdmin = false }) => {
       ...prev,
       [memberId]: !prev[memberId]
     }))
+  }
+
+  // Toggle member selection for bulk actions
+  const toggleMemberSelection = (memberId) => {
+    setSelectedMemberIds(prev => {
+      const next = new Set(prev)
+      if (next.has(memberId)) next.delete(memberId)
+      else next.add(memberId)
+      return next
+    })
+  }
+
+  const clearMemberSelection = () => setSelectedMemberIds(new Set())
+
+  const selectAllVisibleMembers = () => {
+    const tabFilteredMembers = getTabFilteredMembers()
+    const membersToShow = searchTerm ? tabFilteredMembers : tabFilteredMembers.slice(0, displayLimit)
+    setSelectedMemberIds(new Set(membersToShow.map(m => m.id)))
+  }
+
+  // Toggle Sunday selection for bulk actions
+  const toggleSundayBulkSelection = (dateStr) => {
+    setSelectedBulkSundayDates(prev => {
+      const next = new Set(prev)
+      if (next.has(dateStr)) next.delete(dateStr)
+      else next.add(dateStr)
+      return next
+    })
+  }
+
+  const selectAllSundays = () => {
+    setSelectedBulkSundayDates(new Set(sundayDates))
+  }
+
+  const clearSundayBulkSelection = () => setSelectedBulkSundayDates(new Set())
+
+  // Bulk apply attendance to selected members and Sundays
+  const handleMultiAttendanceAction = async (status) => {
+    const memberIds = Array.from(selectedMemberIds)
+    if (memberIds.length < 2) return
+
+    const dates = selectedBulkSundayDates.size > 0
+      ? Array.from(selectedBulkSundayDates)
+      : (selectedAttendanceDate ? [selectedAttendanceDate] : [])
+
+    if (dates.length === 0) {
+      toast.error('Select Sunday(s) or choose a date first.')
+      return
+    }
+
+    setIsBulkApplying(true)
+    try {
+      for (const dateStr of dates) {
+        if (status === null) {
+          // Clear individually when status is null
+          for (const id of memberIds) {
+            await markAttendance(id, new Date(dateStr), null)
+          }
+        } else {
+          await bulkAttendance(memberIds, new Date(dateStr), status)
+        }
+      }
+      const actionText = status === null ? 'cleared' : status ? 'present' : 'absent'
+      toast.success(`Bulk ${actionText} applied to ${memberIds.length} member(s) for ${dates.length} date(s).`)
+    } catch (error) {
+      console.error('Bulk attendance failed:', error)
+      toast.error('Failed to apply bulk update. Please try again.')
+    } finally {
+      setIsBulkApplying(false)
+    }
   }
 
   const handleBulkBadgeAssignment = async (badgeType) => {
@@ -894,6 +975,96 @@ const Dashboard = ({ isAdmin = false }) => {
           
           return (
             <>
+              {/* Bulk Selection Toolbar */}
+              {selectedMemberIds.size > 1 && (
+                <div className="sticky top-2 z-30 bg-primary-50 dark:bg-primary-900/40 border border-primary-300 dark:border-primary-700 rounded-lg p-3 mb-3 flex items-center flex-wrap gap-2">
+                  <div className="flex items-center gap-2 mr-2">
+                    <Users className="w-4 h-4 text-primary-700 dark:text-primary-200" />
+                    <span className="text-sm font-medium text-primary-700 dark:text-primary-200">{selectedMemberIds.size} selected</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleMultiAttendanceAction(true)}
+                      disabled={isBulkApplying}
+                      className={`px-3 py-1 rounded text-sm font-semibold ${isBulkApplying ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                      title="Mark selected as present"
+                    >
+                      Present
+                    </button>
+                    <button
+                      onClick={() => handleMultiAttendanceAction(false)}
+                      disabled={isBulkApplying}
+                      className={`px-3 py-1 rounded text-sm font-semibold ${isBulkApplying ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                      title="Mark selected as absent"
+                    >
+                      Absent
+                    </button>
+                    <button
+                      onClick={() => handleMultiAttendanceAction(null)}
+                      disabled={isBulkApplying}
+                      className={`px-3 py-1 rounded text-sm font-semibold ${isBulkApplying ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'} text-white`}
+                      title="Clear attendance for selected"
+                    >
+                      Clear
+                    </button>
+                    {isBulkApplying && (
+                      <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    )}
+                  </div>
+                  <div className="w-px h-6 bg-primary-300 dark:bg-primary-700 mx-2" />
+                  {/* Sundays selector */}
+                  <div className="flex items-center flex-wrap gap-2">
+                    <span className="text-xs text-primary-700 dark:text-primary-200">Select Sundays:</span>
+                    <button
+                      onClick={selectAllSundays}
+                      className="px-2 py-1 text-xs rounded bg-primary-100 dark:bg-primary-800 text-primary-700 dark:text-primary-200 hover:bg-primary-200 dark:hover:bg-primary-700"
+                      title="Select all Sundays"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      onClick={clearSundayBulkSelection}
+                      className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      title="Clear Sundays selection"
+                    >
+                      Clear days
+                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {sundayDates.map(dateStr => {
+                        const checked = selectedBulkSundayDates.has(dateStr)
+                        const label = new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        return (
+                          <label key={dateStr} className={`flex items-center gap-2 px-2 py-1 rounded border text-xs ${checked ? 'bg-primary-600 text-white border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSundayBulkSelection(dateStr)}
+                              className="w-3.5 h-3.5 accent-primary-600 dark:accent-primary-400"
+                            />
+                            <span>{label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={selectAllVisibleMembers}
+                      className="px-2 py-1 text-xs rounded bg-primary-100 dark:bg-primary-800 text-primary-700 dark:text-primary-200 hover:bg-primary-200 dark:hover:bg-primary-700"
+                      title="Select all visible members"
+                    >
+                      Select all members in view
+                    </button>
+                    <button
+                      onClick={clearMemberSelection}
+                      className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      title="Clear member selection"
+                    >
+                      Clear selection
+                    </button>
+                  </div>
+                </div>
+              )}
               {membersToShow.map((member) => {
           const isExpanded = expandedMembers[member.id]
           
@@ -917,6 +1088,14 @@ const Dashboard = ({ isAdmin = false }) => {
                     <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center flex-shrink-0">
                       <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-600 dark:text-primary-400" />
                     </div>
+                    {/* Multi-select checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={selectedMemberIds.has(member.id)}
+                      onChange={() => toggleMemberSelection(member.id)}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 dark:text-primary-400 focus:ring-primary-600 flex-shrink-0"
+                      title="Select member for bulk actions"
+                    />
                     <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0 flex-1">
                       <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate min-w-0">{member['full_name'] || member['Full Name']}</h3>
                       {(() => {
