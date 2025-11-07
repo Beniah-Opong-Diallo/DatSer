@@ -390,27 +390,7 @@ const Dashboard = ({ isAdmin = false }) => {
           </div>
         </div>
 
-        {/* Mobile: selected Sunday summary card */}
-        {activeTab === 'edited' && selectedSundayDate && (
-          (() => {
-            const dateObj = new Date(selectedSundayDate)
-            const labelFull = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
-            const presentCount = getTabFilteredMembers().filter(m => (attendanceData[selectedSundayDate] || {})[m.id] === true).length
-            return (
-              <div className="sm:hidden mt-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
-                    <Calendar className="w-4 h-4 text-primary-600" />
-                    <span>{labelFull}</span>
-                  </div>
-                  <div className="text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded-md">
-                    {presentCount} present
-                  </div>
-                </div>
-              </div>
-            )
-          })()
-        )}
+        
       </div>
 
       {/* Tab Navigation */}
@@ -565,29 +545,24 @@ const Dashboard = ({ isAdmin = false }) => {
                 className="p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                 title={`${getMonthDisplayName(currentTable)} Sundays`}
               >
-                <Calendar className="w-5 h-5 text-primary-600" />
+                {(() => {
+                  if (selectedSundayDate) {
+                    const dateObj = new Date(selectedSundayDate)
+                    const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    const presentCount = getTabFilteredMembers().filter(m => (attendanceData[selectedSundayDate] || {})[m.id] === true).length
+                    return (
+                      <span className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-primary-600" />
+                        <span className="text-xs font-medium">{label}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">{presentCount}</span>
+                      </span>
+                    )
+                  }
+                  return <Calendar className="w-5 h-5 text-primary-600" />
+                })()}
               </button>
             )}
-
-            {/* Selected Sunday summary chip (mobile only) */}
-            {activeTab === 'edited' && selectedSundayDate && (
-              (() => {
-                const dateObj = new Date(selectedSundayDate)
-                const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                const presentCount = getTabFilteredMembers().filter(m => (attendanceData[selectedSundayDate] || {})[m.id] === true).length
-                return (
-                  <button
-                    onClick={() => setIsSundayPopupOpen(true)}
-                    className="flex items-center gap-2 px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                    title={`Selected: ${label}`}
-                  >
-                    <Calendar className="w-4 h-4 text-primary-600" />
-                    <span className="text-xs font-medium">{label}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">{presentCount}</span>
-                  </button>
-                )
-              })()
-            )}
+            
           </div>
 
           {isBadgeDropdownOpen && (
@@ -841,7 +816,7 @@ const Dashboard = ({ isAdmin = false }) => {
       </div>
 
       {/* Fixed Search Bar at bottom of viewport */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors duration-200">
+      <div className={`fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors duration-200 ${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''}`}>
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             {/* Search Input */}
