@@ -299,9 +299,9 @@ const Dashboard = ({ isAdmin = false }) => {
       
       // Badge colors matching the icon colors
       const badgeColors = {
-        'member': '#3b82f6', // Blue
-        'regular': '#f59e0b', // Amber/Gold
-        'newcomer': '#10b981'  // Green
+        'member': '#3b82f6',   // Blue
+        'regular': '#10b981',  // Green
+        'newcomer': '#f59e0b'  // Amber/Gold
       }
       
       // Toggle the badge
@@ -327,6 +327,8 @@ const Dashboard = ({ isAdmin = false }) => {
       }
       
       await updateMemberBadges()
+      // Ensure UI reflects latest DB state when using Supabase
+      await forceRefreshMembers()
     } catch (error) {
       console.error('Error managing badge:', error)
       toast.error('Failed to update badge. Please try again.')
@@ -481,13 +483,17 @@ const Dashboard = ({ isAdmin = false }) => {
                 <div className="flex flex-wrap gap-2">
                   {[
                     { key: 'member', label: 'Member', icon: Award, color: 'blue' },
-                    { key: 'regular', label: 'Regular', icon: UserCheck, color: 'green' }
+                    { key: 'regular', label: 'Regular', icon: UserCheck, color: 'green' },
+                    { key: 'newcomer', label: 'Newcomer', icon: Star, color: 'yellow' }
                   ].map(({ key, label, icon: Icon, color }) => (
                     <div
                       key={key}
                       className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium opacity-80 ${
-                        color === 'blue' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' :
-                        'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                        color === 'blue'
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                          : color === 'green'
+                          ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                          : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
                       }`}
                     >
                       <Icon className="w-3 h-3" />
@@ -565,14 +571,18 @@ const Dashboard = ({ isAdmin = false }) => {
             <div className="flex flex-wrap gap-2">
               {[
                 { key: 'member', label: 'Member', icon: Award, color: 'blue' },
-                { key: 'regular', label: 'Regular', icon: UserCheck, color: 'green' }
+                { key: 'regular', label: 'Regular', icon: UserCheck, color: 'green' },
+                { key: 'newcomer', label: 'Newcomer', icon: Star, color: 'yellow' }
               ].map(({ key, label, icon: Icon, color }) => (
                 <div
                   key={key}
                   title={`${label} badge - Use individual member buttons to assign`}
                   className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm font-medium cursor-default opacity-75 ${
-                    color === 'blue' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' :
-                    'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                    color === 'blue'
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                      : color === 'green'
+                      ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                      : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -771,7 +781,21 @@ const Dashboard = ({ isAdmin = false }) => {
                         }`}
                         title={memberHasBadge(member, 'regular') ? "Click to remove Regular badge" : "Assign Regular Badge"}
                       >
-                        {badgeAssignmentLoading[member.id] === 'regular' ? '...' : <Star className="w-3 h-3 sm:w-4 sm:h-4" />}
+                        {badgeAssignmentLoading[member.id] === 'regular' ? '...' : <UserCheck className="w-3 h-3 sm:w-4 sm:h-4" />}
+                      </button>
+                      <button
+                        onClick={() => handleIndividualBadgeAssignment(member.id, 'newcomer')}
+                        disabled={badgeAssignmentLoading[member.id]}
+                        className={`p-1 rounded transition-all duration-200 ${
+                          memberHasBadge(member, 'newcomer')
+                            ? 'bg-yellow-800 dark:bg-yellow-700 text-white shadow-xl transform scale-110 ring-2 ring-yellow-300 dark:ring-yellow-400 border-2 border-yellow-900 dark:border-yellow-300 font-extrabold'
+                            : badgeAssignmentLoading[member.id] === 'newcomer'
+                            ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                            : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800 border border-yellow-300 dark:border-yellow-700'
+                        }`}
+                        title={memberHasBadge(member, 'newcomer') ? "Click to remove Newcomer badge" : "Assign Newcomer Badge"}
+                      >
+                        {badgeAssignmentLoading[member.id] === 'newcomer' ? '...' : <Star className="w-3 h-3 sm:w-4 sm:h-4" />}
                       </button>
 
                     </div>

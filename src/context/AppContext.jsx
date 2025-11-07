@@ -125,20 +125,21 @@ export const AppProvider = ({ children }) => {
       const { data, error } = await supabase
         .from(tableName)
         .select('*')
-        .order('inserted_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching members:', error)
         console.log('Error details:', error.message, error.code)
         
-        // Check if it's a table not found error
+        // Only fallback to mock data when table clearly does not exist
         if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
           toast.error(`Table ${tableName} does not exist in database. Using mock data.`)
           console.log(`Table ${tableName} not found, using mock data`)
+          setMembers(mockMembers)
         } else {
+          // Keep existing members; surface the error without replacing with mock
           toast.error(`Failed to fetch members from ${tableName}: ${error.message}`)
+          console.warn('Fetch members failed; preserving current member list.')
         }
-        setMembers(mockMembers) // Fallback to mock data
       } else {
         // Filter out records with null name, then normalize both name keys
         const validMembers = (data || []).filter(member => member['full_name'] || member['Full Name'])
@@ -745,31 +746,15 @@ export const AppProvider = ({ children }) => {
         return updatedMember
       }
 
-      // Normalize name field to match the current table schema
-      const targetMember = members.find(m => m.id === id)
-      if (targetMember) {
-        const hasPascalFullName = Object.prototype.hasOwnProperty.call(targetMember, 'Full Name')
-        const hasSnakeFullName = Object.prototype.hasOwnProperty.call(targetMember, 'full_name')
-
-        // If the table uses "Full Name", map incoming full_name to it
-        if (hasPascalFullName) {
-          if (updates.full_name && !updates['Full Name']) {
-            updates['Full Name'] = updates.full_name
-          }
-          delete updates.full_name
-        } else if (hasSnakeFullName) {
-          // If the table uses full_name, ensure we update that
-          if (updates['Full Name'] && !updates.full_name) {
-            updates.full_name = updates['Full Name']
-          }
-          delete updates['Full Name']
-        } else {
-          // Fallback: prefer "Full Name" as many monthly tables use it
-          if (updates.full_name && !updates['Full Name']) {
-            updates['Full Name'] = updates.full_name
-          }
-          delete updates.full_name
-        }
+      // Normalize name field using schema-aware detection
+      const nameCol = await resolveNameColumn(currentTable)
+      const incomingName = (
+        typeof updates.full_name === 'string' && updates.full_name.trim()
+      ) ? updates.full_name : (typeof updates['Full Name'] === 'string' ? updates['Full Name'] : undefined)
+      if (incomingName !== undefined) {
+        updates = { ...updates, [nameCol]: incomingName }
+        delete updates.full_name
+        delete updates['Full Name']
       }
 
       const { data, error } = await supabase
@@ -1015,14 +1000,21 @@ export const AppProvider = ({ children }) => {
     const cached = nameColumnCacheRef.current.get(tableName)
     if (cached) return cached
     if (!isSupabaseConfigured()) return 'Full Name'
-    const { data } = await supabase.from(tableName).select('"Full Name", full_name').limit(1)
     let nameCol = 'Full Name'
-    if (data && data.length) {
-      if (Object.prototype.hasOwnProperty.call(data[0], 'Full Name')) {
-        nameCol = 'Full Name'
-      } else if (Object.prototype.hasOwnProperty.call(data[0], 'full_name')) {
-        nameCol = 'full_name'
+    try {
+      // Use select('*') to avoid referencing columns that might not exist
+      const { data, error } = await supabase.from(tableName).select('*').limit(1)
+      if (!error && data && data.length) {
+        const row = data[0]
+        if (Object.prototype.hasOwnProperty.call(row, 'Full Name')) {
+          nameCol = 'Full Name'
+        } else if (Object.prototype.hasOwnProperty.call(row, 'full_name')) {
+          nameCol = 'full_name'
+        }
       }
+    } catch (e) {
+      // Fall back gracefully; monthly tables commonly use "Full Name"
+      console.warn('resolveNameColumn fallback due to error:', e)
     }
     nameColumnCacheRef.current.set(tableName, nameCol)
     return nameCol
@@ -1232,6 +1224,12 @@ export const AppProvider = ({ children }) => {
 
   // Helper function to check if member has a specific badge
   const memberHasBadge = (member, badgeType) => {
+    // Guard against undefined member objects (e.g., during fast search renders)
+    if (!member) {
+      console.warn('memberHasBadge: member is undefined for badgeType', badgeType)
+      return false
+    }
+
     // Check both the Supabase columns and Manual Badges array for compatibility
     let hasSupabaseBadge = false
     let hasManualBadge = false
@@ -1258,8 +1256,8 @@ export const AppProvider = ({ children }) => {
       hasSupabaseBadge,
       hasManualBadge,
       result,
-      supabaseValue: member[badgeType === 'member' ? 'Member' : badgeType === 'regular' ? 'Regular' : 'Newcomer'],
-      manualBadges: member['Manual Badges']
+      supabaseValue: member?.[badgeType === 'member' ? 'Member' : badgeType === 'regular' ? 'Regular' : 'Newcomer'],
+      manualBadges: member?.['Manual Badges']
     })
     
     return result

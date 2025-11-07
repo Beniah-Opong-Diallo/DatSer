@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { X, User, Phone, Calendar, BookOpen } from 'lucide-react'
 
 const EditMemberModal = ({ isOpen, onClose, member }) => {
-  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, fetchAttendanceForDate } = useApp()
+  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, loadAllAttendanceData } = useApp()
   const { isDarkMode } = useTheme()
   
   // Helper function to get month display name from table name
@@ -57,8 +57,8 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     }
   }
 
-  // Generate Sunday dates dynamically based on current table
-  const sundayDates = generateSundayDates(currentTable)
+  // Generate Sunday dates dynamically based on current table, memoized to avoid ref churn
+  const sundayDates = useMemo(() => generateSundayDates(currentTable), [currentTable])
   const [sundayAttendance, setSundayAttendance] = useState({})
 
   const levels = [
@@ -80,26 +80,20 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     }
   }, [member])
 
-  // Load existing attendance data when modal opens
+  // Initialize attendance snapshot when modal opens (stable deps, no loop)
   useEffect(() => {
-    if (isOpen && member && sundayDates.length > 0) {
-      // Load attendance for all Sunday dates
-      sundayDates.forEach(date => {
-        fetchAttendanceForDate(new Date(date))
-      })
-      
-      // Set initial attendance state from loaded data
-      const initialAttendance = {}
-      sundayDates.forEach(date => {
-        const dateKey = date
-        const memberAttendance = attendanceData[dateKey]?.[member.id]
-        if (memberAttendance !== undefined) {
-          initialAttendance[date] = memberAttendance
-        }
-      })
-      setSundayAttendance(initialAttendance)
-    }
-  }, [isOpen, member, sundayDates, attendanceData, fetchAttendanceForDate])
+    if (!isOpen || !member || sundayDates.length === 0) return
+
+    const initialAttendance = {}
+    sundayDates.forEach(date => {
+      const dateKey = date
+      const memberAttendance = attendanceData[dateKey]?.[member.id]
+      if (memberAttendance !== undefined) {
+        initialAttendance[date] = memberAttendance
+      }
+    })
+    setSundayAttendance(initialAttendance)
+  }, [isOpen, member?.id, currentTable])
 
   // Update attendance state when attendanceData changes
   useEffect(() => {
@@ -114,7 +108,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
       })
       setSundayAttendance(prev => ({ ...prev, ...updatedAttendance }))
     }
-  }, [attendanceData, member, sundayDates])
+  }, [attendanceData, member?.id, sundayDates])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
