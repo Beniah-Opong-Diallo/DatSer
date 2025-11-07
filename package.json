@@ -1,10 +1,13 @@
 {
+  "homepage": "https://themakershousechaple-max.github.io/DatSer/",
   "name": "tmht-checkin-system",
   "version": "1.0.0",
   "description": "TMHT Check-in and Data Management System",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
