@@ -1,6 +1,7 @@
 {
   "homepage": "https://themakershousechaple-max.github.io/DatSer/",
   "name": "tmht-checkin-system",
+  "type": "module",
   "version": "1.0.0",
   "description": "TMHT Check-in and Data Management System",
   "main": "index.js",
