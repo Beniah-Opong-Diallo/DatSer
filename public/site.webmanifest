@@ -1,7 +1,7 @@
 {
-  "name": "TMHT - The Master's Heart Tabernacle",
-  "short_name": "TMHT",
-  "description": "Member check-in and data management system for TMHT",
+  "name": "Datsar — Data Search Hub",
+  "short_name": "Datsar",
+  "description": "Fast, reliable data search and attendance hub",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",

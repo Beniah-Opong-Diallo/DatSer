@@ -94,7 +94,7 @@ const AdminPanel = ({ onLogout }) => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">TMHT Check-in System Administration</p>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">Datsar Administration • Data Search Hub</p>
             </div>
             <button
               onClick={onLogout}
@@ -178,7 +178,7 @@ const AdminPanel = ({ onLogout }) => {
                 <span className="text-green-600 dark:text-green-400 font-medium">Connected to Supabase</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                Project: TMH TEEN Data Compilation
+                Project: Datsar Data Hub
               </p>
             </div>
             <div>
@@ -385,9 +385,9 @@ const AdminPanel = ({ onLogout }) => {
 
       </div>
 
-      {/* Fixed Search Bar at bottom of viewport */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors">
-        <div className="max-w-7xl mx-auto">
+      {/* Bottom Search Bar fills safe area with bar color */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors safe-area-bottom">
+        <div className="max-w-7xl mx-auto pb-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
           <div className="flex items-center gap-3">
             {/* Search Input */}
             <div className="flex-1 relative">
@@ -397,6 +397,12 @@ const AdminPanel = ({ onLogout }) => {
                 placeholder="Search members by name or gender..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={(e) => {
+                  // Gently scroll input into view on iOS so it isn't obscured
+                  setTimeout(() => {
+                    try { e.target?.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {}
+                  }, 75)
+                }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
               />
               {searchTerm && (

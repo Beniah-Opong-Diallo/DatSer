@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, RefreshCw, X } from 'lucide-react'
@@ -62,6 +62,12 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isBadgeDropdownOpen, setIsBadgeDropdownOpen] = useState(false)
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
   const [isSundayPopupOpen, setIsSundayPopupOpen] = useState(false)
+
+  // iOS keyboard handling for bottom search bar
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const searchInputRef = useRef(null)
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
+  const isStandalone = typeof window !== 'undefined' && ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (window.navigator && window.navigator.standalone === true))
 
   // Multi-select state (members + Sundays)
   const [selectedMemberIds, setSelectedMemberIds] = useState(new Set())
@@ -1012,9 +1018,9 @@ const Dashboard = ({ isAdmin = false }) => {
         </div>
       </div>
 
-      {/* Fixed Search Bar at bottom of viewport */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors duration-200 ${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''}`}>
-        <div className="max-w-7xl mx-auto">
+      {/* Bottom Search Bar with iOS-safe behavior, filling safe area with bar color */}
+      <div className={`${(isIOS && isStandalone && isSearchFocused) ? 'sticky top-0' : 'fixed bottom-0'} left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 p-4 shadow-lg z-50 transition-colors duration-200 safe-area-bottom ${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''}`}>
+        <div className="max-w-7xl mx-auto pb-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
           <div className="flex items-center gap-3">
             {/* Search Input */}
             <div className="flex-1 relative">
@@ -1025,7 +1031,17 @@ const Dashboard = ({ isAdmin = false }) => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') refreshSearch() }}
+                onFocus={(e) => {
+                  setIsSearchFocused(true)
+                  if (isIOS) {
+                    setTimeout(() => {
+                      try { searchInputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {}
+                    }, 75)
+                  }
+                }}
+                onBlur={() => setIsSearchFocused(false)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-200"
+                ref={searchInputRef}
               />
               {searchTerm && (
                 <button
@@ -1055,7 +1071,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
       {/* Members List (hidden on mobile when a Sunday is selected) */}
-      <div className={`${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''} space-y-3`}>
+      <div className={`${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''} space-y-3 pb-24 sm:pb-20 safe-area-bottom`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first

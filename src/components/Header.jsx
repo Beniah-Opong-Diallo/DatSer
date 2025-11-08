@@ -53,7 +53,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   }
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-200">
+    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-200 safe-area-top">
       <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between min-h-[60px] sm:min-h-[64px]">
           {/* Logo and Title */}
@@ -62,8 +62,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white leading-tight">TMHT</h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 leading-tight truncate">The Master's Heart Tabernacle</p>
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white leading-tight">Datsar</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 leading-tight truncate">Data Search Hub</p>
             </div>
           </div>
 
