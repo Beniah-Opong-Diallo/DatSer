@@ -26,31 +26,44 @@ function App() {
   })
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showMonthModal, setShowMonthModal] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // iOS keyboard-aware offset and platform flag for safe-area positioning
+  // iOS keyboard-aware offset and robust mobile detection
   useEffect(() => {
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
     if (isIOS) {
       document.documentElement.classList.add('is-ios')
     }
 
-    const vv = window.visualViewport
-    if (!vv) return
+    // Mobile detection via UA + input modality + viewport width
+    const coarseMedia = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null
+    const widthMedia = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null
+    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
+    const computeMobile = () => uaMobile || (coarseMedia?.matches ?? false) || (widthMedia?.matches ?? false)
+    setIsMobile(computeMobile())
+
+    const onMediaChange = () => setIsMobile(computeMobile())
+    coarseMedia?.addEventListener('change', onMediaChange)
+    widthMedia?.addEventListener('change', onMediaChange)
+
+    // Keyboard offset for iOS
+    const vv = window.visualViewport
     const applyOffset = () => {
+      if (!vv) return
       const diff = Math.max(0, window.innerHeight - vv.height)
-      // Cap extremely large values to avoid layout jumps
       const offset = Math.min(diff, 400)
       document.documentElement.style.setProperty('--keyboard-offset', `${offset}px`)
     }
-
-    vv.addEventListener('resize', applyOffset)
-    vv.addEventListener('scroll', applyOffset)
+    vv?.addEventListener('resize', applyOffset)
+    vv?.addEventListener('scroll', applyOffset)
     applyOffset()
 
     return () => {
-      vv.removeEventListener('resize', applyOffset)
-      vv.removeEventListener('scroll', applyOffset)
+      vv?.removeEventListener('resize', applyOffset)
+      vv?.removeEventListener('scroll', applyOffset)
+      coarseMedia?.removeEventListener('change', onMediaChange)
+      widthMedia?.removeEventListener('change', onMediaChange)
     }
   }, [])
 
@@ -58,7 +71,7 @@ function App() {
     <ThemeProvider>
       <ErrorBoundary>
         <AppProvider>
-        <div className="min-app-vh bg-gray-50 dark:bg-gray-900 transition-colors duration-200 ios-overscroll-none">
+        <div className={`min-app-vh bg-gray-50 dark:bg-gray-900 transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
         <Header 
           currentView={currentView}
           setCurrentView={setCurrentView}
@@ -114,7 +127,7 @@ function App() {
         )}
 
         <ToastContainer
-          position="bottom-right"
+          position={isMobile ? 'top-center' : 'bottom-right'}
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop
@@ -123,6 +136,9 @@ function App() {
           pauseOnFocusLoss
           draggable
           pauseOnHover
+          style={isMobile 
+            ? { top: 'calc(env(safe-area-inset-top) + 8px)' } 
+            : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
         />
         </div>
         </AppProvider>

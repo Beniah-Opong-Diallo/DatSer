@@ -80,13 +80,13 @@
     min-height: var(--app-vh);
   }
   
-  /* iOS safe-area helpers */
-  .safe-area-top {
-    padding-top: env(safe-area-inset-top);
-  }
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* iOS safe-area helpers */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
 
   /* iOS keyboard-aware bottom bar offset (used by fixed bottom search) */
   .ios-bottom-bar {
@@ -97,4 +97,18 @@
   .ios-overscroll-none {
     overscroll-behavior: none;
   }
+}
+/* Force toasts to render at the top on mobile when root has .mobile-toast-top */
+.mobile-toast-top .Toastify__toast-container {
+  top: calc(env(safe-area-inset-top) + 8px) !important;
+  bottom: auto !important;
+}
+.mobile-toast-top .Toastify__toast-container--bottom-right,
+.mobile-toast-top .Toastify__toast-container--bottom-left,
+.mobile-toast-top .Toastify__toast-container--bottom-center {
+  top: calc(env(safe-area-inset-top) + 8px) !important;
+  bottom: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%);
 }
