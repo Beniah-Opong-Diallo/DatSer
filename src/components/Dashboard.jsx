@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, RefreshCw, X } from 'lucide-react'
@@ -67,6 +67,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [selectedMemberIds, setSelectedMemberIds] = useState(new Set())
   const [selectedBulkSundayDates, setSelectedBulkSundayDates] = useState(new Set())
   const [isBulkApplying, setIsBulkApplying] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   // Quick filter: set badge filter exclusively to the given key
   const setExclusiveBadgeFilter = (badgeKey) => {
@@ -127,6 +128,11 @@ const Dashboard = ({ isAdmin = false }) => {
   // Generate Sunday dates dynamically based on current table
   const sundayDates = generateSundayDates(currentTable)
 
+  // Aggregated counts across selected or all Sundays for Edited Members
+  const selectedDatesForCounting = selectedBulkSundayDates && selectedBulkSundayDates.size > 0
+    ? selectedBulkSundayDates
+    : new Set(sundayDates)
+
   // Function to check if a member has been edited (has attendance marked for any date)
   const isEditedMember = (member) => {
     return sundayDates.some(date => {
@@ -151,6 +157,42 @@ const Dashboard = ({ isAdmin = false }) => {
 
     return badgeFilteredMembers
   }
+
+  // Aggregated counts across selected/all Sundays for members in current view
+  const { presentCount, absentCount } = useMemo(() => {
+    const membersBase = activeTab === 'edited' 
+      ? members.filter(isEditedMember)
+      : members
+    let present = 0
+    let absent = 0
+    selectedDatesForCounting.forEach((dateKey) => {
+      const map = attendanceData[dateKey] || {}
+      for (const m of membersBase) {
+        const val = map[m.id]
+        if (val === true) present += 1
+        else if (val === false) absent += 1
+      }
+    })
+    return { presentCount: present, absentCount: absent }
+  }, [attendanceData, selectedBulkSundayDates, currentTable, activeTab, members])
+
+  // Per-Sunday counts for Edited Members (used in chips)
+  const perDayCounts = useMemo(() => {
+    const editedMembers = members.filter(isEditedMember)
+    const acc = {}
+    for (const dateStr of sundayDates) {
+      const map = attendanceData[dateStr] || {}
+      let p = 0
+      let a = 0
+      for (const m of editedMembers) {
+        const val = map[m.id]
+        if (val === true) p += 1
+        else if (val === false) a += 1
+      }
+      acc[dateStr] = { present: p, absent: a }
+    }
+    return acc
+  }, [attendanceData, members, sundayDates])
 
   // Fetch attendance when date changes
   useEffect(() => {
@@ -221,14 +263,37 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendance = async (memberId, present) => {
+    // If no specific attendance date is selected, apply the action across ALL Sundays
+    if (!selectedAttendanceDate) {
+      setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
+      try {
+        const member = members.find(m => m.id === memberId)
+        const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
+        for (const dateStr of sundayDates) {
+          await markAttendance(memberId, new Date(dateStr), present)
+        }
+        toast.success(`Marked ${present ? 'present' : 'absent'} for all Sundays (${sundayDates.length}) for: ${memberName}`, {
+          style: {
+            background: present ? '#10b981' : '#ef4444',
+            color: '#ffffff'
+          }
+        })
+      } catch (error) {
+        console.error('Error marking attendance across all Sundays:', error)
+        toast.error('Failed to update attendance for all Sundays. Please try again.')
+      } finally {
+        setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
+      }
+      return
+    }
+
+    // Existing single-date toggle behavior
     setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
       const member = members.find(m => m.id === memberId)
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
-      // Use date-keyed attendance map for consistency
       const dateKey = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
       const currentStatus = dateKey && attendanceData[dateKey] ? attendanceData[dateKey][memberId] : undefined
-      
       // Toggle functionality: if clicking the same status, deselect it (set to null)
       if (currentStatus === present) {
         await markAttendance(memberId, new Date(selectedAttendanceDate), null)
@@ -338,16 +403,16 @@ const Dashboard = ({ isAdmin = false }) => {
   // Bulk apply attendance to selected members and Sundays
   const handleMultiAttendanceAction = async (status) => {
     const memberIds = Array.from(selectedMemberIds)
-    if (memberIds.length < 2) return
+    if (memberIds.length === 0) {
+      toast.error('Please select at least one member to apply.')
+      return
+    }
 
     const dates = selectedBulkSundayDates.size > 0
       ? Array.from(selectedBulkSundayDates)
-      : (selectedAttendanceDate ? [selectedAttendanceDate] : [])
+      : (selectedAttendanceDate ? [selectedAttendanceDate] : sundayDates)
 
-    if (dates.length === 0) {
-      toast.error('Select Sunday(s) or choose a date first.')
-      return
-    }
+    // Defaulting to all Sundays when none are selected and no date is set
 
     setIsBulkApplying(true)
     try {
@@ -368,6 +433,27 @@ const Dashboard = ({ isAdmin = false }) => {
       toast.error('Failed to apply bulk update. Please try again.')
     } finally {
       setIsBulkApplying(false)
+    }
+  }
+
+  // Bulk delete selected members
+  const handleBulkDelete = async () => {
+    const memberIds = Array.from(selectedMemberIds)
+    if (memberIds.length === 0) return
+    const confirmed = window.confirm(`Delete ${memberIds.length} selected member${memberIds.length !== 1 ? 's' : ''}? This cannot be undone.`)
+    if (!confirmed) return
+    setIsBulkDeleting(true)
+    try {
+      for (const id of memberIds) {
+        await deleteMember(id)
+      }
+      setSelectedMemberIds(new Set())
+      toast.success(`Deleted ${memberIds.length} member${memberIds.length !== 1 ? 's' : ''}.`)
+    } catch (error) {
+      console.error('Bulk delete failed:', error)
+      toast.error('Failed to delete selected members. Please try again.')
+    } finally {
+      setIsBulkDeleting(false)
     }
   }
 
@@ -994,29 +1080,41 @@ const Dashboard = ({ isAdmin = false }) => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleMultiAttendanceAction(true)}
-                      disabled={isBulkApplying}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                      disabled={isBulkApplying || isBulkDeleting}
+                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white`}
                       title="Mark selected as present"
                     >
                       Present
                     </button>
                     <button
                       onClick={() => handleMultiAttendanceAction(false)}
-                      disabled={isBulkApplying}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                      disabled={isBulkApplying || isBulkDeleting}
+                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white`}
                       title="Mark selected as absent"
                     >
                       Absent
                     </button>
                     <button
                       onClick={() => handleMultiAttendanceAction(null)}
-                      disabled={isBulkApplying}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'} text-white`}
+                      disabled={isBulkApplying || isBulkDeleting}
+                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'} text-white`}
                       title="Clear attendance for selected"
                     >
                       Clear
                     </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={isBulkApplying || isBulkDeleting}
+                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-800 hover:bg-red-900'} text-white flex items-center gap-2`}
+                      title="Delete selected members"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
                     {isBulkApplying && (
+                      <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {isBulkDeleting && (
                       <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     )}
                   </div>
@@ -1052,14 +1150,28 @@ const Dashboard = ({ isAdmin = false }) => {
                               onChange={() => toggleSundayBulkSelection(dateStr)}
                               className="sr-only peer"
                             />
-                            <span className={`min-w-[72px] h-8 px-2 inline-flex items-center justify-center rounded-full border text-xs font-medium shadow-sm transition-colors ${checked ? 'bg-primary-600 text-white border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                            <span className={`min-w-[96px] h-8 px-2 inline-flex items-center justify-center gap-2 rounded-full border text-xs font-medium shadow-sm transition-colors ${checked ? 'bg-primary-600 text-white border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                               title={`Toggle ${label}`}
                             >
-                              {label}
+                              <span>{label}</span>
+                              <span className="flex items-center gap-1">
+                                <span className={`px-1 rounded ${checked ? 'bg-white/20 text-white' : 'bg-green-100 text-green-800 dark:bg-green-800/40 dark:text-green-200'} text-[10px] font-semibold`}>P {perDayCounts[dateStr]?.present ?? 0}</span>
+                                <span className={`px-1 rounded ${checked ? 'bg-white/20 text-white' : 'bg-red-100 text-red-800 dark:bg-red-800/40 dark:text-red-200'} text-[10px] font-semibold`}>A {perDayCounts[dateStr]?.absent ?? 0}</span>
+                              </span>
                             </span>
                           </label>
                         )
                       })}
+                    </div>
+                    {/* Aggregated counts across selected/all Sundays */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-primary-700 dark:text-primary-200">Totals:</span>
+                      <span className="h-7 px-2 inline-flex items-center justify-center rounded-full bg-green-100 text-green-800 dark:bg-green-800/40 dark:text-green-200 text-xs font-semibold">
+                        Present: {presentCount}
+                      </span>
+                      <span className="h-7 px-2 inline-flex items-center justify-center rounded-full bg-red-100 text-red-800 dark:bg-red-800/40 dark:text-red-200 text-xs font-semibold">
+                        Absent: {absentCount}
+                      </span>
                     </div>
                   </div>
                   <div className="sm:ml-auto flex items-center gap-2">
