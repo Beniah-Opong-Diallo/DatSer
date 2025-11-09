@@ -51,9 +51,10 @@ function App() {
     const vv = window.visualViewport
     const applyOffset = () => {
       if (!vv) return
+      // Use full difference between layout viewport and visual viewport height.
+      // This closely matches keyboard height across iOS Safari and Android Chrome.
       const diff = Math.max(0, window.innerHeight - vv.height)
-      const offset = Math.min(diff, 400)
-      document.documentElement.style.setProperty('--keyboard-offset', `${offset}px`)
+      document.documentElement.style.setProperty('--keyboard-offset', `${diff}px`)
     }
     vv?.addEventListener('resize', applyOffset)
     vv?.addEventListener('scroll', applyOffset)

@@ -91,6 +91,8 @@
   /* iOS keyboard-aware bottom bar offset (used by fixed bottom search) */
   .ios-bottom-bar {
     bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-offset, 0px));
+    will-change: bottom;
+    transform: translateZ(0); /* promote to its own layer to reduce jank */
   }
   
   /* Avoid odd overscroll glows in PWA */

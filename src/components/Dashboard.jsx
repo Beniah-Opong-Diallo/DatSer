@@ -62,7 +62,6 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isBadgeDropdownOpen, setIsBadgeDropdownOpen] = useState(false)
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
   const [isSundayPopupOpen, setIsSundayPopupOpen] = useState(false)
-  const [isSearchFocused, setIsSearchFocused] = useState(false)
 
   // iOS detection (used for minor tweaks if needed)
   const searchInputRef = useRef(null)
@@ -1023,8 +1022,8 @@ const Dashboard = ({ isAdmin = false }) => {
         </div>
       </div>
 
-      {/* Bottom Search Bar: sticks to bottom; rises above keyboard when focused on mobile */}
-      <div className={`fixed ${isSearchFocused ? 'ios-bottom-bar' : 'bottom-0'} left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 py-2 px-4 shadow-lg z-50 transition-colors duration-200 ${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''}`}>
+      {/* Bottom Search Bar: always keyboard-aware on mobile */}
+      <div className={`fixed ios-bottom-bar left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-600 py-2 px-4 shadow-lg z-50 transition-colors duration-200 ${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''}`}>
         <div className="max-w-7xl mx-auto pb-2">
           <div className="flex items-center gap-2">
             {/* Search Input */}
@@ -1036,8 +1035,8 @@ const Dashboard = ({ isAdmin = false }) => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') refreshSearch() }}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
+                onFocus={() => { /* keyboard-aware by default */ }}
+                onBlur={() => { /* keyboard-aware by default */ }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors duration-200"
                 ref={searchInputRef}
               />
