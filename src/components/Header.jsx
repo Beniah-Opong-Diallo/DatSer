@@ -104,6 +104,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   const menuItems = [
     { id: 'statistics', label: 'Statistics', icon: BarChart3 },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+    // Action: Create new month goes into the menu
+    { id: 'create_month', label: 'Create New Month', icon: Calendar, onClick: onCreateMonth }
   ]
 
   if (isAdmin) {
@@ -116,18 +118,12 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   }
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-200 safe-area-top">
-      <div className="container mx-auto px-4 py-2">
-        <div className="flex items-center justify-between min-h-[60px] sm:min-h-[64px]">
-          {/* Logo and Title */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white leading-tight">Datsar</h1>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 leading-tight truncate">Data Search Hub</p>
-            </div>
+    <header className="bg-white dark:bg-gray-800 shadow-sm md:border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-200 md:safe-area-top">
+      <div className="container mx-auto px-4 py-0 md:py-1">
+        <div className="flex items-center justify-between min-h-[32px] md:min-h-[44px]">
+          {/* Compact brand label */}
+          <div className="flex items-center">
+            <span className="hidden md:inline text-xs sm:text-sm font-bold text-gray-900 dark:text-white">Datsar</span>
           </div>
 
           {/* Center Area - Desktop: left segmented control, right menu & badges */}
@@ -211,7 +207,11 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                       <button
                         key={item.id}
                         onClick={() => {
-                          setCurrentView(item.id)
+                          if (item.onClick) {
+                            item.onClick()
+                          } else {
+                            setCurrentView(item.id)
+                          }
                           setShowDropdown(false)
                         }}
                         className={`w-full flex items-center space-x-2 px-3 py-2 text-sm font-medium transition-colors text-left ${
@@ -233,37 +233,12 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
 
 
 
-          {/* Action Buttons */}
-          <div className="flex items-center space-x-1 sm:space-x-2">
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 sm:p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
-              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDarkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
-            </button>
-            
-            <button
-              onClick={onAddMember}
-              className="flex items-center space-x-1 sm:space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Add Member</span>
-            </button>
-            <button
-              onClick={onCreateMonth}
-              className="flex items-center space-x-1 sm:space-x-2 bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors"
-              title="Create New Month"
-            >
-              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden lg:inline">New Month</span>
-            </button>
-          </div>
+          {/* Right-side actions minimized (dark mode moved near summary pill) */}
+          <div className="hidden md:flex items-center space-x-1 sm:space-x-2" />
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden py-1.5 border-t border-gray-200 dark:border-gray-700">
+        <div className="md:hidden pt-0 pb-1">
           <div className="flex items-center justify-center space-x-1.5 sm:space-x-2">
             {/* Home */}
             <button
@@ -365,8 +340,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
         </div>
       </div>
       {/* Global sticky search bar (like Google) */}
-      <div className="border-t border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-4 py-2">
+      <div className="md:border-t border-gray-200 dark:border-gray-700">
+        <div className="container mx-auto px-4 py-1 md:py-2">
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -388,6 +363,14 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 </button>
               )}
             </div>
+            {/* Add Member moved next to search bar */}
+            <button
+              onClick={onAddMember}
+              className="p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors flex items-center justify-center"
+              title="Add member"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <button
               onClick={forceRefreshMembers}
               className="p-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors flex items-center justify-center"
@@ -397,17 +380,39 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
             </button>
           </div>
 
-          {/* Tiny, sticky summary pill under the search bar (all screens) */}
+          {/* Summary pill with embedded Light/Dark toggle (single beautiful chip) */}
           {currentView === 'dashboard' && (
             <div className="mt-1">
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-[10px] leading-4 text-gray-700 dark:text-gray-300">
-                <span>{compactFoundCount} found</span>
-                <span className="text-gray-400">•</span>
-                <span>{currentTable ? currentTable.replace('_', ' ') : ''}</span>
-                <span className="text-gray-400">•</span>
-                <span>{isSupabaseConfigured() ? 'Live' : 'Demo'}</span>
-                <span className="text-gray-400">•</span>
-                <span>Member Dashboard</span>
+              <div className="inline-flex items-center justify-between gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm">
+                {/* Left: summary tokens */}
+                <div className="flex items-center gap-1">
+                  <span>{compactFoundCount} found</span>
+                  <span className="text-gray-400">•</span>
+                  <span>{currentTable ? currentTable.replace('_', ' ') : ''}</span>
+                  <span className="text-gray-400">•</span>
+                  <span>{isSupabaseConfigured() ? 'Live' : 'Demo'}</span>
+                  <span className="hidden md:inline text-gray-400">•</span>
+                  <span className="hidden md:inline">Member Dashboard</span>
+                </div>
+                {/* Right: segmented toggle */}
+                <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800">
+                  <button
+                    onClick={() => { if (isDarkMode) toggleTheme() }}
+                    className={`flex items-center gap-1 px-2 py-0.5 text-[10px] leading-4 ${!isDarkMode ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
+                    title="Light mode"
+                  >
+                    <Sun className="w-3 h-3" />
+                    <span className="hidden sm:inline">Light</span>
+                  </button>
+                  <button
+                    onClick={() => { if (!isDarkMode) toggleTheme() }}
+                    className={`flex items-center gap-1 px-2 py-0.5 text-[10px] leading-4 border-l border-gray-300 dark:border-gray-600 ${isDarkMode ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
+                    title="Dark mode"
+                  >
+                    <Moon className="w-3 h-3" />
+                    <span className="hidden sm:inline">Dark</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
