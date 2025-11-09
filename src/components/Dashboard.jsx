@@ -665,6 +665,51 @@ const Dashboard = ({ isAdmin = false }) => {
           
           return (
             <>
+              {/* Edited tab: horizontal badge filter bar */}
+              {dashboardTab === 'edited' && (
+                <div className="sticky top-0 sm:top-2 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-2 sm:p-3 shadow-sm flex items-center gap-2 flex-wrap overflow-x-auto">
+                  <span className="text-xs text-gray-600 dark:text-gray-300">Filter by badge:</span>
+                  {[
+                    { key: 'member', label: 'Member', icon: Award, color: 'blue' },
+                    { key: 'regular', label: 'Regular', icon: UserCheck, color: 'green' },
+                    { key: 'newcomer', label: 'Newcomer', icon: Star, color: 'yellow' }
+                  ].map(({ key, label, icon: Icon, color }) => {
+                    const isSelected = badgeFilter.includes(key)
+                    const baseColor =
+                      color === 'blue'
+                        ? isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                        : color === 'green'
+                        ? isSelected
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                        : isSelected
+                        ? 'bg-yellow-600 text-white'
+                        : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleBadgeFilter(key)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${baseColor} ${isSelected ? 'ring-2 ring-primary-400 dark:ring-primary-500' : ''}`}
+                        title={isSelected ? `Remove ${label} filter` : `Add ${label} filter`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{label}</span>
+                      </button>
+                    )
+                  })}
+                  {badgeFilter.length > 0 && (
+                    <button
+                      onClick={() => { badgeFilter.forEach(b => toggleBadgeFilter(b)) }}
+                      className="ml-auto px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      title="Clear all badge filters"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
               {/* Bulk Selection Toolbar (only on Edited Members) */}
               {dashboardTab === 'edited' && selectedMemberIds.size > 1 && (
                 <div className="sticky top-0 sm:top-2 z-30 bg-primary-50/80 dark:bg-primary-900/50 border border-primary-300 dark:border-primary-700 rounded-xl p-3 sm:p-4 mb-3 shadow-md backdrop-blur flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -736,7 +781,7 @@ const Dashboard = ({ isAdmin = false }) => {
                         Clear days
                       </button>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto -mx-1 px-1 py-1">
+                    <div className="flex gap-2 overflow-x-auto px-1 py-1 no-scrollbar">
                       {sundayDates.map(dateStr => {
                         const checked = selectedBulkSundayDates.has(dateStr)
                         const label = new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

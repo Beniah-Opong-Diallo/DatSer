@@ -18,6 +18,10 @@
   
   html {
     scroll-behavior: smooth;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden; /* Prevent page from moving left/right */
+    scrollbar-gutter: stable both-edges; /* Avoid layout shift when scrollbars appear */
   }
   
   /* Use dynamic viewport height when available */
@@ -42,6 +46,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     @apply bg-gray-50 dark:bg-gray-900 transition-colors duration-200;
+    overscroll-behavior-x: none; /* Disable sideways overscroll bounce */
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden; /* Belt-and-suspenders to ensure no horizontal scroll */
   }
 }
 
