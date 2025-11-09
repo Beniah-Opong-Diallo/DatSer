@@ -40,7 +40,10 @@ const Dashboard = ({ isAdmin = false }) => {
     selectedAttendanceDate,
     badgeFilter,
     toggleBadgeFilter,
-    isSupabaseConfigured
+    isSupabaseConfigured,
+    // Global dashboard tab (controlled by mobile header)
+    dashboardTab,
+    setDashboardTab
   } = useApp()
   const { isDarkMode } = useTheme()
   const [editingMember, setEditingMember] = useState(null)
@@ -57,8 +60,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isUpdatingBadges, setIsUpdatingBadges] = useState(false)
   const [badgeAssignmentLoading, setBadgeAssignmentLoading] = useState({})
   
-  // Tab state for showing all members vs edited members
-  const [activeTab, setActiveTab] = useState('all') // 'all' or 'edited'
+  // Tab state moved to AppContext: dashboardTab ('all' | 'edited')
   const [isBadgeDropdownOpen, setIsBadgeDropdownOpen] = useState(false)
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
   const [isSundayPopupOpen, setIsSundayPopupOpen] = useState(false)
@@ -156,7 +158,7 @@ const Dashboard = ({ isAdmin = false }) => {
       return badgeFilteredMembers
     }
 
-    if (activeTab === 'edited') {
+  if (dashboardTab === 'edited') {
       return badgeFilteredMembers.filter(member => isEditedMember(member))
     }
 
@@ -165,7 +167,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Aggregated counts across selected/all Sundays for members in current view
   const { presentCount, absentCount } = useMemo(() => {
-    const membersBase = activeTab === 'edited' 
+  const membersBase = dashboardTab === 'edited'
       ? members.filter(isEditedMember)
       : members
     let present = 0
@@ -179,7 +181,7 @@ const Dashboard = ({ isAdmin = false }) => {
       }
     })
     return { presentCount: present, absentCount: absent }
-  }, [attendanceData, selectedBulkSundayDates, currentTable, activeTab, members])
+  }, [attendanceData, selectedBulkSundayDates, currentTable, dashboardTab, members])
 
   // Per-Sunday counts for Edited Members (used in chips)
   const perDayCounts = useMemo(() => {
@@ -209,7 +211,7 @@ const Dashboard = ({ isAdmin = false }) => {
   // Fetch attendance for all Sunday dates
   useEffect(() => {
     // When viewing Edited Members, ensure Sunday attendance maps are available
-    if (activeTab !== 'edited') return
+  if (dashboardTab !== 'edited') return
     let isCancelled = false
     const load = async () => {
       for (const date of sundayDates) {
@@ -225,7 +227,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
     load()
     return () => { isCancelled = true }
-  }, [activeTab, currentTable])
+  }, [dashboardTab, currentTable])
 
   // Reset selected Sunday when month changes
   useEffect(() => {
@@ -240,11 +242,11 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Clear multi-select when leaving Edited Members tab
   useEffect(() => {
-    if (activeTab !== 'edited') {
+  if (dashboardTab !== 'edited') {
       setSelectedMemberIds(new Set())
       setSelectedBulkSundayDates(new Set())
     }
-  }, [activeTab])
+  }, [dashboardTab])
 
   // Reset pagination when search term changes
   useEffect(() => {
@@ -569,62 +571,71 @@ const Dashboard = ({ isAdmin = false }) => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Member Dashboard</h2>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-            <p className="text-gray-600 dark:text-gray-300">
+        </div>
+      </div>
+
+      {/* Tab Navigation with summary (desktop) and compact info (mobile) */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              onClick={() => setDashboardTab('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                dashboardTab === 'all'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              All Members
+            </button>
+            <button
+              onClick={() => setDashboardTab('edited')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative ${
+                dashboardTab === 'edited'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Edited Members
+              {(() => {
+                const editedCount = getFilteredMembersByBadge().filter(member => isEditedMember(member)).length
+                return editedCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg">
+                    {editedCount > 99 ? '99+' : editedCount}
+                  </span>
+                )
+              })()}
+            </button>
+          </div>
+
+          {/* Desktop summary cluster */}
+          <div className="hidden sm:flex items-center gap-3 text-sm">
+            <span className="text-gray-600 dark:text-gray-300">
               {getTabFilteredMembers().length} member{getTabFilteredMembers().length !== 1 ? 's' : ''} found
-            </p>
-            <div className="flex items-center text-sm">
+            </span>
+            <span className="flex items-center gap-2">
               <span className="text-gray-500 dark:text-gray-400">Database:</span>
-              <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md font-medium">
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md font-medium">
                 {currentTable.replace('_', ' ')}
               </span>
-              <span className="ml-3 text-gray-500 dark:text-gray-400">Mode:</span>
-              <span className={`ml-2 px-2 py-1 rounded-md font-medium ${isSupabaseConfigured() ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'}`}>
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-gray-500 dark:text-gray-400">Mode:</span>
+              <span className={`px-2 py-1 rounded-md font-medium ${isSupabaseConfigured() ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'}`}>
                 {isSupabaseConfigured() ? 'Live DB' : 'Demo Mode'}
               </span>
-            </div>
+            </span>
           </div>
         </div>
 
-        
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-4">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              activeTab === 'all'
-                ? 'bg-primary-600 text-white shadow-md'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            All Members
-          </button>
-          <button
-            onClick={() => setActiveTab('edited')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative ${
-              activeTab === 'edited'
-                ? 'bg-primary-600 text-white shadow-md'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            Edited Members
-            {(() => {
-              const editedCount = getFilteredMembersByBadge().filter(member => isEditedMember(member)).length
-              return editedCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg">
-                  {editedCount > 99 ? '99+' : editedCount}
-                </span>
-              )
-            })()}
-          </button>
+        {/* Mobile compact info */}
+        <div className="sm:hidden mt-2 text-xs text-gray-600 dark:text-gray-300">
+          {getTabFilteredMembers().length} found • {currentTable.replace('_', ' ')} • {isSupabaseConfigured() ? 'Live' : 'Demo'}
         </div>
       </div>
 
       {/* Edited Members: Sundays Quick View (desktop only) */}
-      {activeTab === 'edited' && (
+      {dashboardTab === 'edited' && (
         <div className="hidden sm:block bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3 sm:p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -735,7 +746,7 @@ const Dashboard = ({ isAdmin = false }) => {
             </button>
 
             {/* Mobile Sundays button (right side) */}
-            {activeTab === 'edited' && (
+            {dashboardTab === 'edited' && (
               <button
                 onClick={() => setIsSundayPopupOpen(true)}
                 className="p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -849,7 +860,7 @@ const Dashboard = ({ isAdmin = false }) => {
           )}
 
           {/* Mobile-only Sundays popup */}
-          {activeTab === 'edited' && isSundayPopupOpen && (
+          {dashboardTab === 'edited' && isSundayPopupOpen && (
             <div
               className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center px-4"
               onClick={() => setIsSundayPopupOpen(false)}
@@ -1029,7 +1040,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
       {/* Members List (hidden on mobile when a Sunday is selected) */}
-      <div className={`${activeTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''} space-y-3`}>
+      <div className={`${dashboardTab === 'edited' && selectedSundayDate ? 'hidden sm:block' : ''} space-y-3`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -1045,7 +1056,7 @@ const Dashboard = ({ isAdmin = false }) => {
           return (
             <>
               {/* Bulk Selection Toolbar (only on Edited Members) */}
-              {activeTab === 'edited' && selectedMemberIds.size > 1 && (
+              {dashboardTab === 'edited' && selectedMemberIds.size > 1 && (
                 <div className="sticky top-0 sm:top-2 z-30 bg-primary-50/80 dark:bg-primary-900/50 border border-primary-300 dark:border-primary-700 rounded-xl p-3 sm:p-4 mb-3 shadow-md backdrop-blur flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary-700 dark:text-primary-200" />
@@ -1190,7 +1201,7 @@ const Dashboard = ({ isAdmin = false }) => {
                       )}
                     </button>
                     {/* Round checkbox replaces avatar, only on Edited Members */}
-                    {activeTab === 'edited' && (
+                    {dashboardTab === 'edited' && (
                       <label className="flex-shrink-0 cursor-pointer" title="Select member for bulk actions">
                         <input
                           type="checkbox"

@@ -95,6 +95,8 @@ export const AppProvider = ({ children }) => {
   const [monthlyTables, setMonthlyTables] = useState(FALLBACK_MONTHLY_TABLES)
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState(null)
   const [availableSundayDates, setAvailableSundayDates] = useState([])
+  // Global dashboard tab state (mobile header controls All/Edited)
+  const [dashboardTab, setDashboardTab] = useState('all')
   
   // Badge filter state - persisted across all components
   const [badgeFilter, setBadgeFilter] = useState(() => {
@@ -1543,7 +1545,10 @@ export const AppProvider = ({ children }) => {
     badgeFilter,
     toggleBadgeFilter,
     // Expose Supabase configuration status to consumers
-    isSupabaseConfigured
+    isSupabaseConfigured,
+    // Dashboard tab controls (for mobile header segmented control)
+    dashboardTab,
+    setDashboardTab
   }
 
   return (

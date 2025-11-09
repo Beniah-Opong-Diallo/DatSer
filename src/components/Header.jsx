@@ -19,7 +19,7 @@ import { useApp } from '../context/AppContext'
 
 const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember, onCreateMonth }) => {
   const { isDarkMode, toggleTheme } = useTheme()
-  const { searchTerm, setSearchTerm, refreshSearch, forceRefreshMembers } = useApp()
+  const { searchTerm, setSearchTerm, refreshSearch, forceRefreshMembers, dashboardTab, setDashboardTab } = useApp()
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef(null)
   const mobileDropdownRef = useRef(null)
@@ -219,6 +219,34 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 </div>
               )}
             </div>
+
+            {/* Mobile segmented control for Dashboard tabs */}
+            {currentView === 'dashboard' && (
+              <div className="inline-flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
+                <button
+                  onClick={() => setDashboardTab('all')}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                    dashboardTab === 'all'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                  }`}
+                  title="Show All Members"
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setDashboardTab('edited')}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-300 dark:border-gray-600 ${
+                    dashboardTab === 'edited'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                  }`}
+                  title="Show Edited Members"
+                >
+                  Edited
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
