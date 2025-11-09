@@ -43,6 +43,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   const dropdownRef = useRef(null)
   const mobileDropdownRef = useRef(null)
   const [isBadgePopupOpen, setIsBadgePopupOpen] = useState(false)
+  const drawerRef = useRef(null)
   // Close drawer with Escape key
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setShowDropdown(false) }
@@ -72,7 +73,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     const handleOutside = (event) => {
       const inDesktop = dropdownRef.current?.contains(event.target)
       const inMobile = mobileDropdownRef.current?.contains(event.target)
-      if (!inDesktop && !inMobile) {
+      const inDrawer = drawerRef.current?.contains(event.target)
+      if (!inDesktop && !inMobile && !inDrawer) {
         setShowDropdown(false)
       }
     }
@@ -369,7 +371,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute right-0 top-0 z-10 h-full w-64 sm:w-72 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div ref={drawerRef} className="absolute right-0 top-0 z-10 h-full w-64 sm:w-72 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Menu</span>
               <button
@@ -393,6 +395,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                       } else {
                         setCurrentView(item.id)
                       }
+                      // Close drawer after action/navigation for better UX
+                      setShowDropdown(false)
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mb-1 ${
                       active
