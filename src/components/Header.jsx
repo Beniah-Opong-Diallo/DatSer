@@ -26,6 +26,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     setSearchTerm,
     refreshSearch,
     forceRefreshMembers,
+    loading,
     dashboardTab,
     setDashboardTab,
     filteredMembers,
@@ -343,6 +344,9 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            {loading && (
+              <div className="ml-2 w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" title="Loading" />
+            )}
           </div>
 
           {/* Summary pill with embedded Light/Dark toggle (single beautiful chip) */}

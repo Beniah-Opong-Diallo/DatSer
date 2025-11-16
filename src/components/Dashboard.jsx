@@ -1106,8 +1106,8 @@ const Dashboard = ({ isAdmin = false }) => {
                       })()}
                     </div>
 
-                    {/* Badge assignment buttons */}
-                    <div className="flex space-x-1 ml-2 border-l-2 border-gray-300 dark:border-gray-600 pl-2 bg-gray-100 dark:bg-gray-700 rounded-r-md py-1 px-2">
+                  {/* Badge assignment buttons */}
+                  <div className="flex space-x-1 ml-2 border-l-2 border-gray-300 dark:border-gray-600 pl-2 bg-gray-100 dark:bg-gray-700 rounded-r-md py-1 px-2">
                       <button
                         onClick={() => handleIndividualBadgeAssignment(member.id, 'member')}
                         disabled={badgeAssignmentLoading[member.id]}
@@ -1152,6 +1152,17 @@ const Dashboard = ({ isAdmin = false }) => {
                       </button>
 
                     </div>
+                    {/* Desktop delete button (always visible on large screens) */}
+                    <button
+                      type="button"
+                      onTouchStart={(e) => { e.stopPropagation() }}
+                      onClick={(e) => { e.stopPropagation(); openDeleteConfirm(e, member) }}
+                      className="hidden md:inline-flex items-center gap-1 ml-2 px-3 py-1 rounded-md bg-red-600 text-white hover:bg-red-700"
+                      title="Delete member"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
               </div>
