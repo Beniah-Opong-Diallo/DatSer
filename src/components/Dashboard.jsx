@@ -1177,7 +1177,9 @@ const Dashboard = ({ isAdmin = false }) => {
                         <button
                           onClick={() => updateMember(member.id, { gender: 'male' })}
                           disabled={attendanceLoading[member.id]}
-                          className="px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-300 dark:border-blue-700"
+                          className={`px-2 py-1 rounded text-xs transition-all duration-200 ${((member['Gender'] || member.gender || '').toString().toLowerCase() === 'male')
+                            ? 'bg-blue-800 dark:bg-blue-700 text-white shadow-xl transform scale-105 ring-2 ring-blue-300 dark:ring-blue-400 border-2 border-blue-900 dark:border-blue-300 font-extrabold'
+                            : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-300 dark:border-blue-700'}`}
                           title="Set gender to Male"
                         >
                           Male
@@ -1185,7 +1187,9 @@ const Dashboard = ({ isAdmin = false }) => {
                         <button
                           onClick={() => updateMember(member.id, { gender: 'female' })}
                           disabled={attendanceLoading[member.id]}
-                          className="px-2 py-1 rounded text-xs bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-800 border border-pink-300 dark:border-pink-700"
+                          className={`px-2 py-1 rounded text-xs transition-all duration-200 ${((member['Gender'] || member.gender || '').toString().toLowerCase() === 'female')
+                            ? 'bg-pink-800 dark:bg-pink-700 text-white shadow-xl transform scale-105 ring-2 ring-pink-300 dark:ring-pink-400 border-2 border-pink-900 dark:border-pink-300 font-extrabold'
+                            : 'bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-800 border border-pink-300 dark:border-pink-700'}`}
                           title="Set gender to Female"
                         >
                           Female

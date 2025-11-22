@@ -200,7 +200,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
               Gender *
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors">
+              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'male' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (!formData.gender ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
                 <input
                   type="radio"
                   name="gender"
@@ -210,10 +210,10 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                   required
                   className="text-primary-600 focus:ring-primary-500"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Male</span>
+                <span className="text-sm">Male</span>
               </label>
               
-              <label className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors">
+              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'female' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (!formData.gender ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
                 <input
                   type="radio"
                   name="gender"
@@ -223,9 +223,12 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                   required
                   className="text-primary-600 focus:ring-primary-500"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Female</span>
+                <span className="text-sm">Female</span>
               </label>
             </div>
+            {!formData.gender && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please select gender to continue</p>
+            )}
           </div>
 
           {/* Phone Number */}
