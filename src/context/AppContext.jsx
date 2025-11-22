@@ -1520,6 +1520,12 @@ export const AppProvider = ({ children }) => {
     };
   }, [currentTable]);
 
+  // UI action signaling for cross-component coordination
+  const [uiAction, setUiAction] = useState(null)
+  const focusDateSelector = () => {
+    setUiAction({ type: 'focusDateSelector', ts: Date.now() })
+  }
+
   const value = {
     members,
     filteredMembers,
@@ -1569,7 +1575,9 @@ export const AppProvider = ({ children }) => {
     isSupabaseConfigured,
     // Dashboard tab controls (for mobile header segmented control)
     dashboardTab,
-    setDashboardTab
+    setDashboardTab,
+    uiAction,
+    focusDateSelector
   }
 
   return (

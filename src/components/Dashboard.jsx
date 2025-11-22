@@ -46,7 +46,8 @@ const Dashboard = ({ isAdmin = false }) => {
     dashboardTab,
     setDashboardTab,
     setAndSaveAttendanceDate,
-    loadAllAttendanceData
+    loadAllAttendanceData,
+    uiAction
   } = useApp()
   const { isDarkMode } = useTheme()
   const [editingMember, setEditingMember] = useState(null)
@@ -65,7 +66,6 @@ const Dashboard = ({ isAdmin = false }) => {
   
   // Tab state moved to AppContext: dashboardTab ('all' | 'edited')
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
-  const [isSundayPopupOpen, setIsSundayPopupOpen] = useState(false)
   const [genderFilter, setGenderFilter] = useState(null)
 
   // iOS detection (used for minor tweaks if needed)
@@ -84,7 +84,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const swipeActiveIdRef = useRef(null)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState(null)
-  const [showDateDropdown, setShowDateDropdown] = useState(false)
+  const sundaysRef = useRef(null)
 
   const onRowTouchStart = (id, e) => {
     swipeActiveIdRef.current = id
@@ -197,9 +197,9 @@ const Dashboard = ({ isAdmin = false }) => {
     }
 
     if (dashboardTab === 'edited') {
-      const editedOnly = genderFilteredMembers.filter(member => isEditedMember(member))
-      const dateKey = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
+      const dateKey = selectedSundayDate || (selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null)
       if (!dateKey) {
+        const editedOnly = genderFilteredMembers.filter(member => isEditedMember(member))
         return editedOnly.sort((a, b) => {
           const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
           const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
@@ -207,7 +207,7 @@ const Dashboard = ({ isAdmin = false }) => {
         })
       }
       const map = attendanceData[dateKey] || {}
-      const filteredByDate = editedOnly.filter(m => map[m.id] === true || map[m.id] === false)
+      const filteredByDate = genderFilteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
       return filteredByDate.sort((a, b) => {
         const av = map[a.id]
         const bv = map[b.id]
@@ -278,6 +278,26 @@ const Dashboard = ({ isAdmin = false }) => {
       loadAllAttendanceData()
     }
   }, [dashboardTab])
+
+  // Ensure attendance map loads when a Sunday is selected (local state)
+  useEffect(() => {
+    const loadMap = async () => {
+      if (selectedSundayDate && !attendanceData[selectedSundayDate]) {
+        const map = await fetchAttendanceForDate(new Date(selectedSundayDate))
+        setAttendanceData(prev => ({ ...prev, [selectedSundayDate]: map }))
+      }
+    }
+    loadMap()
+  }, [selectedSundayDate, attendanceData, fetchAttendanceForDate, setAttendanceData])
+
+  // Focus Sundays section when requested via header "Select Date"
+  useEffect(() => {
+    if (uiAction && uiAction.type === 'focusDateSelector' && sundaysRef.current) {
+      try {
+        sundaysRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } catch {}
+    }
+  }, [uiAction])
 
   // Fetch attendance for all Sunday dates
   useEffect(() => {
@@ -667,7 +687,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Edited Members: Sundays Quick View (desktop only) */}
       {dashboardTab === 'edited' && (
-        <div className="hidden sm:block bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3 sm:p-4">
+        <div ref={sundaysRef} className="hidden sm:block bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3 sm:p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary-600" />
@@ -693,11 +713,10 @@ const Dashboard = ({ isAdmin = false }) => {
               const isSelected = selectedSundayDate === dateStr
               const dateObj = new Date(dateStr)
               const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              const baseMembers = getTabFilteredMembers()
               const map = attendanceData[dateStr]
               const presentCount = map
-                ? baseMembers.filter(m => map[m.id] === true).length
-                : baseMembers.length
+                ? members.filter(m => map[m.id] === true).length
+                : 0
               return (
                 <button
                   key={dateStr}
@@ -723,33 +742,22 @@ const Dashboard = ({ isAdmin = false }) => {
             })}
           </div>
 
-          {/* Present members list for selected Sunday */}
+          {/* Present members summary for selected Sunday (no names list) */}
           {selectedSundayDate && (
             <div className="mt-2">
               {(() => {
                 const dateObj = new Date(selectedSundayDate)
                 const labelFull = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
-                const presentMembers = getTabFilteredMembers().filter(m => (attendanceData[selectedSundayDate] || {})[m.id] === true)
+                const map = attendanceData[selectedSundayDate] || {}
+                const presentCount = members.filter(m => map[m.id] === true).length
                 return (
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between">
                       <div className="font-medium text-gray-900 dark:text-white">
                         Present on {labelFull}
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-300">{presentMembers.length} member{presentMembers.length !== 1 ? 's' : ''}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-300">{presentCount} member{presentCount !== 1 ? 's' : ''}</div>
                     </div>
-                    {presentMembers.length === 0 ? (
-                      <div className="text-sm text-gray-600 dark:text-gray-300">No present members recorded for this date.</div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {presentMembers.map(m => (
-                          <div key={m.id} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2 py-1">
-                            <Users className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                            <span className="text-sm text-gray-900 dark:text-white truncate">{m['full_name'] || m['Full Name']}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )
               })()}
@@ -771,9 +779,13 @@ const Dashboard = ({ isAdmin = false }) => {
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
-          const tabFilteredMembers = getTabFilteredMembers()
+          let tabFilteredMembers = getTabFilteredMembers()
           
-          // When searching, show all matching results for better UX
+          if (dashboardTab === 'edited' && selectedSundayDate) {
+            const map = attendanceData[selectedSundayDate] || {}
+            tabFilteredMembers = tabFilteredMembers.filter(m => map[m.id] === true)
+          }
+          
           const membersToShow = searchTerm 
             ? tabFilteredMembers 
             : tabFilteredMembers.slice(0, displayLimit)
@@ -897,54 +909,7 @@ const Dashboard = ({ isAdmin = false }) => {
                   )}
                 </div>
               )}
-              {/* Date Filter Indicator (Edited Members) */}
-              {dashboardTab === 'edited' && selectedAttendanceDate && (
-                <div className="sticky top-0 sm:top-2 z-20 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl p-2 sm:p-3 shadow-sm flex items-center gap-2 relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowDateDropdown((prev) => !prev)}
-                    className="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 flex items-center gap-2"
-                    title="Select Sunday"
-                  >
-                    <span>Showing edits for {selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                  </button>
-                  {showDateDropdown && (
-                    <div className="absolute left-2 right-24 top-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 max-h-56 overflow-auto">
-                      {sundayDates.length === 0 ? (
-                        <div className="text-xs text-gray-600 dark:text-gray-300 px-2 py-1">No Sundays</div>
-                      ) : (
-                        sundayDates.map((d) => {
-                          const label = new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          const counts = perDayCounts[d] || { present: 0, absent: 0 }
-                          const total = (counts.present || 0) + (counts.absent || 0)
-                          const selected = selectedAttendanceDate && d === selectedAttendanceDate.toISOString().split('T')[0]
-                          return (
-                            <button
-                              key={d}
-                              onClick={() => { setAndSaveAttendanceDate(new Date(d)); setShowDateDropdown(false) }}
-                              className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs ${selected ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
-                            >
-                              <span>{label}</span>
-                              <span className="flex items-center gap-1">
-                                <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300">P {counts.present || 0}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300">A {counts.absent || 0}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">{total}</span>
-                              </span>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => setAndSaveAttendanceDate(null)}
-                    className="ml-auto px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700"
-                    title="Clear date filter"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
+              {/* Date Filter Indicator removed; use Sundays header Edit Date dropdown */}
 
               {/* Bulk Selection Toolbar (only on Edited Members) */}
               {dashboardTab === 'edited' && selectedMemberIds.size > 1 && (
@@ -1432,7 +1397,7 @@ const Dashboard = ({ isAdmin = false }) => {
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Load More ({tabFilteredMembers.length - displayLimit} remaining)</span>
+                  <span>Load More ({Math.max(tabFilteredMembers.length - displayLimit, 0)} remaining)</span>
                 </>
               )}
             </button>

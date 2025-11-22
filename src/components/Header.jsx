@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react'
 import { 
   Users, 
   Download, 
@@ -35,7 +35,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     badgeFilter,
     toggleBadgeFilter,
     selectedAttendanceDate,
-    setAndSaveAttendanceDate
+    setAndSaveAttendanceDate,
+    focusDateSelector
   } = useApp()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditedDropdown, setShowEditedDropdown] = useState(false)
@@ -190,8 +191,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   // Exclusive badge filter helper removed; inline badge chips now live on the Edited page
   
   const menuItems = [
-    { id: 'all_members', label: 'All Members', icon: Users, onClick: () => { setCurrentView('dashboard'); setDashboardTab('all') } },
-    { id: 'edited_members', label: `Edited Members (${editedCount})`, icon: Edit3, onClick: () => { setCurrentView('dashboard'); setDashboardTab('edited') } },
+    { id: 'edited_members', label: `Edited Members (${editedCount})`, icon: Edit3, onClick: () => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) } },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     // Action: Create new month goes into the menu
     { id: 'create_month', label: 'Create New Month', icon: Calendar, onClick: onCreateMonth }
@@ -226,7 +226,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
             {/* Dashboard Button */}
             <div className="flex items-center gap-2 lg:gap-3">
               <button
-                onClick={() => setCurrentView('dashboard')}
+                onClick={() => { setCurrentView('dashboard'); setDashboardTab('all') }}
                 className={`flex items-center space-x-1.5 lg:space-x-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   currentView === 'dashboard'
                     ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
@@ -237,8 +237,21 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <span className="hidden lg:inline">Home</span>
               <span className="lg:hidden">Home</span>
               </button>
-
-              {/* Segmented control removed; use Menu entries for All/Edited */}
+              {/* Desktop-only quick nav */}
+              <div className="hidden lg:flex items-center gap-2">
+                <button
+                  onClick={() => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) }}
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Edited
+                </button>
+                <button
+                  onClick={() => startTransition(() => setCurrentView('admin'))}
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Admin
+                </button>
+              </div>
             </div>
 
             {/* Right group: Menu only (badge filter moved to Edited page) */}
