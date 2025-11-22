@@ -192,6 +192,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   
   const menuItems = [
     { id: 'edited_members', label: `Edited Members (${editedCount})`, icon: Edit3, onClick: () => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) } },
+    { id: 'duplicates', label: 'Duplicate Names', icon: Users, onClick: () => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('duplicates') }) } },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     // Action: Create new month goes into the menu
     { id: 'create_month', label: 'Create New Month', icon: Calendar, onClick: onCreateMonth }
@@ -228,7 +229,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <button
                 onClick={() => { setCurrentView('dashboard'); setDashboardTab('all') }}
                 className={`flex items-center space-x-1.5 lg:space-x-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  currentView === 'dashboard'
+                  currentView === 'dashboard' && dashboardTab === 'all'
                     ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
@@ -241,9 +242,23 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <div className="hidden lg:flex items-center gap-2">
                 <button
                   onClick={() => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) }}
-                  className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'dashboard' && dashboardTab === 'edited'
+                      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
                 >
                   Edited
+                </button>
+                <button
+                  onClick={() => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('duplicates') }) }}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'dashboard' && dashboardTab === 'duplicates'
+                      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Duplicates
                 </button>
                 <button
                   onClick={() => startTransition(() => setCurrentView('admin'))}
@@ -290,7 +305,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <button
                 onClick={() => setCurrentView('dashboard')}
                 className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-colors ${
-                  currentView === 'dashboard'
+                  currentView === 'dashboard' && dashboardTab === 'all'
                     ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
@@ -434,9 +449,16 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 <div>
                   <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Views</div>
                   <div className="space-y-2">
-                    {menuItems.filter(i => ['all_members','edited_members'].includes(i.id)).map((item) => {
+                    {menuItems.filter(i => ['all_members','edited_members','duplicates'].includes(i.id)).map((item) => {
                       const Icon = item.icon
-                      const active = currentView === item.id
+                      let active = false
+                      if (item.id === 'all_members') {
+                        active = currentView === 'dashboard' && dashboardTab === 'all'
+                      } else if (item.id === 'edited_members') {
+                        active = currentView === 'dashboard' && dashboardTab === 'edited'
+                      } else if (item.id === 'duplicates') {
+                        active = currentView === 'dashboard' && dashboardTab === 'duplicates'
+                      }
                       return (
                         <div key={item.id}>
                           <button

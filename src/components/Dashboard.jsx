@@ -86,6 +86,9 @@ const Dashboard = ({ isAdmin = false }) => {
   const [memberToDelete, setMemberToDelete] = useState(null)
   const sundaysRef = useRef(null)
 
+  // Duplicates management state
+  const [selectedDuplicateIds, setSelectedDuplicateIds] = useState(new Set())
+
   const onRowTouchStart = (id, e) => {
     swipeActiveIdRef.current = id
     swipeStartXRef.current = e.touches[0]?.clientX || 0
@@ -220,6 +223,15 @@ const Dashboard = ({ isAdmin = false }) => {
       })
     }
 
+    if (dashboardTab === 'duplicates') {
+      // For duplicates tab, only show members that are part of duplicate groups
+      const duplicateMemberIds = new Set()
+      duplicateGroups.forEach(group => {
+        group.members.forEach(member => duplicateMemberIds.add(member.id))
+      })
+      return genderFilteredMembers.filter(member => duplicateMemberIds.has(member.id))
+    }
+
     return genderFilteredMembers
   }
 
@@ -240,6 +252,82 @@ const Dashboard = ({ isAdmin = false }) => {
     })
     return { presentCount: present, absentCount: absent }
   }, [attendanceData, selectedBulkSundayDates, currentTable, dashboardTab, members])
+
+  // Helper function to normalize names for duplicate detection
+  const normalizeName = (name) => {
+    if (!name) return ''
+    return name.toString().toLowerCase().trim().replace(/\s+/g, ' ')
+  }
+
+  // Duplicate groups detection
+  const duplicateGroups = useMemo(() => {
+    const map = {}
+    members.forEach(m => {
+      const name = normalizeName(m['Full Name'] || m.full_name)
+      if (!name) return
+      if (!map[name]) map[name] = []
+      map[name].push(m)
+    })
+    return Object.entries(map)
+      .filter(([, arr]) => arr.length > 1)
+      .map(([name, arr]) => ({ name, members: arr }))
+  }, [members])
+
+  // Attendance counts across all Sundays for duplicate analysis
+  const attendanceCounts = useMemo(() => {
+    const counts = {}
+    sundayDates.forEach(d => {
+      const map = attendanceData[d] || {}
+      Object.entries(map).forEach(([mid, val]) => {
+        if (val === true) counts[mid] = (counts[mid] || 0) + 1
+      })
+    })
+    return counts
+  }, [attendanceData, sundayDates])
+
+  // Smart keep logic for duplicates (prioritize 3+ Sunday attendance)
+  const groupKeepId = (members) => {
+    let best = null
+    let bestCount = -1
+    members.forEach(m => {
+      const c = attendanceCounts[m.id] || 0
+      if (c >= 3 && c > bestCount) { best = m.id; bestCount = c }
+    })
+    if (best !== null) return best
+    // Fallback to highest attendance
+    members.forEach(m => {
+      const c = attendanceCounts[m.id] || 0
+      if (c > bestCount) { best = m.id; bestCount = c }
+    })
+    return best || members[0]?.id
+  }
+
+  // Toggle duplicate selection
+  const toggleSelectDuplicate = (memberId) => {
+    setSelectedDuplicateIds(prev => {
+      const next = new Set(prev)
+      if (next.has(memberId)) next.delete(memberId)
+      else next.add(memberId)
+      return next
+    })
+  }
+
+  // Bulk delete selected duplicates
+  const deleteSelectedDuplicates = async () => {
+    if (selectedDuplicateIds.size === 0) return
+    const confirmed = window.confirm(`Delete ${selectedDuplicateIds.size} selected duplicate member${selectedDuplicateIds.size !== 1 ? 's' : ''}? This cannot be undone.`)
+    if (!confirmed) return
+    try {
+      for (const id of Array.from(selectedDuplicateIds)) {
+        await deleteMember(id)
+      }
+      setSelectedDuplicateIds(new Set())
+      toast.success(`Deleted ${selectedDuplicateIds.size} duplicate member${selectedDuplicateIds.size !== 1 ? 's' : ''}.`)
+    } catch (error) {
+      console.error('Bulk delete failed:', error)
+      toast.error('Failed to delete selected duplicates. Please try again.')
+    }
+  }
 
   // Per-Sunday counts for Edited Members (used in chips)
   const perDayCounts = useMemo(() => {
@@ -302,7 +390,7 @@ const Dashboard = ({ isAdmin = false }) => {
   // Fetch attendance for all Sunday dates
   useEffect(() => {
     // When viewing Edited Members, ensure Sunday attendance maps are available
-  if (dashboardTab !== 'edited') return
+  if (dashboardTab !== 'edited' && dashboardTab !== 'duplicates') return
     let isCancelled = false
     const load = async () => {
       for (const date of sundayDates) {
@@ -766,6 +854,107 @@ const Dashboard = ({ isAdmin = false }) => {
         </div>
       )}
 
+      {dashboardTab === 'duplicates' && (
+        <div className={`rounded-lg border p-4 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Duplicate Names</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{duplicateGroups.length} names with duplicates</div>
+              <button
+                onClick={deleteSelectedDuplicates}
+                disabled={selectedDuplicateIds.size === 0}
+                className={`px-3 py-1 rounded text-sm ${selectedDuplicateIds.size === 0 ? 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+              >
+                Delete Selected
+              </button>
+            </div>
+            {duplicateGroups.length === 0 && (
+              <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>No duplicate names found</div>
+            )}
+            {duplicateGroups.map(group => {
+              const keepId = groupKeepId(group.members)
+              const keepMember = group.members.find(m => m.id === keepId)
+              const keepMemberName = keepMember ? (keepMember['Full Name'] || keepMember.full_name) : 'Unknown'
+              return (
+                <div key={group.name} className={`rounded-lg border p-3 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary-600" />
+                      <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{group.members[0]['Full Name'] || group.members[0].full_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700">Keep: {keepMemberName}</span>
+                      <button
+                        onClick={async () => {
+                          const toDelete = group.members.map(m => m.id).filter(id => id !== keepId)
+                          for (const id of toDelete) { await deleteMember(id) }
+                        }}
+                        className="px-2 py-1 rounded text-xs bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Delete Others
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {group.members.map(m => {
+                      const c = attendanceCounts[m.id] || 0
+                      const selected = selectedDuplicateIds.has(m.id)
+                      const isKeepMember = m.id === keepId
+                      return (
+                        <div key={m.id} className={`flex items-center justify-between px-3 py-2 rounded border-2 ${
+                          isKeepMember 
+                            ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700' 
+                            : isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => toggleSelectDuplicate(m.id)}
+                              className={`w-5 h-5 rounded-full border flex items-center justify-center ${selected ? 'bg-primary-600 border-primary-600' : isDarkMode ? 'border-gray-500' : 'border-gray-400'}`}
+                              title={selected ? 'Unselect' : 'Select'}
+                            >
+                              {selected && <Check className="w-3 h-3 text-white" />}
+                            </button>
+                            <div>
+                              <div className={`text-sm font-medium ${
+                                isKeepMember 
+                                  ? 'text-green-800 dark:text-green-300' 
+                                  : isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {m['Full Name'] || m.full_name}
+                                {isKeepMember && <span className="ml-2 text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">Keep</span>}
+                              </div>
+                              <div className={`text-xs ${
+                                isKeepMember 
+                                  ? 'text-green-600 dark:text-green-400' 
+                                  : isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                              }`}>Attendance: {c}</div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => deleteMember(m.id)}
+                            className={`px-2 py-1 rounded text-xs border ${
+                              isKeepMember 
+                                ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600 cursor-not-allowed opacity-50'
+                                : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 border-red-300 dark:border-red-700'
+                            }`}
+                            disabled={isKeepMember}
+                            title={isKeepMember ? 'This member is recommended to keep' : 'Delete this member'}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Badge/Sundays dashboard card removed per request */}
 
       {/* Top sticky search bar moved to Header.jsx */}
@@ -1143,7 +1332,7 @@ const Dashboard = ({ isAdmin = false }) => {
                         disabled={attendanceLoading[member.id]}
                         className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-bold transition-all duration-200 ${
                           isPresentSelected
-                            ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl transform scale-110 ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold'
+                        ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl transform scale-105 ring-2 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold'
                             : attendanceLoading[member.id]
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                             : isAbsentSelected
@@ -1160,7 +1349,7 @@ const Dashboard = ({ isAdmin = false }) => {
                         disabled={attendanceLoading[member.id]}
                         className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-bold transition-all duration-200 ${
                           isAbsentSelected
-                            ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl transform scale-110 ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold'
+                            ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl transform scale-105 ring-2 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold'
                             : attendanceLoading[member.id]
                             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                             : isPresentSelected
@@ -1487,35 +1676,64 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Delete Confirm Modal */}
       {isDeleteConfirmOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-sm mx-4 overflow-hidden shadow-xl">
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Member</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md mx-4 overflow-hidden shadow-2xl border border-gray-200 dark:border-gray-700">
+            {/* Header with warning icon */}
+            <div className="px-6 py-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-red-800 dark:text-red-300">Confirm Deletion</h3>
+              </div>
               <button
                 onClick={() => { setIsDeleteConfirmOpen(false); setMemberToDelete(null) }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <X className="w-5 h-5 text-red-600 dark:text-red-400" />
               </button>
             </div>
-            <div className="px-4 py-4">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Are you sure you want to delete <span className="font-semibold">{memberToDelete?.['full_name'] || memberToDelete?.['Full Name']}</span>?
-              </p>
-              <p className="mt-2 text-xs text-red-600 dark:text-red-400">This action cannot be undone.</p>
+            
+            {/* Enhanced confirmation message */}
+            <div className="px-6 py-6 text-center">
+              <div className="mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Are you sure you want to delete this member?
+                </h4>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400 mb-3">
+                  {memberToDelete?.['full_name'] || memberToDelete?.['Full Name']}
+                </p>
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span><strong>This action cannot be undone.</strong> The member will be permanently removed from the system.</span>
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+            
+            {/* Enhanced action buttons */}
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600 flex gap-3">
               <button
                 onClick={() => { setIsDeleteConfirmOpen(false); setMemberToDelete(null) }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 shadow-lg hover:shadow-xl"
               >
-                Delete
+                Delete Member
               </button>
             </div>
           </div>
