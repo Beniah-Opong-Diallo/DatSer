@@ -1159,14 +1159,8 @@ export const AppProvider = ({ children }) => {
 
   // Function to refresh search results
   const refreshSearch = useCallback(() => {
-    // Force immediate update of debounced search term and trigger re-computation
-    const currentSearch = searchTerm
-
-    // Directly update the debounced search term to ensure immediate filtering
-    setDebouncedSearchTerm(currentSearch)
-
-    // Log for debugging
-    console.log('Refreshing search with term:', currentSearch)
+    // Search is now instant, so we just log or do nothing
+    // console.log('Refreshing search with term:', searchTerm)
   }, [searchTerm])
 
   // Function to force refresh members from database

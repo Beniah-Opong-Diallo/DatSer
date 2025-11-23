@@ -8,6 +8,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
     const [formData, setFormData] = useState({})
     const [attendanceData, setAttendanceData] = useState({})
     const [isSaving, setIsSaving] = useState(false)
+    const [saveError, setSaveError] = useState(null)
 
     // Initialize form data with member's current values
     useEffect(() => {
@@ -42,10 +43,14 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }))
+        // Clear error when user makes changes
+        if (saveError) setSaveError(null)
     }
 
     const handleAttendanceChange = (dateKey, status) => {
         setAttendanceData(prev => ({ ...prev, [dateKey]: status }))
+        // Clear error when user makes changes
+        if (saveError) setSaveError(null)
     }
 
     // Check if all required fields are filled
@@ -97,6 +102,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
         }
 
         setIsSaving(true)
+        setSaveError(null)
         console.log('Starting save process...')
 
         try {
@@ -142,7 +148,9 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
             onClose()
         } catch (error) {
             console.error('Error saving missing data:', error)
-            toast.error(`Failed to save data: ${error.message || 'Please try again.'}`)
+            const errorMsg = error.message || 'Unknown error occurred'
+            setSaveError(errorMsg)
+            toast.error(`Failed to save data: ${errorMsg}`)
         } finally {
             setIsSaving(false)
         }
@@ -167,6 +175,18 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                 </div>
 
                 <div className="p-6 space-y-6">
+                    {saveError && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                            <div className="flex items-center gap-2 text-red-800 dark:text-red-200 font-medium mb-1">
+                                <AlertCircle className="w-4 h-4" />
+                                <span>Error Saving Data</span>
+                            </div>
+                            <p className="text-sm text-red-700 dark:text-red-300 break-words">
+                                {saveError}
+                            </p>
+                        </div>
+                    )}
+
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                         <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">
                             📋 Complete Missing Information for <strong>{member['Full Name'] || member.full_name}</strong>
