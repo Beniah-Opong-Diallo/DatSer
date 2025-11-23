@@ -83,12 +83,22 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
     }
 
     const handleSave = async () => {
+        console.log('=== SAVE BUTTON CLICKED ===')
+        console.log('Form complete?', isFormComplete())
+        console.log('Form data:', formData)
+        console.log('Attendance data:', attendanceData)
+        console.log('Missing fields:', missingFields)
+        console.log('Missing dates:', missingDates)
+
         if (!isFormComplete()) {
+            console.log('Form not complete, showing error')
             toast.error('Please fill in all missing fields')
             return
         }
 
         setIsSaving(true)
+        console.log('Starting save process...')
+
         try {
             // Update member fields if any are missing
             if (missingFields.length > 0) {
@@ -112,17 +122,21 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                     updates.parent_phone_1 = parseInt(formData.parentPhone1, 10)
                 }
 
+                console.log('Updating member with:', updates)
                 await updateMember(member.id, updates)
+                console.log('Member updated successfully')
             }
 
             // Update attendance for missing dates
             for (const dateKey of Object.keys(attendanceData)) {
                 const status = attendanceData[dateKey]
                 if (status !== null) {
+                    console.log(`Marking attendance for ${dateKey}: ${status}`)
                     await markAttendance(member.id, new Date(dateKey), status)
                 }
             }
 
+            console.log('All updates complete!')
             toast.success('Missing data saved successfully!')
             onSave()
             onClose()
