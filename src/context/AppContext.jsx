@@ -18,7 +18,7 @@ const getCurrentMonthTable = () => {
 
 // Fallback monthly tables for when Supabase is not configured
 const FALLBACK_MONTHLY_TABLES = [
-  'January_2025', 'February_2025', 'April_2025', 'May_2025', 
+  'January_2025', 'February_2025', 'April_2025', 'May_2025',
   'June_2025', 'July_2025', 'August_2025', 'September_2025', 'October_2025', 'November_2025'
 ]
 
@@ -31,19 +31,19 @@ const getLatestTable = () => {
   // Force November_2025 as default (clear old localStorage)
   localStorage.removeItem('selectedMonthTable')
   localStorage.setItem('selectedMonthTable', 'November_2025')
-  
+
   // Try to get saved table from localStorage
   const savedTable = localStorage.getItem('selectedMonthTable')
   if (savedTable && FALLBACK_MONTHLY_TABLES.includes(savedTable)) {
     return savedTable
   }
-  
+
   // Default to current month if available, otherwise November_2025
   const currentMonthTable = getCurrentMonthTable()
   if (FALLBACK_MONTHLY_TABLES.includes(currentMonthTable)) {
     return currentMonthTable
   }
-  
+
   return 'November_2025'
 }
 
@@ -90,7 +90,6 @@ export const AppProvider = ({ children }) => {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [serverSearchResults, setServerSearchResults] = useState(null)
   const searchCacheRef = useRef(new Map())
   const nameColumnCacheRef = useRef(new Map())
@@ -101,7 +100,7 @@ export const AppProvider = ({ children }) => {
   const [availableSundayDates, setAvailableSundayDates] = useState([])
   // Global dashboard tab state (mobile header controls All/Edited)
   const [dashboardTab, setDashboardTab] = useState('all')
-  
+
   // Badge filter state - persisted across all components
   const [badgeFilter, setBadgeFilter] = useState(() => {
     const saved = localStorage.getItem('badgeFilter')
@@ -110,9 +109,9 @@ export const AppProvider = ({ children }) => {
 
   // Check if Supabase is properly configured
   const isSupabaseConfigured = () => {
-    return supabase && import.meta.env.VITE_SUPABASE_URL && 
-           import.meta.env.VITE_SUPABASE_URL !== 'your_supabase_url_here' &&
-           import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co'
+    return supabase && import.meta.env.VITE_SUPABASE_URL &&
+      import.meta.env.VITE_SUPABASE_URL !== 'your_supabase_url_here' &&
+      import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co'
   }
 
   // Fetch members from current monthly table or use mock data
@@ -120,7 +119,7 @@ export const AppProvider = ({ children }) => {
     try {
       setLoading(true)
       console.log(`Fetching members from table: ${tableName}`)
-      
+
       if (!isSupabaseConfigured()) {
         console.log('Using mock data - Supabase not configured')
         setMembers(mockMembers)
@@ -135,7 +134,7 @@ export const AppProvider = ({ children }) => {
       if (error) {
         console.error('Error fetching members:', error)
         console.log('Error details:', error.message, error.code)
-        
+
         // Only fallback to mock data when table clearly does not exist
         if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
           toast.error(`Table ${tableName} does not exist in database. Using mock data.`)
@@ -257,16 +256,16 @@ export const AppProvider = ({ children }) => {
   const getAttendanceColumns = async () => {
     try {
       if (!isSupabaseConfigured()) return []
-      
+
       const { data, error } = await supabase.rpc('get_table_columns', {
         table_name: currentTable
       })
-      
+
       if (error) {
         console.error('Error getting table columns:', error)
         return []
       }
-      
+
       // Filter for attendance columns
       return data?.filter(col => col.column_name.startsWith('Attendance ')) || []
     } catch (error) {
@@ -279,7 +278,7 @@ export const AppProvider = ({ children }) => {
   const getAvailableAttendanceDates = async () => {
     try {
       const attendanceColumns = await getAttendanceColumns()
-      
+
       // Extract dates from column names and sort them
       const dates = attendanceColumns
         .map(col => {
@@ -288,7 +287,7 @@ export const AppProvider = ({ children }) => {
         })
         .filter(date => date !== null)
         .sort((a, b) => a - b)
-      
+
       return dates
     } catch (error) {
       console.error('Error getting available attendance dates:', error)
@@ -302,25 +301,25 @@ export const AppProvider = ({ children }) => {
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ].indexOf(monthName)
-    
+
     if (monthIndex === -1) {
       throw new Error(`Invalid month name: ${monthName}`)
     }
-    
+
     const sundays = []
     const date = new Date(year, monthIndex, 1)
-    
+
     // Find the first Sunday of the month
     while (date.getDay() !== 0) {
       date.setDate(date.getDate() + 1)
     }
-    
+
     // Collect all Sundays in the month
     while (date.getMonth() === monthIndex) {
       sundays.push(new Date(date))
       date.setDate(date.getDate() + 7)
     }
-    
+
     return sundays
   }
 
@@ -330,13 +329,13 @@ export const AppProvider = ({ children }) => {
       // Parse the current table to get month and year
       const [monthName, year] = currentTable.split('_')
       const yearNum = parseInt(year)
-      
+
       // Get all Sundays in the month
       const allSundays = getSundaysInMonth(monthName, yearNum)
-      
+
       // Get attendance columns to see which Sundays have columns
       const attendanceColumns = await getAttendanceColumns()
-      
+
       // Filter Sundays that have corresponding attendance columns
       const availableSundays = allSundays.filter(sunday => {
         const dayOfMonth = sunday.getDate()
@@ -345,7 +344,7 @@ export const AppProvider = ({ children }) => {
           return match && parseInt(match[1]) === dayOfMonth
         })
       })
-      
+
       return availableSundays
     } catch (error) {
       console.error('Error getting available Sunday dates:', error)
@@ -357,28 +356,28 @@ export const AppProvider = ({ children }) => {
   const initializeAttendanceDates = async () => {
     const sundays = await getAvailableSundayDates()
     setAvailableSundayDates(sundays)
-    
+
     if (sundays.length > 0) {
       // Try to restore user's last selected date from localStorage
       const savedDateKey = `selectedAttendanceDate_${currentTable}`
       const savedDate = localStorage.getItem(savedDateKey)
-      
+
       if (savedDate) {
         // Check if the saved date is still available in current month
         const savedDateTime = new Date(savedDate)
         const matchingDate = sundays.find(sunday => {
           // Compare dates by year, month, and day (ignore time differences)
           return sunday.getFullYear() === savedDateTime.getFullYear() &&
-                 sunday.getMonth() === savedDateTime.getMonth() &&
-                 sunday.getDate() === savedDateTime.getDate()
+            sunday.getMonth() === savedDateTime.getMonth() &&
+            sunday.getDate() === savedDateTime.getDate()
         })
-        
+
         if (matchingDate) {
           setSelectedAttendanceDate(matchingDate)
           return
         }
       }
-      
+
       const twentyThird = sundays.find(sunday => sunday.getDate() === 23) || null
 
       const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
@@ -400,16 +399,16 @@ export const AppProvider = ({ children }) => {
 
   // Calculate member attendance rate
   const calculateAttendanceRate = (member) => {
-    const attendanceColumns = Object.keys(member).filter(key => 
+    const attendanceColumns = Object.keys(member).filter(key =>
       key.startsWith('Attendance ') && member[key] !== null && member[key] !== undefined
     )
-    
+
     if (attendanceColumns.length === 0) return 0
-    
-    const presentCount = attendanceColumns.filter(col => 
+
+    const presentCount = attendanceColumns.filter(col =>
       member[col] === 'Present' || member[col] === true
     ).length
-    
+
     return Math.round((presentCount / attendanceColumns.length) * 100)
   }
 
@@ -419,17 +418,17 @@ export const AppProvider = ({ children }) => {
     const now = new Date()
     const daysSinceJoin = Math.floor((now - joinDate) / (1000 * 60 * 60 * 24))
     const attendanceRate = calculateAttendanceRate(member)
-    
+
     // Check for manual badge first
     if (member['Manual Badge']) {
       return member['Manual Badge']
     }
-    
+
     // New member (less than 30 days)
     if (daysSinceJoin < 30) {
       return 'newcomer'
     }
-    
+
     // Regular member badges based on attendance
     if (attendanceRate >= 75) {
       return 'regular'
@@ -457,7 +456,7 @@ export const AppProvider = ({ children }) => {
       console.log(`Toggling ${badgeType} badge for member ${memberId}`)
       console.log('Supabase configured:', isSupabaseConfigured())
       console.log('Current table:', currentTable)
-      
+
       // Find the member and log their current badge status
       const member = members.find(m => m.id === memberId)
       const memberName = member ? (member['Full Name'] || member['full_name']) : 'Member'
@@ -468,14 +467,14 @@ export const AppProvider = ({ children }) => {
         Newcomer: member?.Newcomer,
         'Manual Badges': member?.['Manual Badges']
       })
-      
+
       if (!isSupabaseConfigured()) {
         // Demo mode - update local state
         setMembers(prev => prev.map(member => {
           if (member.id === memberId) {
             const currentBadges = member['Manual Badges'] || []
             let updatedBadges
-            
+
             if (currentBadges.includes(badgeType)) {
               // Remove badge if already selected
               updatedBadges = currentBadges.filter(badge => badge !== badgeType)
@@ -483,7 +482,7 @@ export const AppProvider = ({ children }) => {
               // Add badge if not selected
               updatedBadges = [...currentBadges, badgeType]
             }
-            
+
             const updatedMember = { ...member, 'Manual Badges': updatedBadges }
             return updatedMember
           }
@@ -494,14 +493,14 @@ export const AppProvider = ({ children }) => {
 
       // For Supabase, handle individual badge toggling like attendance
       const targetMember = members.find(m => m.id === memberId)
-      
+
       // Check current badge status - this determines if we're turning ON or OFF
       const currentlyHasBadge = memberHasBadge(targetMember, badgeType)
       console.log(`Current badge status for ${badgeType}:`, currentlyHasBadge)
-      
+
       // Prepare update object - toggle the badge state
       const updateData = {}
-      
+
       // Update the specific badge column (toggle: if has badge, remove it; if doesn't have badge, add it)
       if (badgeType === 'member') {
         updateData.Member = currentlyHasBadge ? null : 'Yes'
@@ -513,7 +512,7 @@ export const AppProvider = ({ children }) => {
 
       console.log('Update data:', updateData)
       console.log('Updating member ID:', memberId)
-      
+
       const { data, error } = await supabase
         .from(currentTable)
         .update(updateData)
@@ -521,14 +520,14 @@ export const AppProvider = ({ children }) => {
         .select()
 
       console.log('Supabase update result:', { data, error })
-      
+
       if (error) throw error
 
       // Update local state to reflect the change
       setMembers(prev => prev.map(member => {
         if (member.id === memberId) {
           const updatedMember = { ...member }
-          
+
           // Update the specific badge column in local state
           if (badgeType === 'member') {
             updatedMember.Member = currentlyHasBadge ? null : 'Yes'
@@ -537,7 +536,7 @@ export const AppProvider = ({ children }) => {
           } else if (badgeType === 'newcomer') {
             updatedMember.Newcomer = currentlyHasBadge ? null : 'Yes'
           }
-          
+
           return updatedMember
         }
         return member
@@ -574,13 +573,13 @@ export const AppProvider = ({ children }) => {
     try {
       const attendanceColumns = await getAttendanceColumns()
       const dayOfMonth = date.getDate()
-      
+
       // Find the column that matches this day of month
       const matchingColumn = attendanceColumns.find(col => {
         const match = col.column_name.match(/Attendance (\d+)(st|nd|rd|th)/)
         return match && parseInt(match[1]) === dayOfMonth
       })
-      
+
       return matchingColumn ? matchingColumn.column_name : null
     } catch (error) {
       console.error('Error finding attendance column for date:', error)
@@ -592,7 +591,7 @@ export const AppProvider = ({ children }) => {
   const checkAttendanceColumnExists = async (attendanceColumn) => {
     try {
       if (!isSupabaseConfigured()) return true
-      
+
       // Get all attendance columns and check if the requested one exists
       const attendanceColumns = await getAttendanceColumns()
       return attendanceColumns.some(col => col.column_name === attendanceColumn)
@@ -620,12 +619,12 @@ export const AppProvider = ({ children }) => {
       }
 
       const attendanceColumn = await findAttendanceColumnForDate(date)
-      
+
       if (!attendanceColumn) {
         toast.error(`No attendance column found for this date in ${currentTable}`)
         return { success: false, error: 'Column does not exist' }
       }
-      
+
       const { data, error } = await supabase
         .from(currentTable)
         .update({
@@ -636,8 +635,8 @@ export const AppProvider = ({ children }) => {
       if (error) throw error
 
       // Update local state for members
-      setMembers(prev => prev.map(member => 
-        member.id === memberId 
+      setMembers(prev => prev.map(member =>
+        member.id === memberId
           ? { ...member, [attendanceColumn]: present === null ? null : (present ? 'Present' : 'Absent') }
           : member
       ))
@@ -682,16 +681,16 @@ export const AppProvider = ({ children }) => {
       }
 
       const attendanceColumn = await findAttendanceColumnForDate(date)
-      
+
       if (!attendanceColumn) {
         toast.error(`No attendance column found for this date in ${currentTable}`)
         return { success: false, error: 'Column does not exist' }
       }
-      
+
       const attendanceValue = present ? 'Present' : 'Absent'
 
       // Update each member's attendance in the monthly table
-      const updatePromises = memberIds.map(memberId => 
+      const updatePromises = memberIds.map(memberId =>
         supabase
           .from(currentTable)
           .update({ [attendanceColumn]: attendanceValue })
@@ -699,7 +698,7 @@ export const AppProvider = ({ children }) => {
       )
 
       const results = await Promise.all(updatePromises)
-      
+
       // Check for errors
       const errors = results.filter(result => result.error)
       if (errors.length > 0) {
@@ -707,7 +706,7 @@ export const AppProvider = ({ children }) => {
       }
 
       // Update local state for members
-      setMembers(prev => prev.map(member => 
+      setMembers(prev => prev.map(member =>
         memberIds.includes(member.id)
           ? { ...member, [attendanceColumn]: attendanceValue }
           : member
@@ -746,12 +745,12 @@ export const AppProvider = ({ children }) => {
       }
 
       const attendanceColumn = await findAttendanceColumnForDate(date)
-      
+
       if (!attendanceColumn) {
         console.log(`No attendance column found for this date in ${currentTable}`)
         return {}
       }
-      
+
       const { data, error } = await supabase
         .from(currentTable)
         .select(`id, "${attendanceColumn}"`)
@@ -811,7 +810,7 @@ export const AppProvider = ({ children }) => {
       if (typeof incomingGender === 'string') {
         const cap = incomingGender.trim().toLowerCase() === 'male' ? 'Male'
           : incomingGender.trim().toLowerCase() === 'female' ? 'Female'
-          : incomingGender
+            : incomingGender
         normalized = { ...normalized, Gender: cap }
         delete normalized.gender
       }
@@ -840,9 +839,9 @@ export const AppProvider = ({ children }) => {
         .update(normalized)
         .eq('id', id)
         .select()
-      
+
       if (error) throw error
-      
+
       // Update members state with the returned data
       setMembers(prev => {
         const updatedRow = data[0] || {}
@@ -867,7 +866,7 @@ export const AppProvider = ({ children }) => {
 
       // Update search term to trigger re-filtering
       refreshSearch()
-      
+
       toast.success(`Member updated successfully in ${currentTable}!`)
       return data[0]
     } catch (error) {
@@ -923,7 +922,7 @@ export const AppProvider = ({ children }) => {
   const createNewMonth = async ({ month, year, monthName, sundays }) => {
     try {
       const monthIdentifier = `${monthName}_${year}`
-      
+
       if (!isSupabaseConfigured()) {
         // Demo mode - just show success message
         toast.success(`${monthIdentifier} created successfully! (Demo Mode)`)
@@ -948,18 +947,18 @@ export const AppProvider = ({ children }) => {
       console.log('Month table creation result:', result)
 
       toast.success(`Month ${monthName} ${year} created successfully! Table copied from October template.`)
-      
+
       // Refresh the monthly tables list from database
       await fetchMonthlyTables()
-      
+
       // Switch to the new month
       changeCurrentTable(monthIdentifier)
-      
+
       console.log(`Successfully created month: ${monthIdentifier}`)
       return { success: true, tableName: monthIdentifier, result }
     } catch (error) {
       console.error('Error creating new month:', error)
-      
+
       // Provide detailed error information
       let errorMessage = 'Failed to create new month'
       if (error.message) {
@@ -967,7 +966,7 @@ export const AppProvider = ({ children }) => {
       } else if (error.error) {
         errorMessage += `: ${error.error}`
       }
-      
+
       toast.error(errorMessage)
       throw error
     }
@@ -981,8 +980,8 @@ export const AppProvider = ({ children }) => {
         return
       }
 
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December']
+      const months = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December']
       const years = ['2025'] // Only check 2025 tables to avoid 404 errors
       const availableTables = []
 
@@ -1012,14 +1011,14 @@ export const AppProvider = ({ children }) => {
         availableTables.sort((a, b) => {
           const [monthA, yearA] = a.split('_')
           const [monthB, yearB] = b.split('_')
-          
+
           if (yearA !== yearB) {
             return parseInt(yearA) - parseInt(yearB)
           }
-          
+
           return months.indexOf(monthA) - months.indexOf(monthB)
         })
-        
+
         setMonthlyTables(availableTables)
         console.log('Found monthly tables:', availableTables)
         // Removed automatic toast notification on page load
@@ -1031,55 +1030,30 @@ export const AppProvider = ({ children }) => {
     }
   }
 
-  // Debounce search term to improve performance
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 50)
-
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
-  // Optimized filter members based on debounced search term
+  // Optimized filter members based on search term (instant search)
   const filteredMembers = useMemo(() => {
-    console.log('=== SEARCH DEBUG START ===')
-    console.log('Current table being searched:', currentTable)
-    console.log('FilteredMembers calculation - members count:', members.length)
-    console.log('FilteredMembers calculation - search term:', debouncedSearchTerm)
-    console.log('All member names:', members.map(m => (m['Full Name'] || m['full_name'] || 'No Name')).join(', '))
-    console.log('=== MEMBER LIST START ===')
-    members.forEach((member, index) => {
-      console.log(`Member ${index + 1}:`, member['Full Name'] || member['full_name'] || 'No Name')
-    })
-    console.log('=== MEMBER LIST END ===')
-    
-    if (!debouncedSearchTerm.trim()) {
-      console.log('No search term, returning all members:', members.length)
+    if (!searchTerm.trim()) {
       return members
     }
 
     if (serverSearchResults) {
-      console.log('Using server search results:', serverSearchResults.length)
-      return serverSearchResults
+      return serverSearchResults.slice(0, 20)
     }
 
-    // Simple and fast search implementation
-    const searchTerm = debouncedSearchTerm.toLowerCase().trim()
-    console.log('Searching for:', searchTerm)
-        const tokens = searchTerm.split(/\s+/).filter(Boolean)
+    // Fast client-side search
+    const search = searchTerm.toLowerCase().trim()
+    const tokens = search.split(/\s+/).filter(Boolean)
     const filtered = members.filter(member => {
       const fullName = (
-        (typeof member['full_name'] === 'string' ? member['full_name'] : '') || 
-        (typeof member['Full Name'] === 'string' ? member['Full Name'] : '') || 
+        (typeof member['full_name'] === 'string' ? member['full_name'] : '') ||
+        (typeof member['Full Name'] === 'string' ? member['Full Name'] : '') ||
         ''
       ).toLowerCase()
       return tokens.every(t => fullName.includes(t))
-    })
-    
-    console.log('Filtered results count:', filtered.length)
-    console.log('Filtered member names:', filtered.map(m => (m['Full Name'] || m['full_name'] || 'No Name')).join(', '))
+    }).slice(0, 20)
+
     return filtered
-  }, [members, debouncedSearchTerm, serverSearchResults])
+  }, [members, searchTerm, serverSearchResults])
 
   const resolveNameColumn = useCallback(async (tableName) => {
     const cached = nameColumnCacheRef.current.get(tableName)
@@ -1166,8 +1140,8 @@ export const AppProvider = ({ children }) => {
   }, [currentTable, isSupabaseConfigured, resolveNameColumn])
 
   useEffect(() => {
-    performServerSearch(debouncedSearchTerm)
-  }, [debouncedSearchTerm, currentTable, performServerSearch])
+    performServerSearch(searchTerm)
+  }, [searchTerm, currentTable, performServerSearch])
 
   const quickMarkAttendanceFromKeyword = useCallback(async (kw) => {
     const list = serverSearchResults && serverSearchResults.length > 0 ? serverSearchResults : filteredMembers
@@ -1187,10 +1161,10 @@ export const AppProvider = ({ children }) => {
   const refreshSearch = useCallback(() => {
     // Force immediate update of debounced search term and trigger re-computation
     const currentSearch = searchTerm
-    
+
     // Directly update the debounced search term to ensure immediate filtering
     setDebouncedSearchTerm(currentSearch)
-    
+
     // Log for debugging
     console.log('Refreshing search with term:', currentSearch)
   }, [searchTerm])
@@ -1199,7 +1173,7 @@ export const AppProvider = ({ children }) => {
   const forceRefreshMembers = useCallback(async () => {
     console.log('Force refreshing members from database...')
     toast.info('Refreshing member data...')
-    
+
     try {
       await fetchMembers(currentTable)
       toast.success('Member data refreshed successfully!')
@@ -1226,34 +1200,34 @@ export const AppProvider = ({ children }) => {
   const searchMemberAcrossAllTables = useCallback(async (searchName) => {
     console.log('=== SEARCHING ACROSS ALL TABLES ===')
     console.log('Looking for:', searchName)
-    
+
     const searchTerm = searchName.toLowerCase().trim()
     const foundInTables = []
-    
+
     for (const tableName of monthlyTables) {
       try {
         console.log(`Checking table: ${tableName}`)
-        
+
         if (isSupabaseConfigured()) {
           const { data, error } = await supabase
             .from(tableName)
             .select('*')
-          
+
           if (error) {
             console.log(`Error accessing ${tableName}:`, error.message)
             continue
           }
-          
+
           const foundMembers = data?.filter(member => {
             const fullName = (
-              (typeof member['full_name'] === 'string' ? member['full_name'] : '') || 
-              (typeof member['Full Name'] === 'string' ? member['Full Name'] : '') || 
+              (typeof member['full_name'] === 'string' ? member['full_name'] : '') ||
+              (typeof member['Full Name'] === 'string' ? member['Full Name'] : '') ||
               ''
             ).toLowerCase()
-            
+
             return fullName.includes(searchTerm)
           }) || []
-          
+
           if (foundMembers.length > 0) {
             console.log(`Found ${foundMembers.length} matches in ${tableName}:`)
             foundMembers.forEach(member => {
@@ -1266,7 +1240,7 @@ export const AppProvider = ({ children }) => {
         console.log(`Error searching ${tableName}:`, error.message)
       }
     }
-    
+
     console.log('=== SEARCH RESULTS ===')
     if (foundInTables.length === 0) {
       console.log('Member not found in any table')
@@ -1278,9 +1252,69 @@ export const AppProvider = ({ children }) => {
       })
       toast.success(`Found "${searchName}" in ${foundInTables.length} table(s)`)
     }
-    
+
     return foundInTables
   }, [monthlyTables, isSupabaseConfigured])
+
+  // Validate member data for missing fields
+  const validateMemberData = useCallback((member) => {
+    const missingFields = []
+
+    if (!member['Phone Number'] || member['Phone Number'] === null) {
+      missingFields.push('Phone Number')
+    }
+    if (!member['Gender'] || member['Gender'] === null || member['Gender'] === '') {
+      missingFields.push('Gender')
+    }
+    if (!member['Age'] || member['Age'] === null || member['Age'] === '') {
+      missingFields.push('Age')
+    }
+    if (!member['Current Level'] || member['Current Level'] === null || member['Current Level'] === '') {
+      missingFields.push('Current Level')
+    }
+    if (!member['parent_name_1'] || member['parent_name_1'] === null || member['parent_name_1'] === '') {
+      missingFields.push('Parent Name 1')
+    }
+    if (!member['parent_phone_1'] || member['parent_phone_1'] === null) {
+      missingFields.push('Parent Phone 1')
+    }
+
+    return missingFields
+  }, [])
+
+  // Get all past Sundays from the beginning of the month to today
+  const getPastSundays = useCallback(() => {
+    try {
+      const allSundays = getSundaysInMonth(currentTable)
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Filter to only past Sundays (including today)
+      return allSundays.filter(sunday => sunday <= today)
+    } catch (error) {
+      console.error('Error getting past Sundays:', error)
+      return []
+    }
+  }, [currentTable, getSundaysInMonth])
+
+  // Get missing attendance for a member for past Sundays
+  const getMissingAttendance = useCallback((memberId, pastSundays) => {
+    const missingDates = []
+
+    pastSundays.forEach(sunday => {
+      const dateKey = sunday.toISOString().split('T')[0]
+      const attendanceMap = attendanceData[dateKey] || {}
+      const status = attendanceMap[memberId]
+
+      // If status is undefined/null, it's missing
+      if (status === undefined || status === null) {
+        missingDates.push(sunday)
+      }
+    })
+
+    return missingDates
+  }, [attendanceData])
 
   // Wrapper function to set attendance date and save to localStorage
   const setAndSaveAttendanceDate = useCallback((date) => {
@@ -1317,7 +1351,7 @@ export const AppProvider = ({ children }) => {
       const newFilter = prev.includes(badgeType)
         ? prev.filter(type => type !== badgeType)
         : [...prev, badgeType]
-      
+
       // Save to localStorage
       localStorage.setItem('badgeFilter', JSON.stringify(newFilter))
       return newFilter
@@ -1335,7 +1369,7 @@ export const AppProvider = ({ children }) => {
     // Check both the Supabase columns and Manual Badges array for compatibility
     let hasSupabaseBadge = false
     let hasManualBadge = false
-    
+
     switch (badgeType) {
       case 'member':
         hasSupabaseBadge = member['Member'] === 'Yes'
@@ -1352,7 +1386,7 @@ export const AppProvider = ({ children }) => {
       default:
         return false
     }
-    
+
     const result = hasSupabaseBadge || hasManualBadge
     console.log(`memberHasBadge(${member?.['Full Name'] || member?.['full_name']}, ${badgeType}):`, {
       hasSupabaseBadge,
@@ -1361,7 +1395,7 @@ export const AppProvider = ({ children }) => {
       supabaseValue: member?.[badgeType === 'member' ? 'Member' : badgeType === 'regular' ? 'Regular' : 'Newcomer'],
       manualBadges: member?.['Manual Badges']
     })
-    
+
     return result
   }
 
@@ -1375,7 +1409,7 @@ export const AppProvider = ({ children }) => {
 
       // Get all attendance columns for the current table
       const attendanceColumns = await getAttendanceColumns()
-      
+
       if (attendanceColumns.length === 0) {
         console.log('No attendance columns found in current table')
         return
@@ -1383,7 +1417,7 @@ export const AppProvider = ({ children }) => {
 
       // Build select query for all attendance columns
       const selectColumns = ['id', ...attendanceColumns.map(col => `"${col.column_name}"`)]
-      
+
       const { data, error } = await supabase
         .from(currentTable)
         .select(selectColumns.join(', '))
@@ -1392,11 +1426,11 @@ export const AppProvider = ({ children }) => {
 
       // Transform data into the format expected by the UI
       const newAttendanceData = {}
-      
+
       attendanceColumns.forEach(col => {
         const columnName = col.column_name
         const dateMatch = columnName.match(/(\d+)(st|nd|rd|th)/)
-        
+
         if (dateMatch) {
           const day = parseInt(dateMatch[1])
           // Get current month and year from table name
@@ -1405,13 +1439,13 @@ export const AppProvider = ({ children }) => {
             'January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'
           ].indexOf(monthName)
-          
+
           if (monthIndex !== -1) {
             const date = new Date(parseInt(year), monthIndex, day)
             const dateKey = date.toISOString().split('T')[0]
-            
+
             newAttendanceData[dateKey] = {}
-            
+
             data.forEach(record => {
               if (record[columnName]) {
                 newAttendanceData[dateKey][record.id] = record[columnName] === 'Present'
@@ -1424,7 +1458,7 @@ export const AppProvider = ({ children }) => {
       // Update attendance data state
       setAttendanceData(newAttendanceData)
       console.log('Loaded attendance data for all dates:', Object.keys(newAttendanceData))
-      
+
     } catch (error) {
       console.error('Error loading attendance data:', error)
     }
@@ -1439,7 +1473,7 @@ export const AppProvider = ({ children }) => {
       }
 
       console.log('Loading badge data from Supabase...')
-      
+
       const { data, error } = await supabase
         .from(currentTable)
         .select('id, "Member", "Regular", "Newcomer", "Manual Badge", "Badge Type"')
@@ -1450,7 +1484,7 @@ export const AppProvider = ({ children }) => {
       }
 
       console.log('Badge data loaded:', data?.slice(0, 3)) // Log first 3 records for debugging
-      
+
       // Update members with badge data
       setMembers(prev => prev.map(member => {
         const badgeData = data.find(d => d.id === member.id)
@@ -1466,7 +1500,7 @@ export const AppProvider = ({ children }) => {
         }
         return member
       }))
-      
+
     } catch (error) {
       console.error('Error loading badge data:', error)
     }
@@ -1559,7 +1593,7 @@ export const AppProvider = ({ children }) => {
     calculateAttendanceRate,
     calculateMemberBadge,
     updateMemberBadges,
-    
+
     toggleMemberBadge,
     memberHasBadge,
     selectedAttendanceDate,
@@ -1577,7 +1611,10 @@ export const AppProvider = ({ children }) => {
     dashboardTab,
     setDashboardTab,
     uiAction,
-    focusDateSelector
+    focusDateSelector,
+    validateMemberData,
+    getPastSundays,
+    getMissingAttendance
   }
 
   return (

@@ -1,0 +1,374 @@
+import React, { useState, useEffect } from 'react'
+import { X, AlertCircle } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { toast } from 'react-toastify'
+
+const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave }) => {
+    const { updateMember, markAttendance } = useApp()
+    const [formData, setFormData] = useState({})
+    const [attendanceData, setAttendanceData] = useState({})
+    const [isSaving, setIsSaving] = useState(false)
+
+    // Initialize form data with member's current values
+    useEffect(() => {
+        const initialData = {}
+        if (missingFields.includes('Phone Number')) {
+            initialData.phoneNumber = member['Phone Number'] || ''
+        }
+        if (missingFields.includes('Gender')) {
+            initialData.gender = member['Gender'] || ''
+        }
+        if (missingFields.includes('Age')) {
+            initialData.age = member['Age'] || ''
+        }
+        if (missingFields.includes('Current Level')) {
+            initialData.currentLevel = member['Current Level'] || ''
+        }
+        if (missingFields.includes('Parent Name 1')) {
+            initialData.parentName1 = member['parent_name_1'] || ''
+        }
+        if (missingFields.includes('Parent Phone 1')) {
+            initialData.parentPhone1 = member['parent_phone_1'] || ''
+        }
+        setFormData(initialData)
+
+        // Initialize attendance data
+        const initialAttendance = {}
+        missingDates.forEach(date => {
+            initialAttendance[date.toISOString().split('T')[0]] = null
+        })
+        setAttendanceData(initialAttendance)
+    }, [member, missingFields, missingDates])
+
+    const handleInputChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }))
+    }
+
+    const handleAttendanceChange = (dateKey, status) => {
+        setAttendanceData(prev => ({ ...prev, [dateKey]: status }))
+    }
+
+    // Check if all required fields are filled
+    const isFormComplete = () => {
+        // Check member fields
+        for (const field of missingFields) {
+            if (field === 'Phone Number' && (!formData.phoneNumber || formData.phoneNumber.length !== 10)) {
+                return false
+            }
+            if (field === 'Gender' && (!formData.gender || formData.gender === '')) {
+                return false
+            }
+            if (field === 'Age' && (!formData.age || formData.age === '')) {
+                return false
+            }
+            if (field === 'Current Level' && (!formData.currentLevel || formData.currentLevel === '')) {
+                return false
+            }
+            if (field === 'Parent Name 1' && (!formData.parentName1 || formData.parentName1 === '')) {
+                return false
+            }
+            if (field === 'Parent Phone 1' && (!formData.parentPhone1 || formData.parentPhone1.length !== 10)) {
+                return false
+            }
+        }
+
+        // Check attendance dates
+        for (const dateKey of Object.keys(attendanceData)) {
+            if (attendanceData[dateKey] === null) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    const handleSave = async () => {
+        if (!isFormComplete()) {
+            toast.error('Please fill in all missing fields')
+            return
+        }
+
+        setIsSaving(true)
+        try {
+            // Update member fields if any are missing
+            if (missingFields.length > 0) {
+                const updates = {}
+                if (missingFields.includes('Phone Number')) {
+                    updates['Phone Number'] = parseInt(formData.phoneNumber, 10)
+                }
+                if (missingFields.includes('Gender')) {
+                    updates['Gender'] = formData.gender
+                }
+                if (missingFields.includes('Age')) {
+                    updates['Age'] = formData.age
+                }
+                if (missingFields.includes('Current Level')) {
+                    updates['Current Level'] = formData.currentLevel
+                }
+                if (missingFields.includes('Parent Name 1')) {
+                    updates.parent_name_1 = formData.parentName1
+                }
+                if (missingFields.includes('Parent Phone 1')) {
+                    updates.parent_phone_1 = parseInt(formData.parentPhone1, 10)
+                }
+
+                await updateMember(member.id, updates)
+            }
+
+            // Update attendance for missing dates
+            for (const dateKey of Object.keys(attendanceData)) {
+                const status = attendanceData[dateKey]
+                if (status !== null) {
+                    await markAttendance(member.id, new Date(dateKey), status)
+                }
+            }
+
+            toast.success('Missing data saved successfully!')
+            onSave()
+            onClose()
+        } catch (error) {
+            console.error('Error saving missing data:', error)
+            toast.error(`Failed to save data: ${error.message || 'Please try again.'}`)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-200">
+                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-orange-500" />
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            Complete Missing Information
+                        </h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                        <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <p className="text-sm text-blue-800 dark:text-blue-200 font-medium mb-2">
+                            📋 Complete Missing Information for <strong>{member['Full Name'] || member.full_name}</strong>
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            {missingDates.length > 0 && (
+                                <span className="block mb-1">
+                                    ✅ <strong>Past Sundays:</strong> If you were in church, select <span className="text-green-600 dark:text-green-400 font-semibold">Present (Green)</span>. If not, select <span className="text-red-600 dark:text-red-400 font-semibold">Absent (Red)</span>.
+                                </span>
+                            )}
+                            {missingFields.length > 0 && (
+                                <span className="block">
+                                    📝 <strong>Required Fields:</strong> Please fill in all missing information below.
+                                </span>
+                            )}
+                        </p>
+                    </div>
+
+                    {/* Missing Member Fields */}
+                    {missingFields.length > 0 && (
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Member Information</h3>
+
+                            {missingFields.includes('Phone Number') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Phone Number * (10 digits)
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="tel"
+                                            value={formData.phoneNumber || ''}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                                                handleInputChange('phoneNumber', value)
+                                            }}
+                                            maxLength="10"
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            placeholder="Enter 10-digit phone number"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleInputChange('phoneNumber', '0000000000')}
+                                            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            No Phone
+                                        </button>
+                                    </div>
+                                    {formData.phoneNumber && formData.phoneNumber.length !== 10 && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Must be exactly 10 digits</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {missingFields.includes('Gender') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Gender *
+                                    </label>
+                                    <select
+                                        value={formData.gender || ''}
+                                        onChange={(e) => handleInputChange('gender', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    >
+                                        <option value="">Select gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {missingFields.includes('Age') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Age *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.age || ''}
+                                        onChange={(e) => handleInputChange('age', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        placeholder="Enter age"
+                                    />
+                                </div>
+                            )}
+
+                            {missingFields.includes('Current Level') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Current Level *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.currentLevel || ''}
+                                        onChange={(e) => handleInputChange('currentLevel', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        placeholder="e.g., JHS1, SHS2, Primary 3"
+                                    />
+                                </div>
+                            )}
+
+                            {missingFields.includes('Parent Name 1') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Parent/Guardian Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.parentName1 || ''}
+                                        onChange={(e) => handleInputChange('parentName1', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        placeholder="Enter parent/guardian name"
+                                    />
+                                </div>
+                            )}
+
+                            {missingFields.includes('Parent Phone 1') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Parent/Guardian Phone * (10 digits)
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="tel"
+                                            value={formData.parentPhone1 || ''}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '').slice(0, 10)
+                                                handleInputChange('parentPhone1', value)
+                                            }}
+                                            maxLength="10"
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            placeholder="Enter 10-digit phone number"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleInputChange('parentPhone1', '0000000000')}
+                                            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            No Phone
+                                        </button>
+                                    </div>
+                                    {formData.parentPhone1 && formData.parentPhone1.length !== 10 && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Must be exactly 10 digits</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Missing Attendance Dates */}
+                    {missingDates.length > 0 && (
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Past Sunday Attendance</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Please mark attendance for the following past Sundays:
+                            </p>
+
+                            <div className="space-y-3">
+                                {missingDates.map(date => {
+                                    const dateKey = date.toISOString().split('T')[0]
+                                    const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+                                    return (
+                                        <div key={dateKey} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{dateLabel}</span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleAttendanceChange(dateKey, true)}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${attendanceData[dateKey] === true
+                                                        ? 'bg-green-600 text-white'
+                                                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900'
+                                                        }`}
+                                                >
+                                                    Present
+                                                </button>
+                                                <button
+                                                    onClick={() => handleAttendanceChange(dateKey, false)}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${attendanceData[dateKey] === false
+                                                        ? 'bg-red-600 text-white'
+                                                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900'
+                                                        }`}
+                                                >
+                                                    Absent
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer with Save button */}
+                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                        disabled={isSaving}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={!isFormComplete() || isSaving}
+                        className={`px-6 py-2 rounded-lg font-medium transition-colors ${isFormComplete() && !isSaving
+                            ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                            : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                            }`}
+                    >
+                        {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default MissingDataModal

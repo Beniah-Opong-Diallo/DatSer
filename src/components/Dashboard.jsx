@@ -7,6 +7,7 @@ import MemberModal from './MemberModal'
 import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
+import MissingDataModal from './MissingDataModal'
 import { toast } from 'react-toastify'
 
 // Helper function to get month display name from table name
@@ -48,7 +49,10 @@ const Dashboard = ({ isAdmin = false }) => {
     setDashboardTab,
     setAndSaveAttendanceDate,
     loadAllAttendanceData,
-    uiAction
+    uiAction,
+    validateMemberData,
+    getPastSundays,
+    getMissingAttendance
   } = useApp()
   const { isDarkMode } = useTheme()
   const [editingMember, setEditingMember] = useState(null)
@@ -101,6 +105,30 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Duplicates management state
   const [selectedDuplicateIds, setSelectedDuplicateIds] = useState(new Set())
+
+  // Missing data validation state
+  const [showMissingDataModal, setShowMissingDataModal] = useState(false)
+  const [missingDataMember, setMissingDataMember] = useState(null)
+  const [missingFields, setMissingFields] = useState([])
+  const [missingDates, setMissingDates] = useState([])
+  const [pendingAttendanceAction, setPendingAttendanceAction] = useState(null)
+
+  // Check for missing data before marking attendance
+  const checkMissingDataBeforeAttendance = (member, present) => {
+    const fields = validateMemberData(member)
+    const pastSundays = getPastSundays()
+    const dates = getMissingAttendance(member.id, pastSundays)
+
+    if (fields.length > 0 || dates.length > 0) {
+      setMissingDataMember(member)
+      setMissingFields(fields)
+      setMissingDates(dates)
+      setPendingAttendanceAction({ memberId: member.id, present })
+      setShowMissingDataModal(true)
+      return true // Has missing data
+    }
+    return false // No missing data
+  }
 
   const onRowTouchStart = (id, e) => {
     swipeActiveIdRef.current = id
@@ -496,11 +524,16 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendance = async (memberId, present) => {
+    // Check for missing data before marking attendance
+    const member = members.find(m => m.id === memberId)
+    if (member && checkMissingDataBeforeAttendance(member, present)) {
+      return // Stop here if missing data found
+    }
+
     // If no specific attendance date is selected, apply the action across ALL Sundays
     if (!selectedAttendanceDate) {
       setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
       try {
-        const member = members.find(m => m.id === memberId)
         const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
         for (const dateStr of sundayDates) {
           await markAttendance(memberId, new Date(dateStr), present)
@@ -523,7 +556,6 @@ const Dashboard = ({ isAdmin = false }) => {
     // Existing single-date toggle behavior
     setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
-      const member = members.find(m => m.id === memberId)
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
       const dateKey = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
       const currentStatus = dateKey && attendanceData[dateKey] ? attendanceData[dateKey][memberId] : undefined
@@ -1786,6 +1818,34 @@ const Dashboard = ({ isAdmin = false }) => {
         confirmButtonClass={confirmModalConfig.confirmButtonClass}
         cancelButtonClass={confirmModalConfig.cancelButtonClass}
       />
+
+      {/* Missing Data Modal */}
+      {showMissingDataModal && missingDataMember && (
+        <MissingDataModal
+          member={missingDataMember}
+          missingFields={missingFields}
+          missingDates={missingDates}
+          onClose={() => {
+            setShowMissingDataModal(false)
+            setMissingDataMember(null)
+            setMissingFields([])
+            setMissingDates([])
+            setPendingAttendanceAction(null)
+          }}
+          onSave={async () => {
+            // After saving missing data, execute pending attendance action
+            if (pendingAttendanceAction) {
+              const { memberId, present } = pendingAttendanceAction
+              // Temporarily bypass validation to avoid infinite loop
+              const member = members.find(m => m.id === memberId)
+              if (member) {
+                await handleAttendance(memberId, present)
+              }
+              setPendingAttendanceAction(null)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
