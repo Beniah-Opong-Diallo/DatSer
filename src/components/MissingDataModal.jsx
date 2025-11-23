@@ -9,6 +9,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
     const [attendanceData, setAttendanceData] = useState({})
     const [isSaving, setIsSaving] = useState(false)
     const [saveError, setSaveError] = useState(null)
+    const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
 
     // Initialize form data with member's current values
     useEffect(() => {
@@ -87,17 +88,29 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
         return true
     }
 
+    // Helper to check if a specific field is invalid
+    const isFieldInvalid = (field) => {
+        if (!hasAttemptedSave) return false
+
+        if (field === 'Phone Number') return !formData.phoneNumber || formData.phoneNumber.length !== 10
+        if (field === 'Gender') return !formData.gender || formData.gender === ''
+        if (field === 'Age') return !formData.age || formData.age === ''
+        if (field === 'Current Level') return !formData.currentLevel || formData.currentLevel === ''
+        if (field === 'Parent Name 1') return !formData.parentName1 || formData.parentName1 === ''
+        if (field === 'Parent Phone 1') return !formData.parentPhone1 || formData.parentPhone1.length !== 10
+
+        return false
+    }
+
     const handleSave = async () => {
+        setHasAttemptedSave(true)
+
         console.log('=== SAVE BUTTON CLICKED ===')
         console.log('Form complete?', isFormComplete())
-        console.log('Form data:', formData)
-        console.log('Attendance data:', attendanceData)
-        console.log('Missing fields:', missingFields)
-        console.log('Missing dates:', missingDates)
 
         if (!isFormComplete()) {
             console.log('Form not complete, showing error')
-            toast.error('Please fill in all missing fields')
+            toast.error('Please fill in all highlighted fields')
             return
         }
 
@@ -110,7 +123,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
             if (missingFields.length > 0) {
                 const updates = {}
                 if (missingFields.includes('Phone Number')) {
-                    updates['Phone Number'] = parseInt(formData.phoneNumber, 10)
+                    updates['Phone Number'] = formData.phoneNumber
                 }
                 if (missingFields.includes('Gender')) {
                     updates['Gender'] = formData.gender
@@ -125,7 +138,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                     updates.parent_name_1 = formData.parentName1
                 }
                 if (missingFields.includes('Parent Phone 1')) {
-                    updates.parent_phone_1 = parseInt(formData.parentPhone1, 10)
+                    updates.parent_phone_1 = formData.parentPhone1
                 }
 
                 console.log('Updating member with:', updates)
@@ -158,8 +171,13 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-200">
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-200 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <style>{`
+                    .scrollbar-hide::-webkit-scrollbar {
+                        display: none;
+                    }
+                `}</style>
+                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
                     <div className="flex items-center gap-2">
                         <AlertCircle className="w-5 h-5 text-orange-500" />
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -224,7 +242,10 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                                 handleInputChange('phoneNumber', value)
                                             }}
                                             maxLength="10"
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Phone Number')
+                                                ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                                : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                                }`}
                                             placeholder="Enter 10-digit phone number"
                                         />
                                         <button
@@ -238,6 +259,9 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                     {formData.phoneNumber && formData.phoneNumber.length !== 10 && (
                                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">Must be exactly 10 digits</p>
                                     )}
+                                    {isFieldInvalid('Phone Number') && !formData.phoneNumber && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Phone number is required</p>
+                                    )}
                                 </div>
                             )}
 
@@ -249,12 +273,18 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                     <select
                                         value={formData.gender || ''}
                                         onChange={(e) => handleInputChange('gender', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Gender')
+                                            ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                            : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                            }`}
                                     >
                                         <option value="">Select gender</option>
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
                                     </select>
+                                    {isFieldInvalid('Gender') && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Gender is required</p>
+                                    )}
                                 </div>
                             )}
 
@@ -267,9 +297,15 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                         type="text"
                                         value={formData.age || ''}
                                         onChange={(e) => handleInputChange('age', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Age')
+                                            ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                            : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                            }`}
                                         placeholder="Enter age"
                                     />
+                                    {isFieldInvalid('Age') && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Age is required</p>
+                                    )}
                                 </div>
                             )}
 
@@ -282,9 +318,15 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                         type="text"
                                         value={formData.currentLevel || ''}
                                         onChange={(e) => handleInputChange('currentLevel', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Current Level')
+                                            ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                            : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                            }`}
                                         placeholder="e.g., JHS1, SHS2, Primary 3"
                                     />
+                                    {isFieldInvalid('Current Level') && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Current level is required</p>
+                                    )}
                                 </div>
                             )}
 
@@ -297,9 +339,15 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                         type="text"
                                         value={formData.parentName1 || ''}
                                         onChange={(e) => handleInputChange('parentName1', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Parent Name 1')
+                                            ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                            : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                            }`}
                                         placeholder="Enter parent/guardian name"
                                     />
+                                    {isFieldInvalid('Parent Name 1') && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Parent name is required</p>
+                                    )}
                                 </div>
                             )}
 
@@ -317,7 +365,10 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                                 handleInputChange('parentPhone1', value)
                                             }}
                                             maxLength="10"
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Parent Phone 1')
+                                                ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                                                : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                                                }`}
                                             placeholder="Enter 10-digit phone number"
                                         />
                                         <button
@@ -330,6 +381,9 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                     </div>
                                     {formData.parentPhone1 && formData.parentPhone1.length !== 10 && (
                                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">Must be exactly 10 digits</p>
+                                    )}
+                                    {isFieldInvalid('Parent Phone 1') && !formData.parentPhone1 && (
+                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">Parent phone is required</p>
                                     )}
                                 </div>
                             )}
@@ -348,10 +402,16 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                                 {missingDates.map(date => {
                                     const dateKey = date.toISOString().split('T')[0]
                                     const dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                    const isMissing = hasAttemptedSave && attendanceData[dateKey] === null
 
                                     return (
-                                        <div key={dateKey} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{dateLabel}</span>
+                                        <div key={dateKey} className={`flex items-center justify-between p-3 rounded-lg ${isMissing
+                                            ? 'bg-red-50 dark:bg-red-900/10 border border-red-300 dark:border-red-700'
+                                            : 'bg-gray-50 dark:bg-gray-700'
+                                            }`}>
+                                            <span className={`text-sm font-medium ${isMissing ? 'text-red-800 dark:text-red-200' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {dateLabel} {isMissing && '(Required)'}
+                                            </span>
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleAttendanceChange(dateKey, true)}
@@ -381,7 +441,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                 </div>
 
                 {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
+                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
@@ -391,11 +451,11 @@ const MissingDataModal = ({ member, missingFields, missingDates, onClose, onSave
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={!isFormComplete() || isSaving}
-                        className={`px-6 py-2 rounded-lg font-medium transition-colors ${isFormComplete() && !isSaving
-                            ? 'bg-primary-600 hover:bg-primary-700 text-white'
-                            : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                        className={`px-6 py-2 rounded-lg font-medium transition-colors ${isSaving
+                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                            : 'bg-primary-600 hover:bg-primary-700 text-white'
                             }`}
+                        disabled={isSaving}
                     >
                         {isSaving ? 'Saving...' : 'Save'}
                     </button>

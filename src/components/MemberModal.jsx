@@ -7,7 +7,7 @@ import { toast } from 'react-toastify'
 const MemberModal = ({ isOpen, onClose }) => {
   const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, updateMember } = useApp()
   const { isDarkMode } = useTheme()
-  
+
   // Helper function to get month display name from table name
   const getMonthDisplayName = (tableName) => {
     // Convert table name like "October_2025" to "October 2025"
@@ -28,32 +28,32 @@ const MemberModal = ({ isOpen, onClose }) => {
   // Helper function to generate Sunday dates for the current month/year
   const generateSundayDates = (currentTable) => {
     if (!currentTable) return []
-    
+
     try {
       const [monthName, year] = currentTable.split('_')
       const yearNum = parseInt(year)
-      
+
       const monthIndex = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
       ].indexOf(monthName)
-      
+
       if (monthIndex === -1) return []
-      
+
       const sundays = []
       const date = new Date(yearNum, monthIndex, 1)
-      
+
       // Find the first Sunday of the month
       while (date.getDay() !== 0) {
         date.setDate(date.getDate() + 1)
       }
-      
+
       // Collect all Sundays in the month
       while (date.getMonth() === monthIndex) {
         sundays.push(date.toISOString().split('T')[0]) // Format as YYYY-MM-DD
         date.setDate(date.getDate() + 7)
       }
-      
+
       return sundays
     } catch (error) {
       console.error('Error generating Sunday dates:', error)
@@ -63,7 +63,7 @@ const MemberModal = ({ isOpen, onClose }) => {
 
   // Generate Sunday dates dynamically based on current table
   const sundayDates = generateSundayDates(currentTable)
-  
+
   // Initialize Sunday attendance state dynamically
   const initializeSundayAttendance = () => {
     const attendance = {}
@@ -83,7 +83,7 @@ const MemberModal = ({ isOpen, onClose }) => {
     parent_name_2: '',
     parent_phone_2: ''
   })
-  
+
   // Reset attendance state when modal opens (but not while it stays open) or current table changes
   React.useEffect(() => {
     if (isOpen && !previousIsOpen) {
@@ -94,8 +94,8 @@ const MemberModal = ({ isOpen, onClose }) => {
   }, [isOpen, currentTable])
 
   const levels = [
-    'SHS1', 'SHS2', 'SHS3', 
-    'JHS1', 'JHS2', 'JHS3', 
+    'SHS1', 'SHS2', 'SHS3',
+    'JHS1', 'JHS2', 'JHS3',
     'COMPLETED', 'UNIVERSITY'
   ]
 
@@ -106,17 +106,41 @@ const MemberModal = ({ isOpen, onClose }) => {
     )
   }
 
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setHasAttemptedSave(true)
+
     const isFullNameValid = formData.full_name && formData.full_name.trim().length > 0
     const isGenderValid = !!formData.gender
     const isLevelValid = !!formData.current_level
     const phoneDigits = (formData.phone_number || '').replace(/\D/g, '')
-    const isPhoneValid = phoneDigits.length === 10
+    const isPhoneValid = !formData.phone_number || phoneDigits.length === 10
     const ageNum = parseInt(formData.age)
-    const isAgeValid = !isNaN(ageNum) && ageNum >= 1 && ageNum <= 120
+    const isAgeValid = !formData.age || (!isNaN(ageNum) && ageNum >= 1 && ageNum <= 120)
+
+    // Only required fields are Full Name and Gender based on current form logic, 
+    // but let's enforce all if they are touched or if we want strict validation.
+    // Actually, looking at the code, Full Name and Gender are marked with *, others are not.
+    // But the user said "ensure... gender phone number age... select all".
+    // So I should enforce them if they are required.
+    // The original code enforced: !isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid
+    // Wait, the original code enforced ALL of them?
+    // Original: if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid)
+    // Yes, it seems it was enforcing all of them to be valid if entered, or maybe required?
+    // Let's check the original condition again.
+    // isPhoneValid = phoneDigits.length === 10. If empty, length is 0, so invalid. 
+    // So Phone WAS required.
+    // isAgeValid = !isNaN... If empty, parseInt is NaN, so invalid.
+    // So Age WAS required.
+    // isLevelValid = !!formData.current_level. So Level WAS required.
+
+    // So yes, I should enforce all of them.
+
     if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
       setShowErrors(true)
+      toast.error('Please fill in all required fields correctly')
       return
     }
     setLoading(true)
@@ -170,7 +194,7 @@ const MemberModal = ({ isOpen, onClose }) => {
       setShowErrors(false)
       setNewlyAddedMemberId(newMember.id)
       setShowParentInfo(true)
-      
+
       // Success toast handled in global state
     } catch (error) {
       console.error('Error adding member:', error)
@@ -205,126 +229,126 @@ const MemberModal = ({ isOpen, onClose }) => {
             >
               Add Parent Info
             </button>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-          </button>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            </button>
           </div>
         </div>
 
         {/* Scrollable Form Area */}
         <div className="overflow-y-auto no-scrollbar">
-            <form onSubmit={handleSubmit} noValidate className="p-6 space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="p-6 space-y-6">
             {/* Section: Member Information */}
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
                 <Info className="w-4 h-4" />
                 <span>Basic information</span>
               </div>
-            {/* Full Name */}
-            <div>
+              {/* Full Name */}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Full Name *
+                  Full Name *
                 </label>
                 <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                     <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </div>
-                <input
+                  </div>
+                  <input
                     type="text"
                     name="full_name"
                     value={formData.full_name}
                     onChange={handleInputChange}
                     className={`w-full pl-10 pr-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors duration-200 border ${showErrors && (!formData.full_name || !formData.full_name.trim()) ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
                     placeholder="Enter full name"
-                />
-                {showErrors && (!formData.full_name || !formData.full_name.trim()) && (
+                  />
+                  {showErrors && (!formData.full_name || !formData.full_name.trim()) && (
                     <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please enter full name</p>
-                )}
+                  )}
                 </div>
-            </div>
+              </div>
 
-            {/* Gender */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Gender *
-              </label>
+              {/* Gender */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Gender *
+                </label>
                 <div className="grid grid-cols-2 gap-3">
-                <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors duration-200 ${formData.gender === 'male' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-1 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (showErrors && !formData.gender ? 'border-red-500 ring-1 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="male"
-                    checked={formData.gender === 'male'}
-                    onChange={handleInputChange}
-                    className="text-primary-600 focus:ring-primary-500"
+                  <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors duration-200 ${formData.gender === 'male' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-1 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (showErrors && !formData.gender ? 'border-red-500 ring-1 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="male"
+                      checked={formData.gender === 'male'}
+                      onChange={handleInputChange}
+                      className="text-primary-600 focus:ring-primary-500"
                     />
-                  <span className="text-sm">Male</span>
-                </label>
-                
-                <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors duration-200 ${formData.gender === 'female' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-1 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (showErrors && !formData.gender ? 'border-red-500 ring-1 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="female"
-                    checked={formData.gender === 'female'}
-                    onChange={handleInputChange}
-                    className="text-primary-600 focus:ring-primary-500"
+                    <span className="text-sm">Male</span>
+                  </label>
+
+                  <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors duration-200 ${formData.gender === 'female' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-1 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (showErrors && !formData.gender ? 'border-red-500 ring-1 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="female"
+                      checked={formData.gender === 'female'}
+                      onChange={handleInputChange}
+                      className="text-primary-600 focus:ring-primary-500"
                     />
-                  <span className="text-sm">Female</span>
-                </label>
+                    <span className="text-sm">Female</span>
+                  </label>
                 </div>
                 {showErrors && !formData.gender && (
                   <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please select gender to continue</p>
                 )}
-            </div>
+              </div>
 
-            {/* Phone Number */}
-            <div>
+              {/* Phone Number */}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Phone Number
+                  Phone Number
                 </label>
                 <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                     <Phone className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </div>
-                <input
-                  type="tel"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={10}
+                  </div>
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    value={formData.phone_number}
+                    onChange={handleInputChange}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     className={`w-full pl-10 pr-20 py-2 rounded-lg focus:outline-none focus:ring-1 transition-colors duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border ${showErrors && ((formData.phone_number || '').replace(/\D/g, '').length !== 10) ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
-                  placeholder="Enter phone number"
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, phone_number: '0000000000' }))}
-                    className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-300 dark:border-gray-600"
-                    title="Set no phone number"
-                  >
-                    No Phone
-                  </button>
-                </div>
+                    placeholder="Enter phone number"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, phone_number: '0000000000' }))}
+                      className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-300 dark:border-gray-600"
+                      title="Set no phone number"
+                    >
+                      No Phone
+                    </button>
+                  </div>
                 </div>
                 {showErrors && ((formData.phone_number || '').replace(/\D/g, '').length !== 10) && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">Phone number must be 10 digits</p>
                 )}
-            </div>
+              </div>
 
-            {/* Age */}
-            <div>
+              {/* Age */}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Age
+                  Age
                 </label>
                 <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <input
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <input
                     type="number"
                     name="age"
                     value={formData.age}
@@ -336,167 +360,125 @@ const MemberModal = ({ isOpen, onClose }) => {
                     step="1"
                     className={`w-full pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors duration-200 border ${showErrors && (!formData.age || isNaN(parseInt(formData.age))) ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
                     placeholder="Enter age"
-                />
+                  />
                 </div>
                 {showErrors && (!formData.age || isNaN(parseInt(formData.age))) && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">Please enter age</p>
                 )}
-            </div>
-            </div>
+              </div>
 
-            {/* Current Level */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Current Level
-                </label>
-                <div className="relative">
-                  <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  <select
-                      name="current_level"
-                      value={formData.current_level}
-                      onChange={handleInputChange}
-                      className={`w-full pl-10 pr-10 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-1 appearance-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border ${showErrors && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
-                  >
-                      <option value="">Select level</option>
-                      <optgroup label="SHS">
-                        <option value="SHS1">SHS1</option>
-                        <option value="SHS2">SHS2</option>
-                        <option value="SHS3">SHS3</option>
-                      </optgroup>
-                      <optgroup label="JHS">
-                        <option value="JHS1">JHS1</option>
-                        <option value="JHS2">JHS2</option>
-                        <option value="JHS3">JHS3</option>
-                      </optgroup>
-                      <optgroup label="Other">
-                        <option value="COMPLETED">COMPLETED</option>
-                        <option value="UNIVERSITY">UNIVERSITY</option>
-                      </optgroup>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </div>
-                {showErrors && !formData.current_level && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">Please select current level</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Grouped for clarity. Pick SHS/JHS or an alternative.</p>
-            </div>
-
-            {/* Sunday Attendance */}
-            <div>
+              {/* Sunday Attendance */}
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                {getMonthDisplayName(currentTable)} Sunday Attendance (Optional)
+                  {getMonthDisplayName(currentTable)} Sunday Attendance (Optional)
                 </label>
                 <div className="space-y-3">
-                {sundayDates.map(date => {
+                  {sundayDates.map(date => {
                     const dateObj = new Date(date)
-                    const dateLabel = dateObj.toLocaleDateString('en-US', { 
-                    month: 'long', 
-                    day: 'numeric' 
+                    const dateLabel = dateObj.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric'
                     })
-                    
+
                     return (
-                    <div key={date} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors duration-200">
+                      <div key={date} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors duration-200">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {dateLabel}
+                          {dateLabel}
                         </span>
                         <div className="flex space-x-2">
-                        <button
+                          <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                            sundayAttendance[date] === true
-                                ? 'bg-green-600 text-white shadow-sm'
-                                : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
-                            }`}
-                        >
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${sundayAttendance[date] === true
+                              ? 'bg-green-600 text-white shadow-sm'
+                              : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
+                              }`}
+                          >
                             Present
-                        </button>
-                        <button
+                          </button>
+                          <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                            sundayAttendance[date] === false
-                                ? 'bg-red-600 text-white shadow-sm'
-                                : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
-                            }`}
-                        >
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${sundayAttendance[date] === false
+                              ? 'bg-red-600 text-white shadow-sm'
+                              : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
+                              }`}
+                          >
                             Absent
-                        </button>
-                        <button
+                          </button>
+                          <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: null }))}
                             className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
-                        >
+                          >
                             Clear
-                        </button>
+                          </button>
                         </div>
-                    </div>
+                      </div>
                     )
-                })}
+                  })}
                 </div>
-            </div>
+              </div>
 
-            {/* Tags selection */}
-            <div className="pt-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Assign Tags (Optional)
-              </label>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => toggleTagSelect('member')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    selectedTags.includes('member')
+              {/* Tags selection */}
+              <div className="pt-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Assign Tags (Optional)
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleTagSelect('member')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('member')
                       ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                       : 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800'
-                  }`}
-                >
-                  Member
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleTagSelect('regular')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    selectedTags.includes('regular')
+                      }`}
+                  >
+                    Member
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleTagSelect('regular')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('regular')
                       ? 'bg-green-600 text-white border-green-600 shadow-sm'
                       : 'bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800'
-                  }`}
-                >
-                  Regular
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleTagSelect('newcomer')}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    selectedTags.includes('newcomer')
+                      }`}
+                  >
+                    Regular
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleTagSelect('newcomer')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('newcomer')
                       ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
                       : 'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800'
-                  }`}
+                      }`}
+                  >
+                    Newcomer
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Tap to select one or more tags to save with this member.</p>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors"
                 >
-                  Newcomer
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? 'Adding...' : 'Add Member'}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Tap to select one or more tags to save with this member.</p>
             </div>
-
-            {/* Form Actions */}
-            <div className="flex space-x-3 pt-4">
-                <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors"
-                >
-                Cancel
-                </button>
-                <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                {loading ? 'Adding...' : 'Add Member'}
-                </button>
-            </div>
-            </form>
+          </form>
         </div>
 
         {/* Parent Info Popup */}

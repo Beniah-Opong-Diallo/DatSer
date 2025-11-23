@@ -7,7 +7,7 @@ import { toast } from 'react-toastify'
 const EditMemberModal = ({ isOpen, onClose, member }) => {
   const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, loadAllAttendanceData } = useApp()
   const { isDarkMode } = useTheme()
-  
+
   // Helper function to get month display name from table name
   const getMonthDisplayName = (tableName) => {
     // Convert table name like "October_2025" to "October 2025"
@@ -25,32 +25,32 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
   // Helper function to generate Sunday dates for the current month/year
   const generateSundayDates = (currentTable) => {
     if (!currentTable) return []
-    
+
     try {
       const [monthName, year] = currentTable.split('_')
       const yearNum = parseInt(year)
-      
+
       const monthIndex = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
       ].indexOf(monthName)
-      
+
       if (monthIndex === -1) return []
-      
+
       const sundays = []
       const date = new Date(yearNum, monthIndex, 1)
-      
+
       // Find the first Sunday of the month
       while (date.getDay() !== 0) {
         date.setDate(date.getDate() + 1)
       }
-      
+
       // Collect all Sundays in the month
       while (date.getMonth() === monthIndex) {
         sundays.push(date.toISOString().split('T')[0]) // Format as YYYY-MM-DD
         date.setDate(date.getDate() + 7)
       }
-      
+
       return sundays
     } catch (error) {
       console.error('Error generating Sunday dates:', error)
@@ -63,8 +63,8 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
   const [sundayAttendance, setSundayAttendance] = useState({})
 
   const levels = [
-    'SHS1', 'SHS2', 'SHS3', 
-    'JHS1', 'JHS2', 'JHS3', 
+    'SHS1', 'SHS2', 'SHS3',
+    'JHS1', 'JHS2', 'JHS3',
     'COMPLETED', 'UNIVERSITY'
   ]
 
@@ -111,8 +111,21 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     }
   }, [attendanceData, member?.id, sundayDates])
 
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setHasAttemptedSave(true)
+
+    // Validate required fields
+    const isFullNameValid = formData.full_name && formData.full_name.trim().length > 0
+    const isGenderValid = !!formData.gender
+
+    if (!isFullNameValid || !isGenderValid) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -131,15 +144,15 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
           await markAttendance(member.id, new Date(date), attendance)
         }
       }
-      
+
       onClose()
-      
+
       // Reset Sunday attendance state
       setSundayAttendance({})
-      
+
       // Refresh search results to show updated information
       setTimeout(() => refreshSearch(), 100)
-      
+
       // Success toast handled in global state
     } catch (error) {
       console.error('Error updating member:', error)
@@ -188,10 +201,16 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 value={formData.full_name}
                 onChange={handleInputChange}
                 required
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${hasAttemptedSave && (!formData.full_name || !formData.full_name.trim())
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                  }`}
                 placeholder="Enter full name"
               />
             </div>
+            {hasAttemptedSave && (!formData.full_name || !formData.full_name.trim()) && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">Full name is required</p>
+            )}
           </div>
 
           {/* Gender */}
@@ -200,7 +219,12 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
               Gender *
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'male' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (!formData.gender ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
+              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'male'
+                  ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold'
+                  : (hasAttemptedSave && !formData.gender
+                    ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')
+                }`}>
                 <input
                   type="radio"
                   name="gender"
@@ -212,8 +236,13 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 />
                 <span className="text-sm">Male</span>
               </label>
-              
-              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'female' ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold' : (!formData.gender ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')}`}>
+
+              <label className={`flex items-center space-x-2 p-3 border rounded-lg cursor-pointer transition-colors ${formData.gender === 'female'
+                  ? 'border-primary-500 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-2 ring-primary-300 dark:ring-primary-800 shadow-sm font-semibold'
+                  : (hasAttemptedSave && !formData.gender
+                    ? 'border-red-500 ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300')
+                }`}>
                 <input
                   type="radio"
                   name="gender"
@@ -226,7 +255,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 <span className="text-sm">Female</span>
               </label>
             </div>
-            {!formData.gender && (
+            {hasAttemptedSave && !formData.gender && (
               <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please select gender to continue</p>
             )}
           </div>
@@ -308,13 +337,13 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
             <div className="space-y-3">
               {sundayDates.map(date => {
                 const dateObj = new Date(date)
-                const formattedDate = dateObj.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
+                const formattedDate = dateObj.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
                 })
-                
+
                 return (
                   <div key={date} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 transition-colors">
                     <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -324,22 +353,20 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                       <button
                         type="button"
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
-                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${
-                          sundayAttendance[date] === true
-                            ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
-                            : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
-                        }`}
+                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${sundayAttendance[date] === true
+                          ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
+                          : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
+                          }`}
                       >
                         Present
                       </button>
                       <button
                         type="button"
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
-                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${
-                          sundayAttendance[date] === false
-                            ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
-                            : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
-                        }`}
+                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${sundayAttendance[date] === false
+                          ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
+                          : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
+                          }`}
                       >
                         Absent
                       </button>
