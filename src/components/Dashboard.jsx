@@ -8,6 +8,8 @@ import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
 import MissingDataModal from './MissingDataModal'
+import SelectionToolbar from './SelectionToolbar'
+import { useLongPressSelection } from '../hooks/useLongPressSelection'
 import { toast } from 'react-toastify'
 
 // Helper function to get month display name from table name
@@ -112,6 +114,46 @@ const Dashboard = ({ isAdmin = false }) => {
   const [missingFields, setMissingFields] = useState([])
   const [missingDates, setMissingDates] = useState([])
   const [pendingAttendanceAction, setPendingAttendanceAction] = useState(null)
+
+  // Long-press selection hook (works with both touch and mouse)
+  const {
+    selectionMode,
+    selectedIds: longPressSelectedIds,
+    handleLongPressStart,
+    handleLongPressMove,
+    handleLongPressEnd,
+    handleMouseDown,
+    handleMouseUp,
+    toggleSelection,
+    clearSelection
+  } = useLongPressSelection()
+
+  // Handle bulk attendance for long-press selection
+  const handleLongPressBulkAction = async (present) => {
+    if (longPressSelectedIds.size === 0) return
+
+    const dateToUse = selectedAttendanceDate || new Date()
+    const memberIds = Array.from(longPressSelectedIds)
+
+    setIsBulkApplying(true)
+    try {
+      await bulkAttendance(memberIds, dateToUse, present)
+      toast.success(`Marked ${memberIds.length} member${memberIds.length !== 1 ? 's' : ''} as ${present ? 'present' : 'absent'}!`)
+      clearSelection()
+    } catch (error) {
+      console.error('Bulk action error:', error)
+      toast.error('Failed to update attendance')
+    } finally {
+      setIsBulkApplying(false)
+    }
+  }
+
+  // Sync long-press selection to selectedMemberIds when on Edited Members tab
+  useEffect(() => {
+    if (dashboardTab === 'edited') {
+      setSelectedMemberIds(new Set(longPressSelectedIds))
+    }
+  }, [longPressSelectedIds, dashboardTab])
 
   // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
@@ -1168,137 +1210,129 @@ const Dashboard = ({ isAdmin = false }) => {
               )}
               {/* Date Filter Indicator removed; use Sundays header Edit Date dropdown */}
 
-              {/* Bulk Selection Toolbar (only on Edited Members) */}
-              {dashboardTab === 'edited' && selectedMemberIds.size > 1 && (
-                <div className="sticky top-0 sm:top-2 z-30 bg-primary-50/80 dark:bg-primary-900/50 border border-primary-300 dark:border-primary-700 rounded-xl p-3 sm:p-4 mb-3 shadow-md backdrop-blur flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary-700 dark:text-primary-200" />
-                    <span className="text-sm font-medium text-primary-700 dark:text-primary-200">{selectedMemberIds.size} selected</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleMultiAttendanceAction(true)}
-                      disabled={isBulkApplying || isBulkDeleting}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white`}
-                      title="Mark selected as present"
-                    >
-                      Present
-                    </button>
-                    <button
-                      onClick={() => handleMultiAttendanceAction(false)}
-                      disabled={isBulkApplying || isBulkDeleting}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'} text-white`}
-                      title="Mark selected as absent"
-                    >
-                      Absent
-                    </button>
-                    <button
-                      onClick={() => handleMultiAttendanceAction(null)}
-                      disabled={isBulkApplying || isBulkDeleting}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-700'} text-white`}
-                      title="Clear attendance for selected"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      onTouchStart={(e) => { e.stopPropagation() }}
-                      onClick={(e) => { e.stopPropagation(); handleBulkDelete() }}
-                      style={{ touchAction: 'manipulation' }}
-                      disabled={isBulkApplying || isBulkDeleting}
-                      className={`h-9 px-3 rounded-lg text-sm font-semibold shadow-sm ${isBulkApplying || isBulkDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-800 hover:bg-red-900'} text-white flex items-center gap-2`}
-                      title="Delete selected members"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </button>
-                    {isBulkApplying && (
-                      <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    )}
-                    {isBulkDeleting && (
-                      <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    )}
-                  </div>
-                  <div className="sm:w-px sm:h-6 sm:bg-primary-300 sm:dark:bg-primary-700 sm:mx-2" />
-                  {/* Sundays selector - mobile friendly chips */}
-                  <div className="flex flex-col gap-2 w-full sm:w-auto">
+              {/* Bulk Selection Toolbar (only on Edited Members) - GREEN with only Sunday selector */}
+              {dashboardTab === 'edited' && selectedMemberIds.size > 0 && (
+                <div className="sticky top-0 sm:top-2 z-30 bg-green-50/95 dark:bg-green-900/50 border-2 border-green-400 dark:border-green-600 rounded-xl p-3 sm:p-4 mb-3 shadow-lg backdrop-blur">
+                  {/* Member Count + Action Buttons */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-primary-700 dark:text-primary-200">Select Sundays:</span>
-                      <button
-                        onClick={selectAllSundays}
-                        className="px-2 py-1 text-xs rounded bg-primary-100 dark:bg-primary-800 text-primary-700 dark:text-primary-200 hover:bg-primary-200 dark:hover:bg-primary-700"
-                        title="Select all Sundays"
-                      >
-                        Select all
-                      </button>
-                      <button
-                        onClick={clearSundayBulkSelection}
-                        className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                        title="Clear Sundays selection"
-                      >
-                        Clear days
-                      </button>
+                      <div className="w-7 h-7 rounded-full bg-green-600 text-white flex items-center justify-center font-bold text-sm">
+                        {selectedMemberIds.size}
+                      </div>
+                      <span className="text-sm font-semibold text-green-900 dark:text-green-100">{selectedMemberIds.size} name{selectedMemberIds.size !== 1 ? 's' : ''} selected</span>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto px-1 py-1 no-scrollbar">
+                    <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                      <button
+                        onClick={() => handleMultiAttendanceAction(true)}
+                        disabled={isBulkApplying || isBulkDeleting}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${isBulkApplying || isBulkDeleting ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 active:scale-95'} text-white`}
+                        style={{ minHeight: '40px' }}
+                      >
+                        <Check className="w-4 h-4" />
+                        Present
+                      </button>
+                      <button
+                        onClick={() => handleMultiAttendanceAction(false)}
+                        disabled={isBulkApplying || isBulkDeleting}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${isBulkApplying || isBulkDeleting ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 active:scale-95'} text-white`}
+                        style={{ minHeight: '40px' }}
+                      >
+                        <X className="w-4 h-4" />
+                        Absent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleBulkDelete() }}
+                        disabled={isBulkApplying || isBulkDeleting}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${isBulkApplying || isBulkDeleting ? 'bg-red-300 cursor-not-allowed' : 'bg-red-700 hover:bg-red-800 active:scale-95'} text-white`}
+                        style={{ minHeight: '40px' }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                      <button
+                        onClick={clearMemberSelection}
+                        className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                        style={{ minHeight: '40px' }}
+                      >
+                        Cancel
+                      </button>
+                      {(isBulkApplying || isBulkDeleting) && (
+                        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin dark:border-green-400" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Sunday Selection */}
+                  <div className="pt-3 border-t border-green-300 dark:border-green-700">
+                    <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                      <h4 className="text-xs font-semibold text-green-900 dark:text-green-100">Select Sundays:</h4>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={selectAllSundays}
+                          className="px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-700 whitespace-nowrap"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          onClick={clearSundayBulkSelection}
+                          className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 whitespace-nowrap"
+                        >
+                          Clear days
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto px-1 py-1 no-scrollbar mb-2">
                       {sundayDates.map(dateStr => {
                         const checked = selectedBulkSundayDates.has(dateStr)
                         const label = new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                         return (
-                          <label key={dateStr} className="inline-flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleSundayBulkSelection(dateStr)}
-                              className="sr-only peer"
-                            />
-                            <span className={`min-w-[96px] h-8 px-2 inline-flex items-center justify-center gap-2 rounded-full border text-xs font-medium shadow-sm transition-colors ${checked ? 'bg-primary-600 text-white border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                              title={`Toggle ${label}`}
-                            >
-                              <span>{label}</span>
-                              <span className="flex items-center gap-1">
-                                <span className={`px-1 rounded ${checked ? 'bg-white/20 text-white' : 'bg-green-100 text-green-800 dark:bg-green-800/40 dark:text-green-200'} text-[10px] font-semibold`}>P {perDayCounts[dateStr]?.present ?? 0}</span>
-                                <span className={`px-1 rounded ${checked ? 'bg-white/20 text-white' : 'bg-red-100 text-red-800 dark:bg-red-800/40 dark:text-red-200'} text-[10px] font-semibold`}>A {perDayCounts[dateStr]?.absent ?? 0}</span>
-                              </span>
-                            </span>
-                          </label>
+                          <button
+                            key={dateStr}
+                            onClick={() => toggleSundayBulkSelection(dateStr)}
+                            className={`min-w-fit px-2 py-1 rounded text-xs font-medium transition-colors ${checked ? 'bg-green-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                          >
+                            {label}
+                          </button>
                         )
                       })}
                     </div>
-                    {/* Aggregated counts across selected/all Sundays */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-primary-700 dark:text-primary-200">Totals:</span>
-                      <span className="h-7 px-2 inline-flex items-center justify-center rounded-full bg-green-100 text-green-800 dark:bg-green-800/40 dark:text-green-200 text-xs font-semibold">
-                        Present: {presentCount}
-                      </span>
-                      <span className="h-7 px-2 inline-flex items-center justify-center rounded-full bg-red-100 text-red-800 dark:bg-red-800/40 dark:text-red-200 text-xs font-semibold">
-                        Absent: {absentCount}
-                      </span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-green-900 dark:text-green-100">Totals:</span>
+                      <div className="flex gap-3">
+                        <span className="px-3 py-1 rounded-full bg-green-200 dark:bg-green-900/60 text-green-800 dark:text-green-200 text-xs font-semibold">
+                          Present: {presentCount}
+                        </span>
+                        <span className="px-3 py-1 rounded-full bg-red-200 dark:bg-red-900/60 text-red-800 dark:text-red-200 text-xs font-semibold">
+                          Absent: {absentCount}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="sm:ml-auto flex items-center gap-2">
-                    <button
-                      onClick={selectAllVisibleMembers}
-                      className="px-2 py-1 text-xs rounded bg-primary-100 dark:bg-primary-800 text-primary-700 dark:text-primary-200 hover:bg-primary-200 dark:hover:bg-primary-700"
-                      title="Select all visible members"
-                    >
-                      Select all members in view
-                    </button>
-                    <button
-                      onClick={clearMemberSelection}
-                      className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                      title="Clear member selection"
-                    >
-                      Clear selection
-                    </button>
                   </div>
                 </div>
               )}
+              {/* Long-Press Selection Toolbar */}
+              <SelectionToolbar
+                selectedCount={longPressSelectedIds.size}
+                onPresent={() => handleLongPressBulkAction(true)}
+                onAbsent={() => handleLongPressBulkAction(false)}
+                onCancel={clearSelection}
+                isLoading={isBulkApplying}
+              />
+
               {membersToShow.map((member) => {
                 const isExpanded = expandedMembers[member.id]
+                const isSelected = longPressSelectedIds.has(member.id)
 
                 return (
                   <div key={member.id} className="relative">
-                    <div className="absolute inset-y-0 right-0 w-16 flex items-center justify-center bg-red-600 dark:bg-red-700 rounded-xl">
+                    {/* Selection checkmark */}
+                    {isSelected && (
+                      <div className="selection-checkmark">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                    <div className="absolute inset-y-0 right-0 w-16 flex items-center justify-center bg-red-600 dark:bg-red-700 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
                       <button
                         type="button"
                         onTouchStart={(e) => { e.stopPropagation() }}
@@ -1310,11 +1344,42 @@ const Dashboard = ({ isAdmin = false }) => {
                       </button>
                     </div>
                     <div
-                      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-primary-300 dark:hover:border-primary-600 shadow-sm hover:shadow-md transition-all duration-200 border-r-4 border-r-red-600 dark:border-r-red-700"
-                      style={{ transform: swipeOpenId === member.id ? 'translateX(-64px)' : 'translateX(0)', touchAction: 'pan-y' }}
-                      onTouchStart={(e) => onRowTouchStart(member.id, e)}
-                      onTouchMove={(e) => onRowTouchMove(member.id, e)}
-                      onTouchEnd={() => onRowTouchEnd(member.id)}
+                      className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:border-primary-300 dark:hover:border-primary-600 shadow-sm hover:shadow-md transition-all duration-200 border-r-4 border-r-red-600 dark:border-r-red-700 ${isSelected ? 'selection-highlight' : ''
+                        }`}
+                      style={{ transform: swipeOpenId === member.id ? 'translateX(-64px)' : 'translateX(0)', touchAction: 'pan-y', userSelect: 'none' }}
+                      onTouchStart={(e) => {
+                        if (!selectionMode) {
+                          handleLongPressStart(member.id, e)
+                          onRowTouchStart(member.id, e)
+                        }
+                      }}
+                      onTouchMove={(e) => {
+                        handleLongPressMove(e)
+                        onRowTouchMove(member.id, e)
+                      }}
+                      onTouchEnd={() => {
+                        handleLongPressEnd()
+                        onRowTouchEnd(member.id)
+                      }}
+                      onMouseDown={(e) => {
+                        if (!selectionMode) {
+                          handleMouseDown(member.id, e)
+                        }
+                      }}
+                      onMouseMove={(e) => {
+                        handleLongPressMove(e)
+                      }}
+                      onMouseUp={() => {
+                        handleMouseUp()
+                      }}
+                      onMouseLeave={() => {
+                        handleMouseUp()
+                      }}
+                      onClick={() => {
+                        if (selectionMode) {
+                          toggleSelection(member.id)
+                        }
+                      }}
                     >
                       {/* Compact Header Row */}
                       <div className="pl-4 pr-3 py-3 sm:p-4">
@@ -1332,19 +1397,15 @@ const Dashboard = ({ isAdmin = false }) => {
                                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                               )}
                             </button>
-                            {/* Round checkbox replaces avatar, only on Edited Members */}
+                            {/* Round checkbox replaces avatar, only on Edited Members - USE LONG-PRESS */}
                             {dashboardTab === 'edited' && (
-                              <label className="flex-shrink-0 cursor-pointer" title="Select member for bulk actions">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedMemberIds.has(member.id)}
-                                  onChange={() => toggleMemberSelection(member.id)}
-                                  className="sr-only peer"
-                                />
-                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex items-center justify-center transition-colors peer-checked:bg-primary-600 peer-checked:border-primary-600">
-                                  <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white opacity-0 peer-checked:opacity-100" />
-                                </span>
-                              </label>
+                              <div className="flex-shrink-0 text-gray-400 dark:text-gray-500 text-xs font-medium">
+                                {isSelected && (
+                                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-green-600 flex items-center justify-center">
+                                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
+                                  </div>
+                                )}
+                              </div>
                             )}
                             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0">
                               <h3 className="mt-0.5 sm:mt-1 font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate min-w-0">{member['full_name'] || member['Full Name']}</h3>
