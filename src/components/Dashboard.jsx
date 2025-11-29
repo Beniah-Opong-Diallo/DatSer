@@ -905,7 +905,7 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   return (
-    <div className="space-y-6 pb-24 max-w-5xl mx-auto">
+    <div className="space-y-2 pb-12 max-w-5xl mx-auto px-3 sm:px-4">
       {/* Header removed; summary now shown in sticky Header */}
 
       {/* Desktop tab navigation removed; use mobile segmented control in Header */}
@@ -1096,7 +1096,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
       {/* Members List */}
-      <div className={`mt-6 sm:mt-0 space-y-3`}>
+      <div className={`mt-8 sm:mt-10 space-y-3`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -1186,40 +1186,6 @@ const Dashboard = ({ isAdmin = false }) => {
                       onClick={() => { badgeFilter.forEach(b => toggleBadgeFilter(b)) }}
                       className="ml-auto px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                       title="Clear all badge filters"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
-              {dashboardTab !== 'edited' && (
-                <div className="hidden lg:flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-2 sm:p-3 shadow-sm">
-                  <span className="text-xs text-gray-600 dark:text-gray-300">Gender:</span>
-                  <button
-                    onClick={() => setGenderFilter(prev => (prev === 'Male' ? null : 'Male'))}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${genderFilter === 'Male'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    title={genderFilter === 'Male' ? 'Show all genders' : 'Show Male only'}
-                  >
-                    Male
-                  </button>
-                  <button
-                    onClick={() => setGenderFilter(prev => (prev === 'Female' ? null : 'Female'))}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${genderFilter === 'Female'
-                      ? 'bg-pink-600 text-white border-pink-600'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    title={genderFilter === 'Female' ? 'Show all genders' : 'Show Female only'}
-                  >
-                    Female
-                  </button>
-                  {genderFilter && (
-                    <button
-                      onClick={() => setGenderFilter(null)}
-                      className="ml-auto px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                      title="Clear gender filter"
                     >
                       Clear
                     </button>
@@ -1400,7 +1366,7 @@ const Dashboard = ({ isAdmin = false }) => {
                       }}
                     >
                       {/* Compact Header Row */}
-                      <div className="pl-4 pr-3 py-3 sm:p-4">
+                      <div className="pl-3 pr-2 py-3 sm:pl-6 sm:pr-3 sm:py-3.5">
 
                         <div className="flex items-center gap-1 sm:gap-2">
                           {/* Left side: Name, badge, and expand button */}
@@ -1593,8 +1559,8 @@ const Dashboard = ({ isAdmin = false }) => {
 
                       {/* Expandable Content */}
                       {isExpanded && (
-                        <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                          <div className="pt-3 sm:pt-4">
+                        <div className="px-2 sm:px-3 pb-2 sm:pb-3 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                          <div className="pt-2 sm:pt-3">
                             {/* Member Details */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4 rounded-lg border border-blue-200 dark:border-blue-700">
                               <div className="space-y-2 sm:space-y-3">
@@ -1740,7 +1706,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
               {/* Load More Button */}
               {hasMoreMembers && (
-                <div className="flex justify-center mt-6">
+                <div className="flex justify-center mt-3 mb-2">
                   <button
                     onClick={async () => {
                       setIsLoadingMore(true)
@@ -1769,7 +1735,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
               {/* Members count info */}
               {!searchTerm && tabFilteredMembers.length > 0 && (
-                <div className="text-center mt-4 text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-center mt-2 text-sm text-gray-600 dark:text-gray-400">
                   Showing {Math.min(displayLimit, tabFilteredMembers.length)} of {tabFilteredMembers.length} members
                 </div>
               )}

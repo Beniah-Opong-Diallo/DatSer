@@ -81,7 +81,7 @@ function App() {
               onCreateMonth={() => setShowMonthModal(true)}
             />
 
-            <main className={`container mx-auto px-4 py-8 ${currentView === 'admin' ? 'pt-8' : 'pt-36 md:pt-40'}`}>
+            <main className={`container mx-auto px-4 py-8 pt-24 md:pt-20 ${currentView === 'admin' ? 'pt-8' : ''}`}>
               {currentView === 'dashboard' && (
                 <Dashboard isAdmin={isAdmin} />
               )}
