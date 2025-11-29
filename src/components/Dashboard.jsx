@@ -912,7 +912,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Edited Members: Sundays Quick View (desktop only) */}
       {dashboardTab === 'edited' && (
-        <div ref={sundaysRef} className="hidden sm:block bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3 sm:p-4">
+        <div ref={sundaysRef} className="hidden sm:block mt-8 sm:mt-10 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600 p-3 sm:p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary-600" />
@@ -991,7 +991,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {dashboardTab === 'duplicates' && (
-        <div className={`rounded-lg border p-4 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+        <div className={`rounded-lg border p-4 mt-8 sm:mt-10 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between mb-3">
             <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Duplicate Names</h3>
           </div>
