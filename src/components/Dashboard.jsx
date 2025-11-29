@@ -1866,13 +1866,16 @@ const Dashboard = ({ isAdmin = false }) => {
             setPendingAttendanceAction(null)
           }}
           onSave={async () => {
-            // After saving missing data, execute pending attendance action
             if (pendingAttendanceAction) {
               const { memberId, present } = pendingAttendanceAction
-              // Temporarily bypass validation to avoid infinite loop
-              const member = members.find(m => m.id === memberId)
-              if (member) {
-                await handleAttendance(memberId, present)
+              const dateObj = selectedAttendanceDate ? new Date(selectedAttendanceDate) : null
+              if (dateObj) {
+                await markAttendance(memberId, dateObj, present)
+                const member = members.find(m => m.id === memberId)
+                const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
+                toast.success(`Marked ${present ? 'present' : 'absent'} for: ${memberName}`, {
+                  style: { background: present ? '#10b981' : '#ef4444', color: '#ffffff' }
+                })
               }
               setPendingAttendanceAction(null)
             }

@@ -108,6 +108,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   }
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
+  const [isOverrideMode, setIsOverrideMode] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -139,10 +140,12 @@ const MemberModal = ({ isOpen, onClose }) => {
 
     // So yes, I should enforce all of them.
 
-    if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
-      setShowErrors(true)
-      toast.error('Please fill in all required fields correctly')
-      return
+    if (!isOverrideMode) {
+      if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
+        setShowErrors(true)
+        toast.error('Please fill in all required fields correctly')
+        return
+      }
     }
     setLoading(true)
 
@@ -194,7 +197,10 @@ const MemberModal = ({ isOpen, onClose }) => {
       setParentInfo({ parent_name_1: '', parent_phone_1: '', parent_name_2: '', parent_phone_2: '' })
       setShowErrors(false)
       setNewlyAddedMemberId(newMember.id)
+      setShowErrors(false)
+      setNewlyAddedMemberId(newMember.id)
       setShowParentInfo(true)
+      setIsOverrideMode(false)
 
       // Success toast handled in global state
     } catch (error) {
@@ -217,18 +223,27 @@ const MemberModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 max-w-md w-full mx-4 max-h-[90vh] flex flex-col transition-colors duration-200">
+      <div className={`shadow-2xl ring-1 max-w-md w-full mx-4 max-h-[90vh] flex flex-col transition-all duration-300 ${isOverrideMode
+          ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
+          : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
+        }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className={`flex items-center justify-between p-6 border-b flex-shrink-0 transition-all duration-300 ${isOverrideMode
+            ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700 rounded-t-3xl'
+            : 'border-gray-200 dark:border-gray-700 rounded-t-xl'
+          }`}>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Add New Member</h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowParentInfo(true)}
-              className="px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-300 dark:border-blue-700"
-              title="Add Parent Info"
+              onClick={() => setIsOverrideMode(!isOverrideMode)}
+              className={`px-3 py-1 rounded text-xs border transition-colors ${isOverrideMode
+                  ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              title="Toggle Override Mode (Bypass Validation)"
             >
-              Add Parent Info
+              {isOverrideMode ? 'Override Active' : 'Override'}
             </button>
             <button
               onClick={onClose}
@@ -240,7 +255,7 @@ const MemberModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Scrollable Form Area */}
-        <div className="overflow-y-auto no-scrollbar">
+        < div className="overflow-y-auto no-scrollbar" >
           <form onSubmit={handleSubmit} noValidate className="p-6 space-y-6">
             {/* Section: Member Information */}
             <div className="space-y-4">
@@ -519,14 +534,17 @@ const MemberModal = ({ isOpen, onClose }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${isOverrideMode
+                    ? 'bg-orange-600 hover:bg-orange-700'
+                    : 'bg-primary-600 hover:bg-primary-700'
+                    }`}
                 >
-                  {loading ? 'Adding...' : 'Add Member'}
+                  {loading ? 'Adding...' : (isOverrideMode ? 'Add (Override)' : 'Add Member')}
                 </button>
               </div>
             </div>
           </form>
-        </div>
+        </div >
 
         {/* Parent Info Popup */}
         {
