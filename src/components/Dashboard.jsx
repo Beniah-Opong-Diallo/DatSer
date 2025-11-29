@@ -128,6 +128,24 @@ const Dashboard = ({ isAdmin = false }) => {
     clearSelection
   } = useLongPressSelection()
 
+  // Local search term state for debounced search
+  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
+
+  // Keep local input in sync when external searchTerm changes
+  useEffect(() => {
+    setLocalSearchTerm(searchTerm)
+  }, [searchTerm])
+
+  // Debounce updates to global search term to reduce re-renders
+  useEffect(() => {
+    const tid = setTimeout(() => {
+      if (localSearchTerm !== searchTerm) {
+        setSearchTerm(localSearchTerm)
+      }
+    }, 250)
+    return () => clearTimeout(tid)
+  }, [localSearchTerm])
+
   // Handle bulk attendance for long-press selection
   const handleLongPressBulkAction = async (present) => {
     if (longPressSelectedIds.size === 0) return
@@ -1408,7 +1426,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               </div>
                             )}
                             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0">
-                              <h3 className="mt-0.5 sm:mt-1 font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate min-w-0">{member['full_name'] || member['Full Name']}</h3>
+                              <h3 className="mt-0.5 sm:mt-1 font-semibold text-gray-900 dark:text-white text-xs sm:text-sm truncate min-w-0">{member['full_name'] || member['Full Name']}</h3>
                               {(() => {
                                 const badge = calculateMemberBadge(member)
                                 if (badge === 'newcomer') return null
@@ -1943,6 +1961,37 @@ const Dashboard = ({ isAdmin = false }) => {
           }}
         />
       )}
+
+      {/* Bottom Search Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 safe-area-bottom">
+        <div className="mx-auto px-3 sm:px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search members by name..."
+                value={localSearchTerm}
+                onChange={(e) => setLocalSearchTerm(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { setSearchTerm(localSearchTerm); refreshSearch() } }}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+              />
+              {(searchTerm || localSearchTerm) && (
+                <button
+                  onClick={() => { setSearchTerm(''); setLocalSearchTerm('') }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Add padding to prevent content from being hidden behind bottom search bar */}
+      <div className="h-12" />
     </div>
   )
 }
