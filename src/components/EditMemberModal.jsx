@@ -71,9 +71,12 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
   // Initialize form data when member changes
   useEffect(() => {
     if (member) {
+      // Normalize gender to lowercase to match radio button values
+      const rawGender = member['Gender'] || ''
+      const normalizedGender = typeof rawGender === 'string' ? rawGender.toLowerCase() : ''
       setFormData({
         full_name: (member['full_name'] || member['Full Name'] || ''),
-        gender: member['Gender'] || '',
+        gender: normalizedGender,
         phone_number: member['Phone Number'] || '',
         age: member['Age'] || '',
         current_level: member['Current Level'] || ''
@@ -122,7 +125,9 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     const isFullNameValid = formData.full_name && formData.full_name.trim().length > 0
     const isGenderValid = !!formData.gender
     const isLevelValid = !!formData.current_level
-    const phoneDigits = (formData.phone_number || '').replace(/\D/g, '')
+    // Ensure phone_number is converted to string for validation (it may be a number from DB)
+    const phoneStr = String(formData.phone_number || '')
+    const phoneDigits = phoneStr.replace(/\D/g, '')
     const isPhoneValid = phoneDigits.length === 10
     const ageNum = parseInt(formData.age)
     const isAgeValid = formData.age && !isNaN(ageNum) && ageNum >= 1 && ageNum <= 120
@@ -268,9 +273,18 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
 
           {/* Phone Number */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Phone Number
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Phone Number
+              </label>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, phone_number: '0000000000' }))}
+                className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+              >
+                No Phone
+              </button>
+            </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                 <Phone className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -282,14 +296,14 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 onChange={handleInputChange}
                 inputMode="numeric"
                 pattern="[0-9]*"
-                className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${hasAttemptedSave && ((formData.phone_number || '').replace(/\D/g, '').length !== 10)
+                className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${hasAttemptedSave && (String(formData.phone_number || '').replace(/\D/g, '').length !== 10)
                   ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
                   : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400'
                   }`}
                 placeholder="Enter phone number"
               />
             </div>
-            {hasAttemptedSave && ((formData.phone_number || '').replace(/\D/g, '').length !== 10) && (
+            {hasAttemptedSave && (String(formData.phone_number || '').replace(/\D/g, '').length !== 10) && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">Phone number must be 10 digits</p>
             )}
           </div>

@@ -1510,6 +1510,64 @@ export const AppProvider = ({ children }) => {
     }
   }, [currentTable])
 
+  // QR-based marking handler
+  // If the URL contains ?qr_mark=<memberId>&date=YYYY-MM-DD the app will attempt to mark that member present for the supplied date (or 30th of currentTable if no date)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const qrMark = params.get('qr_mark')
+      const dateParam = params.get('date')
+
+      if (!qrMark) return
+
+      ;(async () => {
+        try {
+          // Determine date to use: prefer provided date, otherwise the 30th of the current table month
+          let targetDate = null
+          if (dateParam) {
+            const d = new Date(dateParam)
+            if (!isNaN(d.getTime())) targetDate = d
+          }
+          if (!targetDate && currentTable) {
+            try {
+              const [monthName, year] = currentTable.split('_')
+              const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
+              const monthIndex = months.indexOf(monthName)
+              if (monthIndex !== -1) {
+                targetDate = new Date(parseInt(year, 10), monthIndex, 30)
+              }
+            } catch (e) {
+              // fallback to today
+              targetDate = new Date()
+            }
+          }
+          if (!targetDate) targetDate = new Date()
+
+          // Mark attendance as present
+          await markAttendance(qrMark, targetDate, true)
+
+          // Show a confirmation toast
+          try { toast.success('Attendance marked via QR') } catch {}
+
+          // Remove query params so repeated reloads do not re-trigger the action
+          try {
+            const url = new URL(window.location.href)
+            url.searchParams.delete('qr_mark')
+            url.searchParams.delete('date')
+            window.history.replaceState({}, document.title, url.toString())
+          } catch (e) {
+            // ignore
+          }
+        } catch (err) {
+          console.error('QR mark processing failed', err)
+        }
+      })()
+    } catch (e) {
+      console.error('Failed to parse QR params', e)
+    }
+  }, [currentTable, markAttendance])
+
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, RefreshCw, X } from 'lucide-react'
+import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, RefreshCw, X, Feather } from 'lucide-react'
 import EditMemberModal from './EditMemberModal'
 import MemberModal from './MemberModal'
+import QRModal from './QRModal'
 import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
@@ -16,6 +17,24 @@ import { toast } from 'react-toastify'
 const getMonthDisplayName = (tableName) => {
   // Convert table name like "October_2025" to "October 2025"
   return tableName.replace('_', ' ')
+}
+
+// Helper function to get the 30th date of the current table's month
+const get30thDate = (currentTable) => {
+  if (!currentTable) return null
+  try {
+    const [monthName, year] = currentTable.split('_')
+    const yearNum = parseInt(year)
+    const monthIndex = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ].indexOf(monthName)
+    if (monthIndex === -1) return null
+    return `${yearNum}-${String(monthIndex + 1).padStart(2, '0')}-30`
+  } catch (error) {
+    console.error('Error generating 30th date:', error)
+    return null
+  }
 }
 
 const Dashboard = ({ isAdmin = false }) => {
@@ -91,6 +110,10 @@ const Dashboard = ({ isAdmin = false }) => {
   const swipeActiveIdRef = useRef(null)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState(null)
+
+  // QR modal for share / admin scan workflow
+  const [openQrModal, setOpenQrModal] = useState(false)
+  const [qrMember, setQrMember] = useState(null)
 
   // Custom confirmation modals
   const [confirmModalConfig, setConfirmModalConfig] = useState({
@@ -468,12 +491,13 @@ const Dashboard = ({ isAdmin = false }) => {
     return acc
   }, [attendanceData, members, sundayDates])
 
-  // Fetch attendance when date changes
+  // Fetch attendance for the 30th date when table changes
   useEffect(() => {
-    if (selectedAttendanceDate) {
-      fetchAttendanceForDate(new Date(selectedAttendanceDate))
+    const date30th = get30thDate(currentTable)
+    if (date30th) {
+      fetchAttendanceForDate(new Date(date30th))
     }
-  }, [selectedAttendanceDate, fetchAttendanceForDate])
+  }, [currentTable, fetchAttendanceForDate])
 
   // Preload attendance maps when switching to Edited tab
   useEffect(() => {
@@ -590,38 +614,21 @@ const Dashboard = ({ isAdmin = false }) => {
       return // Stop here if missing data found
     }
 
-    // If no specific attendance date is selected, apply the action across ALL Sundays
-    if (!selectedAttendanceDate) {
-      setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
-      try {
-        const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
-        for (const dateStr of sundayDates) {
-          await markAttendance(memberId, new Date(dateStr), present)
-        }
-        toast.success(`Marked ${present ? 'present' : 'absent'} for all Sundays (${sundayDates.length}) for: ${memberName}`, {
-          style: {
-            background: present ? '#10b981' : '#ef4444',
-            color: '#ffffff'
-          }
-        })
-      } catch (error) {
-        console.error('Error marking attendance across all Sundays:', error)
-        toast.error('Failed to update attendance for all Sundays. Please try again.')
-      } finally {
-        setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
-      }
+    // Always use the 30th date of the current month
+    const date30th = get30thDate(currentTable)
+    if (!date30th) {
+      toast.error('Unable to determine the 30th date for this month.')
       return
     }
 
-    // Existing single-date toggle behavior
     setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
-      const dateKey = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
-      const currentStatus = dateKey && attendanceData[dateKey] ? attendanceData[dateKey][memberId] : undefined
+      const currentStatus = attendanceData[date30th]?.[memberId]
+
       // Toggle functionality: if clicking the same status, deselect it (set to null)
       if (currentStatus === present) {
-        await markAttendance(memberId, new Date(selectedAttendanceDate), null)
+        await markAttendance(memberId, new Date(date30th), null)
         toast.success(`Attendance cleared for: ${memberName}`, {
           style: {
             background: '#f3f4f6',
@@ -629,8 +636,8 @@ const Dashboard = ({ isAdmin = false }) => {
           }
         })
       } else {
-        await markAttendance(memberId, new Date(selectedAttendanceDate), present)
-        toast.success(`Marked ${present ? 'present' : 'absent'} for: ${memberName}`, {
+        await markAttendance(memberId, new Date(date30th), present)
+        toast.success(`Marked ${present ? 'present' : 'absent'} for the 30th: ${memberName}`, {
           style: {
             background: present ? '#10b981' : '#ef4444',
             color: '#ffffff'
@@ -743,26 +750,24 @@ const Dashboard = ({ isAdmin = false }) => {
       return
     }
 
-    const dates = selectedBulkSundayDates.size > 0
-      ? Array.from(selectedBulkSundayDates)
-      : (selectedAttendanceDate ? [selectedAttendanceDate] : sundayDates)
-
-    // Defaulting to all Sundays when none are selected and no date is set
+    const date30th = get30thDate(currentTable)
+    if (!date30th) {
+      toast.error('Unable to determine the 30th date for this month.')
+      return
+    }
 
     setIsBulkApplying(true)
     try {
-      for (const dateStr of dates) {
-        if (status === null) {
-          // Clear individually when status is null
-          for (const id of memberIds) {
-            await markAttendance(id, new Date(dateStr), null)
-          }
-        } else {
-          await bulkAttendance(memberIds, new Date(dateStr), status)
+      if (status === null) {
+        // Clear individually when status is null
+        for (const id of memberIds) {
+          await markAttendance(id, new Date(date30th), null)
         }
+      } else {
+        await bulkAttendance(memberIds, new Date(date30th), status)
       }
       const actionText = status === null ? 'cleared' : status ? 'present' : 'absent'
-      toast.success(`Bulk ${actionText} applied to ${memberIds.length} member(s) for ${dates.length} date(s).`)
+      toast.success(`Bulk ${actionText} applied to ${memberIds.length} member(s) for the 30th.`)
     } catch (error) {
       console.error('Bulk attendance failed:', error)
       toast.error('Failed to apply bulk update. Please try again.')
@@ -1316,12 +1321,21 @@ const Dashboard = ({ isAdmin = false }) => {
                         <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
-                    <div className="absolute inset-y-0 right-0 w-16 flex items-center justify-center bg-red-600 dark:bg-red-700 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
+                    <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center space-x-1 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
+                      <button
+                        type="button"
+                        onTouchStart={(e) => { e.stopPropagation() }}
+                        onClick={(e) => { e.stopPropagation(); setQrMember(member); setOpenQrModal(true) }}
+                        className="text-white flex items-center justify-center w-12 h-12 rounded-md bg-blue-600 hover:bg-blue-700"
+                        title="Share / QR"
+                      >
+                        <Feather className="w-5 h-5" />
+                      </button>
                       <button
                         type="button"
                         onTouchStart={(e) => { e.stopPropagation() }}
                         onClick={(e) => { e.stopPropagation(); openDeleteConfirm(e, member) }}
-                        className="text-white flex items-center justify-center w-12 h-12 rounded-md"
+                        className="text-white flex items-center justify-center w-12 h-12 rounded-md bg-red-600 dark:bg-red-700 hover:bg-red-700"
                         title="Delete"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -1433,8 +1447,8 @@ const Dashboard = ({ isAdmin = false }) => {
                             {/* Attendance buttons */}
                             <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-md py-1 px-2">
                               {(() => {
-                                const dateKeyForRow = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
-                                const rowStatus = dateKeyForRow && attendanceData[dateKeyForRow] ? attendanceData[dateKeyForRow][member.id] : undefined
+                                const date30th = get30thDate(currentTable)
+                                const rowStatus = date30th && attendanceData[date30th] ? attendanceData[date30th][member.id] : undefined
                                 const isPresentSelected = rowStatus === true
                                 const isAbsentSelected = rowStatus === false
                                 return (
@@ -1809,6 +1823,15 @@ const Dashboard = ({ isAdmin = false }) => {
         isOpen={showMemberModal}
         onClose={() => setShowMemberModal(false)}
       />
+
+      {/* QR modal: shows QR code and WhatsApp share link for admin to send/scan */}
+      {openQrModal && (
+        <QRModal
+          isOpen={openQrModal}
+          member={qrMember}
+          onClose={() => { setOpenQrModal(false); setQrMember(null) }}
+        />
+      )}
 
       {/* Delete Confirm Modal */}
       {isDeleteConfirmOpen && (

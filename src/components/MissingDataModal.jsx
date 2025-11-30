@@ -12,6 +12,25 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
     const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
     const [isOverrideMode, setIsOverrideMode] = useState(false)
 
+    // Local selection for which missing Sunday should be considered the "selectedAttendanceDate"
+    // This lets the admin choose a date from the missingDates dropdown inside the modal.
+    const [selectedDateKey, setSelectedDateKey] = useState(null)
+
+    useEffect(() => {
+        // Initialize the selected date key from the prop if available, otherwise pick the first missing date
+        if (selectedAttendanceDate) {
+            try {
+                setSelectedDateKey(selectedAttendanceDate.toISOString().split('T')[0])
+                return
+            } catch {}
+        }
+        if (missingDates && missingDates.length > 0) {
+            setSelectedDateKey(missingDates[0].toISOString().split('T')[0])
+        } else {
+            setSelectedDateKey(null)
+        }
+    }, [selectedAttendanceDate, missingDates])
+
     // Initialize form data with member's current values
     useEffect(() => {
         const initialData = {}
@@ -146,11 +165,12 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                 console.log('Member updated successfully')
             }
 
-            const selectedKey = selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null
-            if (pendingAttendanceAction && selectedAttendanceDate) {
+            // Use the locally-selected date if provided by the modal dropdown; fall back to the prop
+            const selectedKey = selectedDateKey || (selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null)
+            if (pendingAttendanceAction && selectedKey) {
                 const actionBool = !!pendingAttendanceAction.present
                 console.log(`Marking pending selected date ${selectedKey}: ${actionBool}`)
-                await markAttendance(member.id, selectedAttendanceDate, actionBool)
+                await markAttendance(member.id, new Date(selectedKey), actionBool)
             }
 
             for (const dateKey of Object.keys(attendanceData)) {
@@ -422,6 +442,24 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                 <p className="text-sm text-gray-600 dark:text-gray-400">
                                     Please mark attendance for the following past Sundays:
                                 </p>
+
+                                {/* Optional dropdown to choose which missing Sunday should be used as the "selected" date.
+                                    This is used to apply the pending attendance action (if any) to the chosen date. */}
+                                <div className="mb-3">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apply pending attendance to</label>
+                                    <select
+                                        value={selectedDateKey || ''}
+                                        onChange={(e) => setSelectedDateKey(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-primary-500"
+                                    >
+                                        {(missingDates || []).map(d => {
+                                            const k = d.toISOString().split('T')[0]
+                                            const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                            return <option key={k} value={k}>{label}</option>
+                                        })}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">The selected date will be used for the pending attendance action (the one that triggered this modal).</p>
+                                </div>
 
                                 <div className="space-y-3">
                                     {missingDates.map(date => {
