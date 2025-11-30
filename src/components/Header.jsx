@@ -375,7 +375,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <div className="relative" ref={mobileDropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-300 dark:border-gray-600 ${['analytics', 'export', 'admin'].includes(currentView)
+                  className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-3 sm:py-1.5 rounded-lg text-sm font-medium transition-colors border border-gray-300 dark:border-gray-600 ${['analytics', 'export', 'admin'].includes(currentView)
                       ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-600'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 bg-white dark:bg-gray-800'
                     }`}
