@@ -23,7 +23,7 @@ const FALLBACK_MONTHLY_TABLES = [
 ]
 
 const DEFAULT_ATTENDANCE_DATES = {
-  'November_2025': '2025-11-16'
+  'November_2025': '2025-11-30'
 }
 
 // Get the latest available table with persistence
@@ -379,6 +379,7 @@ export const AppProvider = ({ children }) => {
       }
 
       const twentyThird = sundays.find(sunday => sunday.getDate() === 23) || null
+      const thirtieth = sundays.find(sunday => sunday.getDate() === 30) || null
 
       const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
       let defaultDate = null
@@ -391,7 +392,8 @@ export const AppProvider = ({ children }) => {
         )) || null
       }
       if (!defaultDate) {
-        defaultDate = twentyThird || (sundays.length >= 2 ? sundays[1] : sundays[0])
+        // Prefer 30th if available, then 23rd, then other Sundays
+        defaultDate = thirtieth || twentyThird || (sundays.length >= 2 ? sundays[1] : sundays[0])
       }
       setAndSaveAttendanceDate(defaultDate)
     }

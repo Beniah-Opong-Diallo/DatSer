@@ -269,8 +269,28 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               </div>
             </div>
 
-            {/* Right group: Menu only (badge filter moved to Edited page) */}
+            {/* Right group: Add member + Refresh + Menu (badge filter moved to Edited page) */}
             <div className="flex items-center gap-2 lg:gap-3">
+              {/* Add New Member */}
+              <button
+                onClick={() => { if (onAddMember) onAddMember(); }}
+                className="flex items-center space-x-1.5 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+                title="Add New Member"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden lg:inline">Add Member</span>
+              </button>
+ 
+              {/* Refresh */}
+              <button
+                onClick={() => { forceRefreshMembers() }}
+                className="flex items-center space-x-1.5 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Refresh members"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span className="hidden lg:inline">Refresh</span>
+              </button>
+ 
               {/* Desktop Menu (icon-only on small screens, full name on large) */}
               <div className="relative" ref={dropdownRef}>
                 <button
@@ -284,7 +304,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                   <Menu className="w-4 h-4" />
                   <span className="hidden lg:inline">Menu</span>
                 </button>
-
+ 
                 {/* Dropdown replaced by right-side drawer */}
               </div>
             </div>
