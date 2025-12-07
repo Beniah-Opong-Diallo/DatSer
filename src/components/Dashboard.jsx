@@ -1872,7 +1872,7 @@ const Dashboard = ({ isAdmin = false }) => {
           missingFields={missingFields}
           missingDates={missingDates}
           pendingAttendanceAction={pendingAttendanceAction}
-          selectedAttendanceDate={selectedAttendanceDate}
+          selectedAttendanceDate={new Date(getTargetDate(currentTable))}
           onClose={() => {
             setShowMissingDataModal(false)
             setMissingDataMember(null)
@@ -1881,19 +1881,14 @@ const Dashboard = ({ isAdmin = false }) => {
             setPendingAttendanceAction(null)
           }}
           onSave={async () => {
-            if (pendingAttendanceAction) {
-              const { memberId, present } = pendingAttendanceAction
-              const dateObj = selectedAttendanceDate ? new Date(selectedAttendanceDate) : null
-              if (dateObj) {
-                await markAttendance(memberId, dateObj, present)
-                const member = members.find(m => m.id === memberId)
-                const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
-                toast.success(`Marked ${present ? 'present' : 'absent'} for: ${memberName}`, {
-                  style: { background: present ? '#10b981' : '#ef4444', color: '#ffffff' }
-                })
-              }
-              setPendingAttendanceAction(null)
-            }
+            // The modal handles the attendance marking internally using the correct date
+            const dateStr = getTargetDate(currentTable)
+            const present = pendingAttendanceAction?.present
+
+            // Just show a success toast here if needed, or rely on the modal's toast
+            // The modal shows "Attendance saved (Override)" or "Missing data saved successfully!"
+
+            setPendingAttendanceAction(null)
           }}
         />
       )}
