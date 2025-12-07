@@ -19,22 +19,9 @@ const getMonthDisplayName = (tableName) => {
   return tableName.replace('_', ' ')
 }
 
-// Helper function to get the 30th date of the current table's month
-const get30thDate = (currentTable) => {
-  if (!currentTable) return null
-  try {
-    const [monthName, year] = currentTable.split('_')
-    const yearNum = parseInt(year)
-    const monthIndex = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ].indexOf(monthName)
-    if (monthIndex === -1) return null
-    return `${yearNum}-${String(monthIndex + 1).padStart(2, '0')}-30`
-  } catch (error) {
-    console.error('Error generating 30th date:', error)
-    return null
-  }
+// Helper function to get the target date (Nov 23)
+const getTargetDate = (currentTable) => {
+  return '2025-11-23'
 }
 
 const Dashboard = ({ isAdmin = false }) => {
@@ -176,7 +163,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const handleLongPressBulkAction = async (present) => {
     if (longPressSelectedIds.size === 0) return
 
-    const dateToUse = selectedAttendanceDate || new Date()
+    const dateToUse = new Date(getTargetDate())
     const memberIds = Array.from(longPressSelectedIds)
 
     setIsBulkApplying(true)
@@ -496,9 +483,9 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Fetch attendance for the 30th date when table changes
   useEffect(() => {
-    const date30th = get30thDate(currentTable)
-    if (date30th) {
-      fetchAttendanceForDate(new Date(date30th))
+    const targetDate = getTargetDate(currentTable)
+    if (targetDate) {
+      fetchAttendanceForDate(new Date(targetDate))
     }
   }, [currentTable, fetchAttendanceForDate])
 
@@ -617,21 +604,21 @@ const Dashboard = ({ isAdmin = false }) => {
       return // Stop here if missing data found
     }
 
-    // Always use the 30th date of the current month
-    const date30th = get30thDate(currentTable)
-    if (!date30th) {
-      toast.error('Unable to determine the 30th date for this month.')
+    // Always use the target date (Nov 23)
+    const targetDate = getTargetDate(currentTable)
+    if (!targetDate) {
+      toast.error('Unable to determine the target date.')
       return
     }
 
     setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
-      const currentStatus = attendanceData[date30th]?.[memberId]
+      const currentStatus = attendanceData[targetDate]?.[memberId]
 
       // Toggle functionality: if clicking the same status, deselect it (set to null)
       if (currentStatus === present) {
-        await markAttendance(memberId, new Date(date30th), null)
+        await markAttendance(memberId, new Date(targetDate), null)
         toast.success(`Attendance cleared for: ${memberName}`, {
           style: {
             background: '#f3f4f6',
@@ -639,8 +626,8 @@ const Dashboard = ({ isAdmin = false }) => {
           }
         })
       } else {
-        await markAttendance(memberId, new Date(date30th), present)
-        toast.success(`Marked ${present ? 'present' : 'absent'} for the 30th: ${memberName}`, {
+        await markAttendance(memberId, new Date(targetDate), present)
+        toast.success(`Marked ${present ? 'present' : 'absent'} for Nov 23: ${memberName}`, {
           style: {
             background: present ? '#10b981' : '#ef4444',
             color: '#ffffff'
@@ -753,9 +740,9 @@ const Dashboard = ({ isAdmin = false }) => {
       return
     }
 
-    const date30th = get30thDate(currentTable)
-    if (!date30th) {
-      toast.error('Unable to determine the 30th date for this month.')
+    const targetDate = getTargetDate(currentTable)
+    if (!targetDate) {
+      toast.error('Unable to determine the target date.')
       return
     }
 
@@ -764,13 +751,13 @@ const Dashboard = ({ isAdmin = false }) => {
       if (status === null) {
         // Clear individually when status is null
         for (const id of memberIds) {
-          await markAttendance(id, new Date(date30th), null)
+          await markAttendance(id, new Date(targetDate), null)
         }
       } else {
-        await bulkAttendance(memberIds, new Date(date30th), status)
+        await bulkAttendance(memberIds, new Date(targetDate), status)
       }
       const actionText = status === null ? 'cleared' : status ? 'present' : 'absent'
-      toast.success(`Bulk ${actionText} applied to ${memberIds.length} member(s) for the 30th.`)
+      toast.success(`Bulk ${actionText} applied to ${memberIds.length} member(s) for Nov 23.`)
     } catch (error) {
       console.error('Bulk attendance failed:', error)
       toast.error('Failed to apply bulk update. Please try again.')
@@ -1254,7 +1241,7 @@ const Dashboard = ({ isAdmin = false }) => {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Sunday Selection */}
                   <div className="pt-3 border-t border-green-300 dark:border-green-700">
                     <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
@@ -1421,7 +1408,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               <span>Badge</span>
                               <ChevronDown className={`w-3 h-3 transition-transform ${badgeDropdownOpen === member.id ? 'rotate-180' : ''}`} />
                             </button>
-                            
+
                             {/* Dropdown menu */}
                             {badgeDropdownOpen === member.id && (
                               <div className="absolute top-full left-0 mt-1 w-full min-w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[100] py-1">
@@ -1481,8 +1468,8 @@ const Dashboard = ({ isAdmin = false }) => {
                           <div className="flex items-center gap-2 md:ml-auto">
                             {/* Present/Absent buttons - compact on mobile, full on desktop */}
                             {(() => {
-                              const date30th = get30thDate(currentTable)
-                              const rowStatus = date30th && attendanceData[date30th] ? attendanceData[date30th][member.id] : undefined
+                              const targetDate = getTargetDate(currentTable)
+                              const rowStatus = targetDate && attendanceData[targetDate] ? attendanceData[targetDate][member.id] : undefined
                               const isPresentSelected = rowStatus === true
                               const isAbsentSelected = rowStatus === false
                               return (
