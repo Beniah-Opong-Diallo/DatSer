@@ -406,9 +406,9 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       {currentView === 'dashboard' && (
         <div className="md:border-t border-gray-200 dark:border-gray-700">
           <div className="mx-auto px-3 sm:px-4 py-1.5 md:py-1">
-            <div className="inline-flex items-center justify-between gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm">
+            <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm w-full max-w-4xl mx-auto">
               {/* Left: summary tokens */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
                 {selectedAttendanceDate && (
                   <>
                     <span>{selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
@@ -424,7 +424,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 <span className="hidden md:inline">Member Dashboard</span>
               </div>
               {/* Right: segmented toggle */}
-              <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800">
+              <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex-shrink-0">
                 <button
                   onClick={() => { if (isDarkMode) toggleTheme() }}
                   className={`flex items-center gap-1 px-2 py-0.5 text-[10px] leading-4 ${!isDarkMode ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}

@@ -1099,7 +1099,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
       {/* Members List */}
-      <div className={`mt-8 sm:mt-10 space-y-3`}>
+      <div className={`mt-8 sm:mt-10 grid grid-cols-1 lg:grid-cols-2 gap-3`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -1226,15 +1226,15 @@ const Dashboard = ({ isAdmin = false }) => {
                               <Check className="w-3 h-3 text-white" />
                             </div>
                           )}
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-base sm:text-xl truncate flex-1">
+                          <h3 className="font-semibold text-gray-900 dark:text-white text-lg sm:text-xl truncate flex-1">
                             {member['full_name'] || member['Full Name']}
                           </h3>
                         </div>
 
                         {/* Row 2: Present/Absent (and desktop Delete) buttons */}
-                        <div className="flex flex-col sm:flex-row items-stretch gap-2 ml-0 sm:ml-7 md:ml-0 w-full">
+                        <div className="flex items-stretch gap-2 ml-0 w-full">
                           {/* Present/Absent buttons */}
-                          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full">
+                          <div className="flex flex-row items-stretch gap-2 w-full">
                             {/* Present/Absent buttons - compact on mobile, full on desktop */}
                             {(() => {
                               const targetDate = getTargetDate(currentTable)
@@ -1291,12 +1291,12 @@ const Dashboard = ({ isAdmin = false }) => {
                       {/* Expandable Content */}
                       {isExpanded && (
                         <div className="px-2 sm:px-3 pb-2 sm:pb-3 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                          <div className="pt-2 sm:pt-3">
+                          <div className="pt-2 sm:pt-2.5">
                             {/* Member Details */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-                              <div className="space-y-2 sm:space-y-3">
-                                <h4 className="font-medium text-gray-900 dark:text-white mb-1 sm:mb-2 text-sm sm:text-base">Member Information</h4>
-                                <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3 mb-3 sm:mb-3 bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-3 rounded-lg border border-blue-200 dark:border-blue-700">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-1 text-sm sm:text-sm">Member Information</h4>
+                                <div className="space-y-1 text-xs sm:text-xs">
                                   <div className="flex justify-between items-center">
                                     <span className="text-gray-600 dark:text-gray-300">Gender:</span>
                                     <span className="font-medium capitalize text-gray-900 dark:text-white truncate ml-2">{member['Gender']}</span>
@@ -1350,12 +1350,12 @@ const Dashboard = ({ isAdmin = false }) => {
                               </div>
 
                               {/* Actions */}
-                              <div className="space-y-2 sm:space-y-3">
-                                <h4 className="font-medium text-gray-900 dark:text-white mb-1 sm:mb-2 text-sm sm:text-base">Actions</h4>
-                                <div className="flex flex-col space-y-1 sm:space-y-2">
+                              <div className="space-y-1.5 sm:space-y-2">
+                                <h4 className="font-medium text-gray-900 dark:text-white mb-1 text-sm sm:text-sm">Actions</h4>
+                                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-2">
                                   <button
                                     onClick={() => setEditingMember(member)}
-                                    className="flex items-center space-x-2 px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900 rounded transition-colors"
+                                    className="flex items-center space-x-2 px-2 sm:px-3 py-1.5 sm:py-1.5 text-xs sm:text-xs text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900 rounded transition-colors sm:flex-1 md:flex-none"
                                   >
                                     <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" />
                                     <span>Edit Member</span>
@@ -1365,7 +1365,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     onTouchStart={(e) => { e.stopPropagation() }}
                                     onClick={(e) => openDeleteConfirm(e, member)}
                                     style={{ touchAction: 'manipulation' }}
-                                    className="flex items-center space-x-2 px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
+                                    className="flex items-center space-x-2 px-2 sm:px-3 py-1.5 sm:py-1.5 text-xs sm:text-xs text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors sm:flex-1 md:flex-none"
                                   >
                                     <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                                     <span>Delete Member</span>
