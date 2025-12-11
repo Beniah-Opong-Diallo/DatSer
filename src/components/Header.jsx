@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, startTransition } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Users,
   Download,
@@ -195,19 +195,19 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       id: 'edited_members',
       label: `Edited Members (${editedCount})`,
       icon: Edit3,
-      onClick: () => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) }
+      onClick: () => { setCurrentView('dashboard'); setDashboardTab('edited') }
     },
     {
       id: 'duplicates',
       label: 'Duplicate Names',
       icon: Users,
-      onClick: () => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('duplicates') }) }
+      onClick: () => { setCurrentView('dashboard'); setDashboardTab('duplicates') }
     },
     {
       id: 'analytics',
       label: 'Analytics',
       icon: TrendingUp,
-      onClick: () => { startTransition(() => { setCurrentView('analytics') }) }
+      onClick: () => { setCurrentView('analytics') }
     },
     // Action: Create new month goes into the menu
     {
@@ -223,14 +223,14 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       id: 'admin',
       label: 'Admin',
       icon: Shield,
-      onClick: () => { startTransition(() => { setCurrentView('admin') }) }
+      onClick: () => { setCurrentView('admin') }
     })
   } else {
     menuItems.push({
       id: 'admin',
       label: 'Login',
       icon: Shield,
-      onClick: () => { startTransition(() => { setCurrentView('admin') }) }
+      onClick: () => { setCurrentView('admin') }
     })
   }
 
@@ -269,7 +269,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               {/* Desktop-only quick nav */}
               <div className="hidden lg:flex items-center gap-2">
                 <button
-                  onClick={() => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('edited') }) }}
+                  onClick={() => { setCurrentView('dashboard'); setDashboardTab('edited') }}
                   className={`flex items-center space-x-0.5 px-3 lg:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'dashboard' && dashboardTab === 'edited'
                       ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -278,7 +278,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                   <span>Edited</span>
                 </button>
                 <button
-                  onClick={() => { startTransition(() => { setCurrentView('dashboard'); setDashboardTab('duplicates') }) }}
+                  onClick={() => { setCurrentView('dashboard'); setDashboardTab('duplicates') }}
                   className={`flex items-center space-x-0.5 px-3 lg:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'dashboard' && dashboardTab === 'duplicates'
                       ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -287,7 +287,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                   <span>Duplicates</span>
                 </button>
                 <button
-                  onClick={() => startTransition(() => setCurrentView('analytics'))}
+                  onClick={() => setCurrentView('analytics')}
                   className={`flex items-center space-x-0.5 px-3 lg:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'analytics'
                       ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -299,7 +299,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                   <span>Analytics</span>
                 </button>
                 <button
-                  onClick={() => startTransition(() => setCurrentView('admin'))}
+                  onClick={() => setCurrentView('admin')}
                   className={`flex items-center space-x-0.5 px-3 lg:px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'admin'
                       ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                       : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
