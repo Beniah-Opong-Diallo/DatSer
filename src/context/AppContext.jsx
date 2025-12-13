@@ -19,33 +19,24 @@ const getCurrentMonthTable = () => {
 
 // Fallback monthly tables for when Supabase is not configured
 const FALLBACK_MONTHLY_TABLES = [
-  'January_2025', 'February_2025', 'April_2025', 'May_2025',
-  'June_2025', 'July_2025', 'August_2025', 'September_2025', 'October_2025', 'November_2025'
+  'January_2025', 'February_2025', 'March_2025', 'April_2025', 'May_2025',
+  'June_2025', 'July_2025', 'August_2025', 'September_2025', 'October_2025', 'November_2025', 'December_2025'
 ]
 
 const DEFAULT_ATTENDANCE_DATES = {
   'November_2025': '2025-11-23'
 }
 
-// Get the latest available table with persistence
+// Get the latest available table (fallback only - does NOT modify localStorage)
 const getLatestTable = () => {
-  // Force November_2025 as default (clear old localStorage)
-  localStorage.removeItem('selectedMonthTable')
-  localStorage.setItem('selectedMonthTable', 'November_2025')
-
-  // Try to get saved table from localStorage
-  const savedTable = localStorage.getItem('selectedMonthTable')
-  if (savedTable && FALLBACK_MONTHLY_TABLES.includes(savedTable)) {
-    return savedTable
-  }
-
-  // Default to current month if available, otherwise November_2025
+  // Default to current month if available, otherwise use December_2025
   const currentMonthTable = getCurrentMonthTable()
   if (FALLBACK_MONTHLY_TABLES.includes(currentMonthTable)) {
     return currentMonthTable
   }
 
-  return 'November_2025'
+  // Return most recent table from fallback list
+  return FALLBACK_MONTHLY_TABLES[FALLBACK_MONTHLY_TABLES.length - 1] || 'December_2025'
 }
 
 // Mock data for development when Supabase is not configured
@@ -1537,12 +1528,14 @@ export const AppProvider = ({ children }) => {
         if (currentTable !== savedTable) {
           setCurrentTable(savedTable)
         }
-      } else if (savedTable && !monthlyTables.includes(savedTable)) {
-        // Saved table no longer exists, clear it and use latest
-        localStorage.removeItem('selectedMonthTable')
-        const latest = getLatestTable()
+      } else if (!savedTable && monthlyTables.length > 0) {
+        // No saved table, use the latest available
+        const latest = monthlyTables[monthlyTables.length - 1]
         setCurrentTable(latest)
+        localStorage.setItem('selectedMonthTable', latest)
       }
+      // If savedTable exists but not in monthlyTables, keep it anyway
+      // The user's preference is preserved - they can switch if needed
     }
   }, [monthlyTables])
 
