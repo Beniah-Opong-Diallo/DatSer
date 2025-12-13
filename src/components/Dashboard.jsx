@@ -1673,7 +1673,7 @@ const Dashboard = ({ isAdmin = false }) => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
               <input
                 type="text"
-                placeholder="Search members by name..."
+                placeholder="Search members..."
                 value={localSearchTerm}
                 onChange={(e) => setLocalSearchTerm(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { setSearchTerm(localSearchTerm); refreshSearch() } }}
@@ -1689,6 +1689,15 @@ const Dashboard = ({ isAdmin = false }) => {
                 </button>
               )}
             </div>
+            {/* Add Member Button */}
+            <button
+              onClick={() => setShowMemberModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
+              title="Add New Member"
+            >
+              <UserPlus className="w-5 h-5" />
+              <span className="hidden md:inline text-sm font-medium">Add Member</span>
+            </button>
           </div>
         </div>
       </div>

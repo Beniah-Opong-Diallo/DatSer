@@ -127,11 +127,12 @@ export const AuthProvider = ({ children }) => {
 
       if (data) {
         setPreferences(data)
-        // Apply preferences to localStorage for immediate use
-        if (data.selected_month_table) {
+        // Only apply database preferences if localStorage doesn't have values
+        // This preserves user's most recent selections even after logout
+        if (data.selected_month_table && !localStorage.getItem('selectedMonthTable')) {
           localStorage.setItem('selectedMonthTable', data.selected_month_table)
         }
-        if (data.badge_filter) {
+        if (data.badge_filter && !localStorage.getItem('badgeFilter')) {
           localStorage.setItem('badgeFilter', JSON.stringify(data.badge_filter))
         }
       }

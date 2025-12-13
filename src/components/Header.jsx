@@ -3,7 +3,6 @@ import {
   Users,
   Download,
   Shield,
-  Plus,
   Calendar,
   Moon,
   Sun,
@@ -310,19 +309,10 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               </div>
             </div>
 
-            {/* Right group: Add member + Menu (badge filter moved to Edited page) */}
+            {/* Right group: User login + actions + Menu */}
             <div className="flex items-center gap-2 lg:gap-3">
-              {/* Add New Member */}
-              <button
-                onClick={() => { if (onAddMember) onAddMember(); }}
-                className="flex items-center space-x-0.5 px-2 lg:px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white"
-                title="Add New Member"
-              >
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md text-blue-700 dark:text-blue-300 transition-colors md:text-gray-700 md:dark:text-gray-300 hover:md:bg-gray-100 hover:md:dark:bg-gray-700">
-                  <Plus className="w-4 h-4" />
-                </span>
-                <span className="hidden lg:inline">Add Member</span>
-              </button>
+              {/* Login Button (user name on left of menu) */}
+              <LoginButton />
 
               {/* Create New Month */}
               <button
@@ -336,7 +326,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 <span className="hidden lg:inline">New Month</span>
               </button>
 
-              {/* Desktop Menu (icon-only on small screens, full name on large) */}
+              {/* Desktop Menu (far right) */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
@@ -355,13 +345,6 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 {/* Dropdown replaced by right-side drawer */}
               </div>
             </div>
-          </div>
-
-
-
-          {/* Right-side actions - Login button */}
-          <div className="hidden md:flex items-center space-x-2">
-            <LoginButton />
           </div>
         </div>
 
@@ -398,17 +381,6 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
             <div className="flex items-center gap-2">
               {/* Login Button (mobile) */}
               <LoginButton />
-
-              {/* Add Member (mobile, match desktop shape) */}
-              <button
-                onClick={() => { if (onAddMember) onAddMember(); }}
-                className="flex items-center space-x-0.5 px-2 lg:px-2 py-1 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white"
-                title="Add Member"
-              >
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md text-blue-100 dark:text-blue-100 transition-colors">
-                  <Plus className="w-4 h-4" />
-                </span>
-              </button>
 
               {/* Menu icon-only (match desktop square shape) */}
               <div className="relative" ref={mobileDropdownRef}>
