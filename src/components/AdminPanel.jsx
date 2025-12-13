@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { Calendar, Database, Users, Activity, LogOut, RefreshCw, Filter, Edit, Search, Trash2, X, ChevronDown, ChevronUp, Check, TrendingUp, Edit3, Award, Phone } from 'lucide-react'
+import { Calendar, Database, Users, Activity, LogOut, RefreshCw, Filter, Edit, Search, Trash2, X, ChevronDown, ChevronUp, Check, TrendingUp, Edit3, Award, Phone, UserPlus } from 'lucide-react'
 import { toast } from 'react-toastify'
 import EditMemberModal from './EditMemberModal'
+import ShareAccessModal from './ShareAccessModal'
 import DateSelector from './DateSelector'
 
 const AdminPanel = ({ onLogout, setCurrentView }) => {
-  const { 
-    monthlyTables, 
-    currentTable, 
-    setCurrentTable, 
-    members, 
-    markAttendance, 
+  const {
+    monthlyTables,
+    currentTable,
+    setCurrentTable,
+    members,
+    markAttendance,
     attendanceLoading,
     searchTerm,
     setSearchTerm,
@@ -28,23 +30,27 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
   } = useApp()
   const { isDarkMode } = useTheme()
   // Bottom search bar is always keyboard-aware via visualViewport offset
-  
+
   const [systemStats, setSystemStats] = useState({
     totalMembers: 0,
     activeMonth: '',
     totalTables: 0,
     lastUpdated: new Date().toLocaleString()
   })
-  
+
   // Edit member modal state
   const [editingMember, setEditingMember] = useState(null)
   const [isMonthMenuOpen, setIsMonthMenuOpen] = useState(false)
-  
+
   // Badge processing state
   const [badgeResults, setBadgeResults] = useState(null)
   const [isProcessingBadges, setIsProcessingBadges] = useState(false)
   const [isBadgeResultsOpen, setIsBadgeResultsOpen] = useState(false)
-  
+
+  // Share access modal state
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const { user } = useAuth()
+
   // Statistics dropdown state
   const [isStatsOpen, setIsStatsOpen] = useState(false)
 
@@ -89,7 +95,7 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
   const getLatestAttendanceStatus = (member) => {
     // Get all attendance dates and find the most recent one with data for this member
     const attendanceDates = Object.keys(attendanceData).sort().reverse()
-    
+
     for (const date of attendanceDates) {
       const memberAttendance = attendanceData[date]?.[member.id]
       if (memberAttendance !== undefined) {
@@ -134,17 +140,17 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
   const processBadgesManually = async () => {
     setIsProcessingBadges(true)
     setBadgeResults(null)
-    
+
     try {
       console.log('Starting badge processing...')
       console.log('Available Sunday dates:', availableSundayDates)
       console.log('Attendance data:', attendanceData)
       console.log('Members count:', members.length)
-      
+
       // Check if month is complete
       const monthComplete = isMonthAttendanceComplete()
       console.log('Is month complete?', monthComplete)
-      
+
       if (!monthComplete) {
         toast.error('Month is not complete yet. All Sundays must have attendance data.')
         setIsProcessingBadges(false)
@@ -160,16 +166,16 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
       // Check each member for 3 consecutive Sundays
       for (const member of members) {
         results.totalProcessed++
-        
+
         // Check for 3 consecutive Present attendances
         const sortedSundays = [...availableSundayDates].sort((a, b) => a - b)
         let consecutiveCount = 0
         let hasThreeConsecutive = false
-        
+
         for (const sunday of sortedSundays) {
           const dateKey = sunday.toISOString().split('T')[0]
           const memberStatus = attendanceData[dateKey]?.[member.id]
-          
+
           if (memberStatus === true) {
             consecutiveCount++
             if (consecutiveCount >= 3) {
@@ -232,24 +238,34 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
     }
   }
 
-  
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 pb-24 transition-colors">
       <div className="max-w-7xl mx-auto">
-        {/* Header - Compact */}
+        {/* Header - Compact & Mobile Responsive */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3 mb-4 transition-colors">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <span className="text-xs text-gray-500 dark:text-gray-400">Datsar Administration</span>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+              <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 hidden xs:inline">Datsar Administration</span>
             </div>
-            <button
-              onClick={onLogout}
-              className="flex items-center px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <LogOut className="w-3 h-3 mr-1.5" />
-              Logout
-            </button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="flex items-center px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="Share access with others"
+              >
+                <UserPlus className="w-3.5 h-3.5 sm:w-3 sm:h-3 sm:mr-1.5" />
+                <span className="hidden sm:inline ml-1">Share</span>
+              </button>
+              <button
+                onClick={onLogout}
+                className="flex items-center px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5 sm:w-3 sm:h-3 sm:mr-1.5" />
+                <span className="hidden sm:inline ml-1">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -266,7 +282,7 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
             </div>
             {isStatsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-          
+
           {isStatsOpen && (
             <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
@@ -320,76 +336,73 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
           </div>
           <div className="p-3">
 
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700 dark:text-white">Select Month</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsMonthMenuOpen(v => !v)}
-                className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors ${
-                  isDarkMode
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white">Select Month</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsMonthMenuOpen(v => !v)}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors ${isDarkMode
                     ? 'bg-gray-700 border-gray-600 text-white hover:border-gray-500'
                     : 'bg-white border-gray-300 text-gray-900 hover:border-gray-400'
-                }`}
-                aria-haspopup="listbox"
-                aria-expanded={isMonthMenuOpen}
-              >
-                <span className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span className="font-medium">{getMonthDisplayName(currentTable)}</span>
-                  <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">Active</span>
-                </span>
-                {isMonthMenuOpen ? (
-                  <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                )}
-              </button>
-
-              {isMonthMenuOpen && (
-                <div
-                  className={`absolute z-40 mt-2 w-full max-h-64 overflow-y-auto no-scrollbar rounded-lg shadow-lg border ${
-                    isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
-                  }`}
-                  role="listbox"
+                    }`}
+                  aria-haspopup="listbox"
+                  aria-expanded={isMonthMenuOpen}
                 >
-                  {monthlyTables.map((table) => {
-                    const isActive = table === currentTable
-                    return (
-                      <button
-                        key={table}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleTableSwitch(table)
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${
-                          isDarkMode
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span className="font-medium">{getMonthDisplayName(currentTable)}</span>
+                    <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">Active</span>
+                  </span>
+                  {isMonthMenuOpen ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  )}
+                </button>
+
+                {isMonthMenuOpen && (
+                  <div
+                    className={`absolute z-40 mt-2 w-full max-h-64 overflow-y-auto no-scrollbar rounded-lg shadow-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'
+                      }`}
+                    role="listbox"
+                  >
+                    {monthlyTables.map((table) => {
+                      const isActive = table === currentTable
+                      return (
+                        <button
+                          key={table}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleTableSwitch(table)
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${isDarkMode
                             ? `hover:bg-gray-700 ${isActive ? 'bg-blue-900/20' : ''} text-white`
                             : `hover:bg-gray-100 ${isActive ? 'bg-blue-50' : ''} text-gray-900`
-                        }`}
-                        role="option"
-                        aria-selected={isActive}
-                      >
-                        <span className="flex items-center gap-2">
-                          <Database className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
-                          <span>{getMonthDisplayName(table)}</span>
-                        </span>
-                        {isActive && (
-                          <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                            }`}
+                          role="option"
+                          aria-selected={isActive}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Database className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
+                            <span>{getMonthDisplayName(table)}</span>
+                          </span>
+                          {isActive && (
+                            <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
 
-            <div className="text-sm text-gray-600 dark:text-white">
-              Active: {getMonthDisplayName(currentTable)} • {members.length} members
+              <div className="text-sm text-gray-600 dark:text-white">
+                Active: {getMonthDisplayName(currentTable)} • {members.length} members
+              </div>
             </div>
-          </div>
           </div>
 
           {monthlyTables.length === 0 && (
@@ -469,7 +482,7 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
                       <p className="text-sm text-gray-600 dark:text-gray-300">{member.Gender}</p>
                     </div>
                   </div>
-                  
+
                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
                       <span>ID: {member.id}</span>
@@ -491,8 +504,8 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
               <Users className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Members Found</h3>
               <p className="text-gray-600 dark:text-gray-300">
-                {searchTerm 
-                  ? `No members match your search for "${searchTerm}"` 
+                {searchTerm
+                  ? `No members match your search for "${searchTerm}"`
                   : "No members are currently registered in this database."
                 }
               </p>
@@ -511,12 +524,19 @@ const AdminPanel = ({ onLogout, setCurrentView }) => {
       </div>
 
       {/* Top sticky search bar moved to Header.jsx */}
-      
+
       {/* Edit Member Modal */}
       <EditMemberModal
         isOpen={!!editingMember}
         onClose={() => setEditingMember(null)}
         member={editingMember}
+      />
+
+      {/* Share Access Modal */}
+      <ShareAccessModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        user={user}
       />
     </div>
   )

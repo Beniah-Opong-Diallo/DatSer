@@ -148,7 +148,7 @@ export const AppProvider = ({ children }) => {
 
       // Fetch data - RLS policies handle user filtering
       console.log(`Querying ${tableName} with session user: ${session.user?.id}`)
-      
+
       const { data, error } = await supabase
         .from(tableName)
         .select('*')
@@ -321,19 +321,19 @@ export const AppProvider = ({ children }) => {
       const dates = attendanceColumns
         .map(col => {
           const colName = col.column_name.toLowerCase()
-          
+
           // NEW format: attendance_2025_12_07
           const newMatch = colName.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
           if (newMatch) {
             return parseInt(newMatch[3]) // Return day of month
           }
-          
+
           // OLD format: Attendance 7th, attendance_7th
           const oldMatch = col.column_name.match(/[Aa]ttendance[_ ](\d+)(st|nd|rd|th)?/)
           if (oldMatch) {
             return parseInt(oldMatch[1])
           }
-          
+
           return null
         })
         .filter(date => date !== null)
@@ -390,7 +390,7 @@ export const AppProvider = ({ children }) => {
       // Return all Sundays in the month - attendance columns will be created as needed
       const allSundays = getSundaysInMonth(monthName, yearNum)
       console.log(`Found ${allSundays.length} Sundays in ${monthName} ${yearNum}:`, allSundays.map(d => d.getDate()))
-      
+
       return allSundays
     } catch (error) {
       console.error('Error getting available Sunday dates:', error)
@@ -634,22 +634,22 @@ export const AppProvider = ({ children }) => {
       // Find the column that matches this date
       const matchingColumn = attendanceColumns.find(col => {
         const colName = col.column_name.toLowerCase()
-        
+
         // NEW format: attendance_2025_12_07 (year_month_day)
         const newFormatMatch = colName.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
         if (newFormatMatch) {
           const [, colYear, colMonth, colDay] = newFormatMatch
-          return parseInt(colYear) === year && 
-                 parseInt(colMonth) === month && 
-                 parseInt(colDay) === dayOfMonth
+          return parseInt(colYear) === year &&
+            parseInt(colMonth) === month &&
+            parseInt(colDay) === dayOfMonth
         }
-        
+
         // OLD format: Attendance 7th, attendance_7th
         const oldFormatMatch = col.column_name.match(/[Aa]ttendance[_ ](\d+)(st|nd|rd|th)?/)
         if (oldFormatMatch) {
           return parseInt(oldFormatMatch[1]) === dayOfMonth
         }
-        
+
         return false
       })
 
@@ -674,6 +674,44 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  // Create attendance column for a specific date if it doesn't exist
+  const createAttendanceColumn = async (date) => {
+    try {
+      if (!isSupabaseConfigured()) return { success: true }
+
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+
+      // New format: attendance_2025_12_07
+      const columnName = `attendance_${year}_${month}_${day}`
+
+      console.log(`Creating attendance column: ${columnName} in table ${currentTable}`)
+
+      // Use Supabase RPC to add the column (requires a DB function)
+      // For now, we'll use a direct SQL approach via rpc
+      const { data, error } = await supabase.rpc('add_attendance_column', {
+        table_name: currentTable,
+        column_name: columnName
+      })
+
+      if (error) {
+        console.error('Error creating attendance column:', error)
+        // If the RPC doesn't exist, provide helpful error message
+        if (error.message?.includes('function') || error.code === '42883') {
+          toast.error('Please create the add_attendance_column function in Supabase. See documentation.')
+        }
+        throw error
+      }
+
+      console.log(`Successfully created column: ${columnName}`)
+      return { success: true, columnName }
+    } catch (error) {
+      console.error('Failed to create attendance column:', error)
+      return { success: false, error }
+    }
+  }
+
   // Mark attendance for a member in monthly table
   const markAttendance = async (memberId, date, present) => {
     try {
@@ -691,11 +729,21 @@ export const AppProvider = ({ children }) => {
         return { success: true }
       }
 
-      const attendanceColumn = await findAttendanceColumnForDate(date)
+      let attendanceColumn = await findAttendanceColumnForDate(date)
 
+      // If column doesn't exist, create it
       if (!attendanceColumn) {
-        toast.error(`No attendance column found for this date in ${currentTable}`)
-        return { success: false, error: 'Column does not exist' }
+        console.log(`Attendance column not found for date, creating it...`)
+        const result = await createAttendanceColumn(date)
+
+        if (!result.success) {
+          toast.error(`Failed to create attendance column for this date`)
+          return { success: false, error: 'Failed to create column' }
+        }
+
+        attendanceColumn = result.columnName
+        // Refresh members to get the new column
+        await fetchMembers(currentTable)
       }
 
       const { data, error } = await supabase
@@ -742,19 +790,19 @@ export const AppProvider = ({ children }) => {
   // Check if ALL Sundays from first to last in the month are filled
   const isMonthAttendanceComplete = () => {
     if (availableSundayDates.length === 0) return false
-    
+
     // Check that EVERY Sunday has attendance data for at least 1 member
     for (const sunday of availableSundayDates) {
       const dateKey = getLocalDateString(sunday)
       const attendanceForDate = attendanceData[dateKey]
-      
+
       // If this Sunday has no attendance data at all, month is not complete
       if (!attendanceForDate || Object.keys(attendanceForDate).length === 0) {
         console.log(`Month not complete: Sunday ${dateKey} has no attendance data`)
         return false
       }
     }
-    
+
     // All Sundays from first to last have attendance data
     console.log(`Month attendance complete: All ${availableSundayDates.length} Sundays have attendance data`)
     return true
@@ -763,14 +811,14 @@ export const AppProvider = ({ children }) => {
   // Check for 3 consecutive Sunday attendances for a member in current month
   const checkMemberConsecutiveAttendance = (memberId) => {
     if (availableSundayDates.length < 3) return false
-    
+
     const sortedSundays = [...availableSundayDates].sort((a, b) => a - b)
     let consecutiveCount = 0
-    
+
     for (const sunday of sortedSundays) {
       const dateKey = getLocalDateString(sunday)
       const memberStatus = attendanceData[dateKey]?.[memberId]
-      
+
       if (memberStatus === true) {
         consecutiveCount++
         if (consecutiveCount >= 3) {
@@ -784,7 +832,7 @@ export const AppProvider = ({ children }) => {
         consecutiveCount = 0
       }
     }
-    
+
     return false
   }
 
@@ -803,7 +851,7 @@ export const AppProvider = ({ children }) => {
       for (const member of members) {
         // Check if member has 3 consecutive Sundays
         const hasThreeConsecutive = checkMemberConsecutiveAttendance(member.id)
-        
+
         if (hasThreeConsecutive) {
           // Only update if not already a regular or higher badge
           if (member['Badge Type'] !== 'regular' && member['Badge Type'] !== 'vip') {
@@ -927,12 +975,16 @@ export const AppProvider = ({ children }) => {
 
       if (error) throw error
 
-      // Transform to object format
+      // Transform to object format - include both Present (true) and Absent (false)
       const attendanceMap = {}
       data.forEach(record => {
-        if (record[attendanceColumn]) {
-          attendanceMap[record.id] = record[attendanceColumn] === 'Present'
+        const value = record[attendanceColumn]
+        if (value === 'Present') {
+          attendanceMap[record.id] = true
+        } else if (value === 'Absent') {
+          attendanceMap[record.id] = false
         }
+        // If value is null/undefined, don't add to map (no attendance marked yet)
       })
 
       return attendanceMap
@@ -1141,19 +1193,19 @@ export const AppProvider = ({ children }) => {
 
       // Determine the source table: use currentTable if set, otherwise find the most recent month
       let sourceTable = currentTable
-      
+
       // If no current table or we want to ensure we use the most recent, find it
       if (!sourceTable || monthlyTables.length > 0) {
         // Sort tables to find the most recent one
         const sortedTables = [...monthlyTables].sort((a, b) => {
           const [monthA, yearA] = a.split('_')
           const [monthB, yearB] = b.split('_')
-          
+
           // Compare years first
           if (yearA !== yearB) {
             return parseInt(yearB) - parseInt(yearA) // Descending (most recent first)
           }
-          
+
           // Then compare months
           const months = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December']
@@ -1161,7 +1213,7 @@ export const AppProvider = ({ children }) => {
           const monthIndexB = months.indexOf(monthB)
           return monthIndexB - monthIndexA // Descending (most recent first)
         })
-        
+
         // Use the most recent table as source
         if (sortedTables.length > 0) {
           sourceTable = sortedTables[0]
@@ -1537,12 +1589,12 @@ export const AppProvider = ({ children }) => {
       // Parse table name to get month and year (e.g., "December_2025" -> "December", 2025)
       const [monthName, yearStr] = currentTable.split('_')
       const year = parseInt(yearStr)
-      
+
       if (!monthName || isNaN(year)) {
         console.error('Invalid table format:', currentTable)
         return []
       }
-      
+
       const allSundays = getSundaysInMonth(monthName, year)
 
       const today = new Date()

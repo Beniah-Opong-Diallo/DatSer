@@ -284,13 +284,8 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Function to check if a member has been edited (has attendance marked for any date)
   const isEditedMember = (member) => {
-    const editedViaMaps = sundayDates.some((date) => {
-      const map = attendanceData[date] || {}
-      const v = map[member.id]
-      return v === true || v === false
-    })
-    if (editedViaMaps) return true
-    // Fallback: inspect member record columns in this monthly table
+    // First check: inspect member record columns from database
+    // This works even before attendanceData is loaded and persists across refreshes
     // Support both OLD format (Attendance 7th) and NEW format (attendance_2025_12_07)
     for (const key in member) {
       const keyLower = key.toLowerCase()
@@ -298,12 +293,21 @@ const Dashboard = ({ isAdmin = false }) => {
       const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)
       if (isOldFormat || isNewFormat) {
         const val = member[key]
-        if (val === true || val === false || val === 'Present' || val === 'Absent') {
+        // Check for any attendance value (Present, Absent, true, false)
+        if (val === 'Present' || val === 'Absent' || val === true || val === false) {
           return true
         }
       }
     }
-    return false
+
+    // Second check: attendanceData map (for real-time updates before DB sync)
+    const editedViaMaps = sundayDates.some((date) => {
+      const map = attendanceData[date] || {}
+      const v = map[member.id]
+      return v === true || v === false
+    })
+
+    return editedViaMaps
   }
 
   // Get filtered members based on active tab
@@ -534,24 +538,24 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Fetch attendance for all Sunday dates
   useEffect(() => {
-    // When viewing Edited Members, ensure Sunday attendance maps are available
-    if (dashboardTab !== 'edited' && dashboardTab !== 'duplicates') return
+    // Load Sunday attendance maps for all tabs to ensure highlights show in expanded cards
+    if (sundayDates.length === 0) return
+
     let isCancelled = false
     const load = async () => {
       for (const date of sundayDates) {
         const map = await fetchAttendanceForDate(new Date(date))
         if (isCancelled) return
-        if (map && Object.keys(map).length > 0) {
-          setAttendanceData(prev => ({
-            ...prev,
-            [date]: { ...(prev[date] || {}), ...map }
-          }))
-        }
+        // Always store the map, even if empty, to mark the date as loaded
+        setAttendanceData(prev => ({
+          ...prev,
+          [date]: { ...(prev[date] || {}), ...map }
+        }))
       }
     }
     load()
     return () => { isCancelled = true }
-  }, [dashboardTab, currentTable])
+  }, [currentTable])
 
   // Reset selected Sunday when month changes
   useEffect(() => {
