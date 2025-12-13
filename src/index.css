@@ -54,13 +54,18 @@
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply bg-gray-50 dark:bg-gray-900 transition-colors duration-200;
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200;
     overscroll-behavior-x: none;
     /* Disable sideways overscroll bounce */
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
     /* Belt-and-suspenders to ensure no horizontal scroll */
+  }
+
+  /* Ensure proper dark mode colors throughout */
+  .dark {
+    color-scheme: dark;
   }
 }
 

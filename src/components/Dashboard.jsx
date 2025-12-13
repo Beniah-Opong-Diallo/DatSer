@@ -285,8 +285,12 @@ const Dashboard = ({ isAdmin = false }) => {
     })
     if (editedViaMaps) return true
     // Fallback: inspect member record columns in this monthly table
+    // Support both OLD format (Attendance 7th) and NEW format (attendance_2025_12_07)
     for (const key in member) {
-      if (key.startsWith('Attendance ')) {
+      const keyLower = key.toLowerCase()
+      const isOldFormat = key.startsWith('Attendance ')
+      const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)
+      if (isOldFormat || isNewFormat) {
         const val = member[key]
         if (val === true || val === false || val === 'Present' || val === 'Absent') {
           return true

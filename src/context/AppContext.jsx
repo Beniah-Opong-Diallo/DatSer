@@ -285,8 +285,18 @@ export const AppProvider = ({ children }) => {
         return []
       }
 
-      // Filter for attendance columns
-      return data?.filter(col => col.column_name.startsWith('Attendance ')) || []
+      // Filter for attendance columns - support both OLD and NEW formats
+      // OLD: Attendance 7th, Attendance 14th
+      // NEW: attendance_2025_12_07
+      return data?.filter(col => {
+        const name = col.column_name
+        const nameLower = name.toLowerCase()
+        // OLD format: starts with 'Attendance '
+        const isOldFormat = name.startsWith('Attendance ')
+        // NEW format: attendance_YYYY_MM_DD
+        const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(nameLower)
+        return isOldFormat || isNewFormat
+      }) || []
     } catch (error) {
       console.error('Error getting attendance columns:', error)
       return []
@@ -299,10 +309,24 @@ export const AppProvider = ({ children }) => {
       const attendanceColumns = await getAttendanceColumns()
 
       // Extract dates from column names and sort them
+      // Support both OLD format (Attendance 7th) and NEW format (attendance_2025_12_07)
       const dates = attendanceColumns
         .map(col => {
-          const match = col.column_name.match(/Attendance (\d+)(st|nd|rd|th)/)
-          return match ? parseInt(match[1]) : null
+          const colName = col.column_name.toLowerCase()
+          
+          // NEW format: attendance_2025_12_07
+          const newMatch = colName.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
+          if (newMatch) {
+            return parseInt(newMatch[3]) // Return day of month
+          }
+          
+          // OLD format: Attendance 7th, attendance_7th
+          const oldMatch = col.column_name.match(/[Aa]ttendance[_ ](\d+)(st|nd|rd|th)?/)
+          if (oldMatch) {
+            return parseInt(oldMatch[1])
+          }
+          
+          return null
         })
         .filter(date => date !== null)
         .sort((a, b) => a - b)
@@ -415,9 +439,16 @@ export const AppProvider = ({ children }) => {
 
   // Calculate member attendance rate
   const calculateAttendanceRate = (member) => {
-    const attendanceColumns = Object.keys(member).filter(key =>
-      key.startsWith('Attendance ') && member[key] !== null && member[key] !== undefined
-    )
+    // Support both OLD format (Attendance 7th) and NEW format (attendance_2025_12_07)
+    const attendanceColumns = Object.keys(member).filter(key => {
+      const keyLower = key.toLowerCase()
+      const hasValue = member[key] !== null && member[key] !== undefined
+      // OLD format: Attendance 7th, Attendance 14th
+      const isOldFormat = key.startsWith('Attendance ') && hasValue
+      // NEW format: attendance_2025_12_07
+      const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower) && hasValue
+      return isOldFormat || isNewFormat
+    })
 
     if (attendanceColumns.length === 0) return 0
 
@@ -589,11 +620,29 @@ export const AppProvider = ({ children }) => {
     try {
       const attendanceColumns = await getAttendanceColumns()
       const dayOfMonth = date.getDate()
+      const month = date.getMonth() + 1 // 0-indexed to 1-indexed
+      const year = date.getFullYear()
 
-      // Find the column that matches this day of month
+      // Find the column that matches this date
       const matchingColumn = attendanceColumns.find(col => {
-        const match = col.column_name.match(/Attendance (\d+)(st|nd|rd|th)/)
-        return match && parseInt(match[1]) === dayOfMonth
+        const colName = col.column_name.toLowerCase()
+        
+        // NEW format: attendance_2025_12_07 (year_month_day)
+        const newFormatMatch = colName.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
+        if (newFormatMatch) {
+          const [, colYear, colMonth, colDay] = newFormatMatch
+          return parseInt(colYear) === year && 
+                 parseInt(colMonth) === month && 
+                 parseInt(colDay) === dayOfMonth
+        }
+        
+        // OLD format: Attendance 7th, attendance_7th
+        const oldFormatMatch = col.column_name.match(/[Aa]ttendance[_ ](\d+)(st|nd|rd|th)?/)
+        if (oldFormatMatch) {
+          return parseInt(oldFormatMatch[1]) === dayOfMonth
+        }
+        
+        return false
       })
 
       return matchingColumn ? matchingColumn.column_name : null
@@ -1473,7 +1522,16 @@ export const AppProvider = ({ children }) => {
   // Get all past Sundays from the beginning of the month to today
   const getPastSundays = useCallback(() => {
     try {
-      const allSundays = getSundaysInMonth(currentTable)
+      // Parse table name to get month and year (e.g., "December_2025" -> "December", 2025)
+      const [monthName, yearStr] = currentTable.split('_')
+      const year = parseInt(yearStr)
+      
+      if (!monthName || isNaN(year)) {
+        console.error('Invalid table format:', currentTable)
+        return []
+      }
+      
+      const allSundays = getSundaysInMonth(monthName, year)
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
