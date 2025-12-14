@@ -12,6 +12,7 @@ import AdminAuth from './components/AdminAuth'
 import AdminPanel from './components/AdminPanel'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './components/LoginPage'
+import DecemberQuickView from './components/DecemberQuickView'
 
 // Context
 import { AppProvider } from './context/AppContext'
@@ -28,77 +29,76 @@ function AppContent({ isMobile }) {
   const [showMonthModal, setShowMonthModal] = useState(false)
 
   return (
-    <AppProvider>
-      <div className={`min-app-vh bg-gray-50 dark:bg-gray-900 transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
-        <Header
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-          isAdmin={isAdmin}
-          setIsAdmin={setIsAdmin}
-          onAddMember={() => setShowMemberModal(true)}
-          onCreateMonth={() => setShowMonthModal(true)}
-        />
+    <div className={`min-app-vh bg-gray-50 dark:bg-gray-900 transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
+      <Header
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        isAdmin={isAdmin}
+        setIsAdmin={setIsAdmin}
+        onAddMember={() => setShowMemberModal(true)}
+        onCreateMonth={() => setShowMonthModal(true)}
+      />
 
-        <main className={`container mx-auto px-4 py-8 pt-24 md:pt-20 ${currentView === 'admin' ? 'pt-8' : ''}`}>
-          {currentView === 'dashboard' && (
-            <Dashboard isAdmin={isAdmin} />
-          )}
-
-          {currentView === 'analytics' && (
-            <AttendanceAnalytics />
-          )}
-
-          {currentView === 'admin' && !isAdmin && (
-            <AdminAuth onLogin={setIsAdmin} />
-          )}
-
-          {currentView === 'admin' && isAdmin && (
-            <AdminPanel
-              setCurrentView={setCurrentView}
-              onLogout={() => {
-                localStorage.removeItem('tmht_admin_session')
-                setIsAdmin(false)
-              }}
-            />
-          )}
-        </main>
-
-        {showMemberModal && (
-          <MemberModal
-            isOpen={showMemberModal}
-            onClose={() => setShowMemberModal(false)}
-          />
+      <main className={`container mx-auto px-4 py-8 pt-24 md:pt-20 ${currentView === 'admin' ? 'pt-8' : ''}`}>
+        {currentView === 'dashboard' && (
+          <Dashboard isAdmin={isAdmin} />
         )}
 
-        {showMonthModal && (
-          <MonthModal
-            isOpen={showMonthModal}
-            onClose={() => setShowMonthModal(false)}
-          />
+        {currentView === 'analytics' && (
+          <AttendanceAnalytics />
         )}
 
-        <ToastContainer
-          position={isMobile ? 'top-center' : 'bottom-right'}
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          style={isMobile
-            ? { top: 'calc(env(safe-area-inset-top) + 8px)' }
-            : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
+        {currentView === 'admin' && !isAdmin && (
+          <AdminAuth onLogin={setIsAdmin} />
+        )}
+
+        {currentView === 'admin' && isAdmin && (
+          <AdminPanel
+            setCurrentView={setCurrentView}
+            onLogout={() => {
+              localStorage.removeItem('tmht_admin_session')
+              setIsAdmin(false)
+            }}
+          />
+        )}
+      </main>
+
+      {showMemberModal && (
+        <MemberModal
+          isOpen={showMemberModal}
+          onClose={() => setShowMemberModal(false)}
         />
-      </div>
-    </AppProvider>
+      )}
+
+      {showMonthModal && (
+        <MonthModal
+          isOpen={showMonthModal}
+          onClose={() => setShowMonthModal(false)}
+        />
+      )}
+
+      <ToastContainer
+        position={isMobile ? 'top-center' : 'bottom-right'}
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        style={isMobile
+          ? { top: 'calc(env(safe-area-inset-top) + 8px)' }
+          : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
+      />
+    </div>
   )
 }
 
 // Auth wrapper - shows login or app based on auth state
 function AuthenticatedApp({ isMobile }) {
   const { isAuthenticated, loading } = useAuth()
+  const [showFullApp, setShowFullApp] = useState(false)
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -112,13 +112,20 @@ function AuthenticatedApp({ isMobile }) {
     )
   }
 
-  // Show login page if not authenticated
-  if (!isAuthenticated) {
-    return <LoginPage />
+  // If user clicks "Open Full App" -> show login if not authenticated, then full app
+  if (showFullApp) {
+    if (!isAuthenticated) {
+      return <LoginPage />
+    }
+    return (
+      <AppProvider>
+        <AppContent isMobile={isMobile} />
+      </AppProvider>
+    )
   }
 
-  // Show main app if authenticated
-  return <AppContent isMobile={isMobile} />
+  // Default: Show December Quick View first (no login required)
+  return <DecemberQuickView onOpenFullApp={() => setShowFullApp(true)} />
 }
 
 function App() {

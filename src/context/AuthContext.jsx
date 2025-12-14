@@ -209,8 +209,93 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Sign up with email and password
+  const signUpWithEmail = async (email, password, fullName) => {
+    try {
+      const redirectUrl = `${window.location.origin}${window.location.pathname}`
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName
+          }
+        }
+      })
+
+      if (error) throw error
+      
+      // Check if email confirmation is required
+      if (data?.user?.identities?.length === 0) {
+        toast.info('This email is already registered. Please sign in instead.')
+        return { needsSignIn: true }
+      }
+      
+      if (data?.user && !data?.session) {
+        toast.success('Check your email for a confirmation link!')
+        return { needsConfirmation: true }
+      }
+      
+      return data
+    } catch (error) {
+      console.error('Error signing up:', error)
+      if (error.message?.includes('already registered')) {
+        toast.error('This email is already registered. Please sign in.')
+      } else {
+        toast.error(error.message || 'Failed to sign up')
+      }
+      throw error
+    }
+  }
+
+  // Sign in with email and password
+  const signInWithEmail = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error signing in:', error)
+      if (error.message?.includes('Invalid login credentials')) {
+        toast.error('Invalid email or password')
+      } else if (error.message?.includes('Email not confirmed')) {
+        toast.error('Please check your email and confirm your account first')
+      } else {
+        toast.error(error.message || 'Failed to sign in')
+      }
+      throw error
+    }
+  }
+
+  // Reset password
+  const resetPassword = async (email) => {
+    try {
+      const redirectUrl = `${window.location.origin}${window.location.pathname}`
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl
+      })
+
+      if (error) throw error
+      toast.success('Password reset email sent! Check your inbox.')
+      return true
+    } catch (error) {
+      console.error('Error resetting password:', error)
+      toast.error(error.message || 'Failed to send reset email')
+      throw error
+    }
+  }
+
   // Sign out
   const signOut = async () => {
+    // Supabase can throw AuthSessionMissingError if the session is already gone.
+    // We still want the UI to reliably log out in that case.
     try {
       // Save current preferences before signing out
       if (user && preferences) {
@@ -226,8 +311,18 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error
     } catch (error) {
       console.error('Error signing out:', error)
-      toast.error('Failed to sign out')
-      throw error
+      const msg = (error?.message || '').toLowerCase()
+      if (msg.includes('auth session missing') || msg.includes('session not found') || msg.includes('session_missing')) {
+        // Treat as already signed out
+      } else {
+        toast.error('Failed to sign out')
+        throw error
+      }
+    } finally {
+      // Always clear local UI state to avoid getting stuck "logged in"
+      setUser(null)
+      setPreferences(null)
+      welcomeToastShownRef.current = false
     }
   }
 
@@ -236,6 +331,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     preferences,
     signInWithGoogle,
+    signUpWithEmail,
+    signInWithEmail,
+    resetPassword,
     signOut,
     saveUserPreferences,
     updatePreference,
