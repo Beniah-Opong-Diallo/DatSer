@@ -31,6 +31,9 @@ export const useLongPressSelection = (onSelectionChange) => {
     }
 
     const handleLongPressStart = (id, e) => {
+        // Prevent context menu on long press
+        e.preventDefault()
+
         // Handle touch events
         if (e.touches && e.touches.length > 0) {
             startLongPress(id, e.touches[0].clientX, e.touches[0].clientY)
@@ -45,6 +48,7 @@ export const useLongPressSelection = (onSelectionChange) => {
     // Also add mouse down handler for left-click long-press
     const handleMouseDown = (id, e) => {
         if (e.button !== 0) return // Only left mouse button
+        e.preventDefault() // Prevent context menu
         isMouseDownRef.current = true
         startLongPress(id, e.clientX, e.clientY)
     }

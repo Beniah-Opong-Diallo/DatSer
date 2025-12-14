@@ -49,16 +49,13 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
           <AttendanceAnalytics />
         )}
 
-        {currentView === 'admin' && !isAdmin && (
-          <AdminAuth onLogin={setIsAdmin} />
-        )}
-
-        {currentView === 'admin' && isAdmin && (
+        {currentView === 'admin' && (
           <AdminPanel
             setCurrentView={setCurrentView}
             onLogout={() => {
               localStorage.removeItem('tmht_admin_session')
               setIsAdmin(false)
+              setCurrentView('dashboard')
             }}
             onShowDecemberPreview={onShowDecemberPreview}
           />

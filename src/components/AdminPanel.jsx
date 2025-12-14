@@ -7,6 +7,7 @@ import { toast } from 'react-toastify'
 import EditMemberModal from './EditMemberModal'
 import ShareAccessModal from './ShareAccessModal'
 import WorkspaceSettingsModal from './WorkspaceSettingsModal'
+import WorkspaceInsights from './WorkspaceInsights'
 import DateSelector from './DateSelector'
 
 const AdminPanel = ({ onLogout, setCurrentView, onShowDecemberPreview }) => {
@@ -346,6 +347,9 @@ const AdminPanel = ({ onLogout, setCurrentView, onShowDecemberPreview }) => {
             </div>
           )}
         </div>
+
+        {/* Workspace Insights - NEW */}
+        <WorkspaceInsights />
 
         {/* Monthly Databases - Compact */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-4 transition-colors">

@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext'
 import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, X, Feather } from 'lucide-react'
 import EditMemberModal from './EditMemberModal'
 import MemberModal from './MemberModal'
-import QRModal from './QRModal'
+
 import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
@@ -104,9 +104,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState(null)
 
-  // QR modal for share / admin scan workflow
-  const [openQrModal, setOpenQrModal] = useState(false)
-  const [qrMember, setQrMember] = useState(null)
+
 
   // Custom confirmation modals
   const [confirmModalConfig, setConfirmModalConfig] = useState({
@@ -1169,16 +1167,7 @@ const Dashboard = ({ isAdmin = false }) => {
                         <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
-                    <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center space-x-1 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
-                      <button
-                        type="button"
-                        onTouchStart={(e) => { e.stopPropagation() }}
-                        onClick={(e) => { e.stopPropagation(); setQrMember(member); setOpenQrModal(true) }}
-                        className="text-white flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg"
-                        title="Share / QR"
-                      >
-                        <Feather className="w-5 h-5" />
-                      </button>
+                    <div className="absolute inset-y-0 right-0 w-12 flex items-center justify-center space-x-1 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
                       <button
                         type="button"
                         onTouchStart={(e) => { e.stopPropagation() }}
@@ -1220,6 +1209,10 @@ const Dashboard = ({ isAdmin = false }) => {
                       }}
                       onMouseLeave={() => {
                         handleMouseUp()
+                      }}
+                      onContextMenu={(e) => {
+                        // Prevent context menu on long press
+                        e.preventDefault()
                       }}
                       onClick={() => {
                         if (selectionMode) {
@@ -1558,15 +1551,6 @@ const Dashboard = ({ isAdmin = false }) => {
         isOpen={showMemberModal}
         onClose={() => setShowMemberModal(false)}
       />
-
-      {/* QR modal: shows QR code and WhatsApp share link for admin to send/scan */}
-      {openQrModal && (
-        <QRModal
-          isOpen={openQrModal}
-          member={qrMember}
-          onClose={() => { setOpenQrModal(false); setQrMember(null) }}
-        />
-      )}
 
       {/* Delete Confirm Modal */}
       {isDeleteConfirmOpen && (
