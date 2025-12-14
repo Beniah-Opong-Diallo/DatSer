@@ -16,6 +16,7 @@ import DecemberQuickView from './components/DecemberQuickView'
 import WorkspaceSettingsModal from './components/WorkspaceSettingsModal'
 import DeleteAccountModal from './components/DeleteAccountModal'
 import ExportDataModal from './components/ExportDataModal'
+import SettingsPage from './components/SettingsPage'
 
 // Context
 import { AppProvider } from './context/AppContext'
@@ -41,10 +42,12 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
     window.openWorkspaceSettings = () => setShowWorkspaceSettings(true)
     window.openDeleteAccount = () => setShowDeleteAccount(true)
     window.openExportData = () => setShowExportData(true)
+    window.openSettings = () => setCurrentView('settings')
     return () => {
       delete window.openWorkspaceSettings
       delete window.openDeleteAccount
       delete window.openExportData
+      delete window.openSettings
     }
   }, [])
 
@@ -79,6 +82,10 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
             }}
             onShowDecemberPreview={onShowDecemberPreview}
           />
+        )}
+
+        {currentView === 'settings' && (
+          <SettingsPage onBack={() => setCurrentView('dashboard')} />
         )}
       </main>
 

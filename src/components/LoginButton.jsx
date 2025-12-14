@@ -116,10 +116,10 @@ const LoginButton = () => {
           <img
             src={userPhoto}
             alt={userName}
-            className="w-8 h-8 rounded-full border-2 border-primary-500"
+            className="w-8 h-8 rounded-full object-cover aspect-square border-2 border-primary-500"
           />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-semibold text-sm">
+          <div className="w-8 h-8 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-semibold text-sm">
             {userName?.charAt(0)?.toUpperCase() || 'U'}
           </div>
         )}
@@ -147,10 +147,10 @@ const LoginButton = () => {
                   <img
                     src={userPhoto}
                     alt={userName}
-                    className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
+                    className="w-12 h-12 rounded-full object-cover aspect-square border-2 border-white shadow-sm"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                  <div className="w-12 h-12 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
                     {userName?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                 )}
@@ -168,12 +168,8 @@ const LoginButton = () => {
               </div>
             </div>
 
-            {/* Quick Settings */}
+            {/* Quick Actions */}
             <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                Quick Settings
-              </div>
-
               {/* Theme Toggle */}
               <button
                 onClick={() => { toggleTheme(); }}
@@ -187,88 +183,18 @@ const LoginButton = () => {
                   <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${isDarkMode ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
                 </div>
               </button>
-            </div>
 
-            {/* Account Section */}
-            <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                Account
-              </div>
-
-              {/* Workspace Settings */}
+              {/* Settings - Full Page */}
               <button
                 onClick={() => {
                   setShowDropdown(false)
-                  if (window.openWorkspaceSettings) window.openWorkspaceSettings()
+                  if (window.openSettings) window.openSettings()
                 }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <Building2 className="w-4 h-4" />
-                <span>Workspace Settings</span>
-              </button>
-
-              {/* Export Data */}
-              <button
-                onClick={() => {
-                  setShowDropdown(false)
-                  if (window.openExportData) window.openExportData()
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                <span>Export My Data</span>
-              </button>
-
-              {/* Security/Password - shows info for Google users */}
-              <button
-                onClick={() => {
-                  setShowDropdown(false)
-                  if (user?.app_metadata?.provider === 'google') {
-                    toast.info('Your account is secured via Google. Manage it in your Google account settings.')
-                  } else {
-                    toast.info('Password reset: Go to login page → Forgot password')
-                  }
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Lock className="w-4 h-4" />
-                <span>Security</span>
-              </button>
-            </div>
-
-            {/* Help & Support */}
-            <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                Support
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowDropdown(false)
-                  toast.info('Need help? Contact the TMH Teen Ministry admin team.')
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <HelpCircle className="w-4 h-4" />
-                <span>Help & Support</span>
-              </button>
-            </div>
-
-            {/* Danger Zone */}
-            <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-400">
-                Danger Zone
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowDropdown(false)
-                  if (window.openDeleteAccount) window.openDeleteAccount()
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete Account</span>
+                <span>Settings</span>
+                <span className="ml-auto text-xs text-gray-400">Account, Team, Data</span>
               </button>
             </div>
 
@@ -276,7 +202,7 @@ const LoginButton = () => {
             <div className="px-2 py-2">
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>

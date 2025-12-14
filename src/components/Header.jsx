@@ -286,18 +286,6 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 <TrendingUp className="w-4 h-4" />
                 <span>Analytics</span>
               </button>
-
-              {/* Admin */}
-              <button
-                onClick={() => setCurrentView('admin')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'admin'
-                  ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-              >
-                <Shield className="w-4 h-4" />
-                <span>Admin</span>
-              </button>
             </nav>
 
             {/* Right: Profile + Menu */}
