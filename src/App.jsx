@@ -15,6 +15,7 @@ import LoginPage from './components/LoginPage'
 import DecemberQuickView from './components/DecemberQuickView'
 import WorkspaceSettingsModal from './components/WorkspaceSettingsModal'
 import DeleteAccountModal from './components/DeleteAccountModal'
+import ExportDataModal from './components/ExportDataModal'
 
 // Context
 import { AppProvider } from './context/AppContext'
@@ -33,14 +34,17 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
   // Global modals - accessible from profile dropdown anywhere
   const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [showExportData, setShowExportData] = useState(false)
 
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
     window.openWorkspaceSettings = () => setShowWorkspaceSettings(true)
     window.openDeleteAccount = () => setShowDeleteAccount(true)
+    window.openExportData = () => setShowExportData(true)
     return () => {
       delete window.openWorkspaceSettings
       delete window.openDeleteAccount
+      delete window.openExportData
     }
   }, [])
 
@@ -101,6 +105,11 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
       <DeleteAccountModal
         isOpen={showDeleteAccount}
         onClose={() => setShowDeleteAccount(false)}
+      />
+
+      <ExportDataModal
+        isOpen={showExportData}
+        onClose={() => setShowExportData(false)}
       />
 
       <ToastContainer

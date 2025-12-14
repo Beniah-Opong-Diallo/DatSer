@@ -1,24 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Users,
-  Download,
   Shield,
-  Calendar,
-  Moon,
-  Sun,
   TrendingUp,
   Menu,
-  Search,
   X,
-  Edit3
+  Edit3,
+  Calendar
 } from 'lucide-react'
-import { useTheme } from '../context/ThemeContext'
 import DateSelector from './DateSelector'
 import { useApp } from '../context/AppContext'
 import LoginButton from './LoginButton'
 
 const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember, onCreateMonth }) => {
-  const { isDarkMode, toggleTheme } = useTheme()
   const {
     searchTerm,
     setSearchTerm,
@@ -338,8 +332,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 setDashboardTab('all');
               }}
               className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'dashboard' && dashboardTab === 'all'
-                  ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
             >
               <Users className="w-4 h-4" />
@@ -356,8 +350,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
                   className={`p-2 rounded-lg transition-colors border border-gray-200 dark:border-gray-600 ${showDropdown
-                      ? 'bg-gray-100 dark:bg-gray-700'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-gray-100 dark:bg-gray-700'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   title="Menu"
                 >
@@ -368,46 +362,24 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
           </div>
         </div>
       </div>
-      {/* Summary pill with embedded Light/Dark toggle at top (single beautiful chip) */}
+      {/* Summary pill - info bar */}
       {currentView === 'dashboard' && (
         <div className="md:border-t border-gray-200 dark:border-gray-700">
           <div className="mx-auto px-3 sm:px-4 py-1.5 md:py-1">
-            <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm w-full max-w-4xl mx-auto">
-              {/* Left: summary tokens */}
-              <div className="flex items-center gap-1 flex-1 min-w-0">
-                {selectedAttendanceDate && (
-                  <>
-                    <span>{selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                    <span className="text-gray-400">•</span>
-                  </>
-                )}
-                <span>{compactFoundCount} found</span>
-                <span className="text-gray-400">•</span>
-                <span>{currentTable ? currentTable.replace('_', ' ') : ''}</span>
-                <span className="text-gray-400">•</span>
-                <span>{isSupabaseConfigured() ? 'Live' : 'Demo'}</span>
-                <span className="hidden md:inline text-gray-400">•</span>
-                <span className="hidden md:inline">Member Dashboard</span>
-              </div>
-              {/* Right: segmented toggle */}
-              <div className="inline-flex items-center overflow-hidden rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 flex-shrink-0">
-                <button
-                  onClick={() => { if (isDarkMode) toggleTheme() }}
-                  className={`flex items-center gap-1 px-2 py-0.5 text-[10px] leading-4 ${!isDarkMode ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
-                  title="Light mode"
-                >
-                  <Sun className="w-3 h-3" />
-                  <span className="hidden sm:inline">Light</span>
-                </button>
-                <button
-                  onClick={() => { if (!isDarkMode) toggleTheme() }}
-                  className={`flex items-center gap-1 px-2 py-0.5 text-[10px] leading-4 border-l border-gray-300 dark:border-gray-600 ${isDarkMode ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
-                  title="Dark mode"
-                >
-                  <Moon className="w-3 h-3" />
-                  <span className="hidden sm:inline">Dark</span>
-                </button>
-              </div>
+            <div className="flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm w-fit mx-auto">
+              {selectedAttendanceDate && (
+                <>
+                  <span>{selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span className="text-gray-400">•</span>
+                </>
+              )}
+              <span>{compactFoundCount} found</span>
+              <span className="text-gray-400">•</span>
+              <span>{currentTable ? currentTable.replace('_', ' ') : ''}</span>
+              <span className="text-gray-400">•</span>
+              <span className={isSupabaseConfigured() ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
+                {isSupabaseConfigured() ? 'Live' : 'Demo'}
+              </span>
             </div>
           </div>
         </div>
