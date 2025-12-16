@@ -31,7 +31,7 @@ import ShareAccessModal from './ShareAccessModal'
 import WorkspaceSettingsModal from './WorkspaceSettingsModal'
 import DeleteAccountModal from './DeleteAccountModal'
 import ExportDataModal from './ExportDataModal'
-import { supabase } from '../lib/supabase'
+import ProfilePhotoEditor from './ProfilePhotoEditor'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
@@ -43,8 +43,7 @@ const SettingsPage = ({ onBack }) => {
     const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
     const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false)
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
-    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-    const fileInputRef = React.useRef(null)
+    const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
 
     const sections = [
         { id: 'account', label: 'Account', icon: User },
@@ -64,70 +63,6 @@ const SettingsPage = ({ onBack }) => {
         }
     }
 
-    // Handle profile photo upload
-    const handlePhotoUpload = async (event) => {
-        const file = event.target.files?.[0]
-        if (!file) return
-
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file')
-            return
-        }
-
-        // Validate file size (max 2MB)
-        if (file.size > 2 * 1024 * 1024) {
-            toast.error('Image must be less than 2MB')
-            return
-        }
-
-        setIsUploadingPhoto(true)
-        try {
-            // Upload to Supabase Storage
-            const fileExt = file.name.split('.').pop()
-            const fileName = `${user.id}/avatar.${fileExt}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(fileName, file, { upsert: true })
-
-            if (uploadError) {
-                // If bucket doesn't exist, just save as base64 in user metadata
-                const reader = new FileReader()
-                reader.onloadend = async () => {
-                    const { error: updateError } = await supabase.auth.updateUser({
-                        data: { avatar_url: reader.result }
-                    })
-                    if (updateError) throw updateError
-                    toast.success('Profile photo updated!')
-                    window.location.reload()
-                }
-                reader.readAsDataURL(file)
-                return
-            }
-
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(fileName)
-
-            // Update user metadata with new avatar URL
-            const { error: updateError } = await supabase.auth.updateUser({
-                data: { avatar_url: publicUrl }
-            })
-
-            if (updateError) throw updateError
-
-            toast.success('Profile photo updated!')
-            window.location.reload()
-        } catch (error) {
-            console.error('Photo upload error:', error)
-            toast.error('Failed to upload photo')
-        } finally {
-            setIsUploadingPhoto(false)
-        }
-    }
-
     const renderAccountSection = () => (
         <div className="space-y-6">
             <div>
@@ -139,39 +74,29 @@ const SettingsPage = ({ onBack }) => {
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                 <div className="flex items-center gap-4">
                     <div className="relative">
-                        {user?.user_metadata?.avatar_url ? (
-                            <img
-                                src={user.user_metadata.avatar_url}
-                                alt="Profile"
-                                className="w-16 h-16 rounded-full object-cover aspect-square border-2 border-white dark:border-gray-600 shadow-md"
-                            />
-                        ) : (
-                            <div className="w-16 h-16 rounded-full aspect-square bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
-                                {user?.email?.[0]?.toUpperCase() || 'U'}
-                            </div>
-                        )}
-                        {/* Upload button for non-Google users */}
-                        {user?.app_metadata?.provider !== 'google' && (
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploadingPhoto}
-                                className="absolute -bottom-1 -right-1 p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors disabled:opacity-50"
-                                title="Change photo"
-                            >
-                                {isUploadingPhoto ? (
-                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    <Pencil className="w-3 h-3" />
-                                )}
-                            </button>
-                        )}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoUpload}
-                            className="hidden"
-                        />
+                        {(() => {
+                            const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null
+                            const avatarUrl = localAvatar || user?.user_metadata?.avatar_url
+                            return avatarUrl ? (
+                                <img
+                                    src={avatarUrl}
+                                    alt="Profile"
+                                    className="w-16 h-16 rounded-full object-cover aspect-square border-2 border-white dark:border-gray-600 shadow-md"
+                                />
+                            ) : (
+                                <div className="w-16 h-16 rounded-full aspect-square bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                                    {user?.email?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                            )
+                        })()}
+                        {/* Edit photo button - available for all users */}
+                        <button
+                            onClick={() => setIsPhotoEditorOpen(true)}
+                            className="absolute -bottom-1 -right-1 p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+                            title="Change photo"
+                        >
+                            <Pencil className="w-3 h-3" />
+                        </button>
                     </div>
                     <div className="flex-1">
                         <h4 className="font-semibold text-gray-900 dark:text-white">
@@ -597,6 +522,11 @@ const SettingsPage = ({ onBack }) => {
             <ExportDataModal
                 isOpen={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
+            />
+            <ProfilePhotoEditor
+                isOpen={isPhotoEditorOpen}
+                onClose={() => setIsPhotoEditorOpen(false)}
+                user={user}
             />
         </div>
     )

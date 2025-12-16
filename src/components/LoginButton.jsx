@@ -102,7 +102,8 @@ const LoginButton = () => {
   }
 
   // User is authenticated - show profile dropdown
-  const userPhoto = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.identities?.[0]?.identity_data?.avatar_url || user?.identities?.[0]?.identity_data?.picture
+  const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null
+  const userPhoto = localAvatar || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.identities?.[0]?.identity_data?.avatar_url || user?.identities?.[0]?.identity_data?.picture
   const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0]
   const workspaceName = preferences?.workspace_name || 'My Workspace'
 

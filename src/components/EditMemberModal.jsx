@@ -116,6 +116,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
+  const [overrideMode, setOverrideMode] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -132,9 +133,17 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     const ageNum = parseInt(formData.age)
     const isAgeValid = formData.age && !isNaN(ageNum) && ageNum >= 1 && ageNum <= 120
 
-    if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
-      toast.error('Please fill in all required fields correctly')
-      return
+    // In override mode, only require name
+    if (overrideMode) {
+      if (!isFullNameValid) {
+        toast.error('Name is required even in override mode')
+        return
+      }
+    } else {
+      if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
+        toast.error('Please fill in all required fields correctly')
+        return
+      }
     }
 
     setLoading(true)
@@ -185,16 +194,35 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="shadow-2xl ring-1 max-w-md w-full mx-4 max-h-[90vh] flex flex-col transition-all duration-300 bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl overflow-hidden">
+      <div className={`shadow-2xl ring-1 max-w-md w-full mx-4 max-h-[90vh] flex flex-col transition-all duration-300 ${overrideMode
+        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
+        : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
+        }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
+        <div className={`flex items-center justify-between p-6 border-b flex-shrink-0 transition-all duration-300 ${overrideMode
+          ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700 rounded-t-3xl'
+          : 'border-gray-200 dark:border-gray-700 rounded-t-xl'
+          }`}>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Member</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOverrideMode(!overrideMode)}
+              className={`px-3 py-1 rounded text-xs border transition-colors ${overrideMode
+                ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              title="Toggle Override Mode (Bypass Validation)"
+            >
+              {overrideMode ? 'Override Active' : 'Override'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Form */}
@@ -449,10 +477,13 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
             </button>
             <button
               type="submit"
-              disabled={loading || !formData.full_name || !formData.gender}
-              className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={loading || !formData.full_name}
+              className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${overrideMode
+                ? 'bg-orange-600 hover:bg-orange-700'
+                : 'bg-primary-600 hover:bg-primary-700'
+                }`}
             >
-              {loading ? 'Updating...' : 'Update Member'}
+              {loading ? 'Updating...' : (overrideMode ? 'Update (Override)' : 'Update Member')}
             </button>
           </div>
         </form>

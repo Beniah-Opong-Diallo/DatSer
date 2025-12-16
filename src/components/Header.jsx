@@ -6,9 +6,11 @@ import {
   Menu,
   X,
   Edit3,
-  Calendar
+  Calendar,
+  ChevronDown
 } from 'lucide-react'
 import DateSelector from './DateSelector'
+import MonthPickerPopup from './MonthPickerPopup'
 import { useApp } from '../context/AppContext'
 import LoginButton from './LoginButton'
 
@@ -33,9 +35,11 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   } = useApp()
   const [showDropdown, setShowDropdown] = useState(false)
   const [showEditedDropdown, setShowEditedDropdown] = useState(false)
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
   const dropdownRef = useRef(null)
   const mobileDropdownRef = useRef(null)
   const editedDropdownRef = useRef(null)
+  const monthButtonRef = useRef(null)
   // Badge filter moved to Edited page; header popup removed
   const drawerRef = useRef(null)
   // Close drawer with Escape key
@@ -363,7 +367,14 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               )}
               <span>{compactFoundCount} found</span>
               <span className="text-gray-400">•</span>
-              <span>{currentTable ? currentTable.replace('_', ' ') : ''}</span>
+              <button
+                ref={monthButtonRef}
+                onClick={() => setShowMonthPicker(true)}
+                className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+              >
+                {currentTable ? currentTable.replace('_', ' ') : 'Select Month'}
+                <ChevronDown className="w-3 h-3" />
+              </button>
               <span className="text-gray-400">•</span>
               <span className={isSupabaseConfigured() ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
                 {isSupabaseConfigured() ? 'Live' : 'Demo'}
@@ -372,6 +383,13 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
           </div>
         </div>
       )}
+
+      {/* Month Picker Popup */}
+      <MonthPickerPopup
+        isOpen={showMonthPicker}
+        onClose={() => setShowMonthPicker(false)}
+        anchorRef={monthButtonRef}
+      />
       {/* Right-side Drawer Menu */}
       {showDropdown && (
         <div className="fixed inset-0 z-50">
