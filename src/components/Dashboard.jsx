@@ -1274,7 +1274,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                       ? 'bg-green-600 dark:bg-green-700 text-white shadow ring-1 ring-green-300 dark:ring-green-500'
                                       : attendanceLoading[member.id]
                                         ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 cursor-not-allowed'
-                                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-400 hover:border-green-200 dark:hover:border-green-800'
+                                        : 'bg-green-600 dark:bg-green-700 text-white shadow-sm'
                                       }`}
                                     title={isPresentSelected ? "Click to clear" : "Mark present"}
                                   >
