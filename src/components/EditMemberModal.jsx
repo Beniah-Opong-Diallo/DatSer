@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { X, User, Phone, Calendar, BookOpen, ChevronDown } from 'lucide-react'
+import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 const EditMemberModal = ({ isOpen, onClose, member }) => {
-  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, loadAllAttendanceData } = useApp()
+  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, loadAllAttendanceData, members } = useApp()
+  
+  // Get the latest member data from the members array to ensure we have up-to-date info
+  const latestMember = useMemo(() => {
+    if (!member?.id) return member
+    return members.find(m => m.id === member.id) || member
+  }, [members, member])
   const { isDarkMode } = useTheme()
 
   // Helper function to get month display name from table name
@@ -70,53 +76,86 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
 
   // Initialize form data when member changes
   useEffect(() => {
-    if (member) {
+    if (latestMember) {
       // Normalize gender to lowercase to match radio button values
-      const rawGender = member['Gender'] || ''
+      const rawGender = latestMember['Gender'] || ''
       const normalizedGender = typeof rawGender === 'string' ? rawGender.toLowerCase() : ''
       setFormData({
-        full_name: (member['full_name'] || member['Full Name'] || ''),
+        full_name: (latestMember['full_name'] || latestMember['Full Name'] || ''),
         gender: normalizedGender,
-        phone_number: member['Phone Number'] || '',
-        age: member['Age'] || '',
-        current_level: member['Current Level'] || ''
+        phone_number: latestMember['Phone Number'] || '',
+        age: latestMember['Age'] || '',
+        current_level: latestMember['Current Level'] || ''
       })
+      // Initialize parent info from member
+      setParentInfo({
+        parent_name_1: latestMember['parent_name_1'] || '',
+        parent_phone_1: latestMember['parent_phone_1'] || '',
+        parent_name_2: latestMember['parent_name_2'] || '',
+        parent_phone_2: latestMember['parent_phone_2'] || ''
+      })
+      // Auto-expand parent section if parent data exists
+      if (latestMember['parent_name_1'] || latestMember['parent_phone_1']) {
+        setShowParentSection(true)
+      }
     }
-  }, [member])
+  }, [latestMember])
 
   // Initialize attendance snapshot when modal opens (stable deps, no loop)
   useEffect(() => {
-    if (!isOpen || !member || sundayDates.length === 0) return
+    if (!isOpen || !latestMember || sundayDates.length === 0) return
 
     const initialAttendance = {}
     sundayDates.forEach(date => {
       const dateKey = date
-      const memberAttendance = attendanceData[dateKey]?.[member.id]
+      const memberAttendance = attendanceData[dateKey]?.[latestMember.id]
       if (memberAttendance !== undefined) {
         initialAttendance[date] = memberAttendance
       }
     })
     setSundayAttendance(initialAttendance)
-  }, [isOpen, member?.id, currentTable])
+  }, [isOpen, latestMember?.id, currentTable])
 
   // Update attendance state when attendanceData changes
   useEffect(() => {
-    if (member && sundayDates.length > 0) {
+    if (latestMember && sundayDates.length > 0) {
       const updatedAttendance = {}
       sundayDates.forEach(date => {
         const dateKey = date
-        const memberAttendance = attendanceData[dateKey]?.[member.id]
+        const memberAttendance = attendanceData[dateKey]?.[latestMember.id]
         if (memberAttendance !== undefined) {
           updatedAttendance[date] = memberAttendance
         }
       })
       setSundayAttendance(prev => ({ ...prev, ...updatedAttendance }))
     }
-  }, [attendanceData, member?.id, sundayDates])
+  }, [attendanceData, latestMember?.id, sundayDates])
+
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isOpen])
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
   const [overrideMode, setOverrideMode] = useState(false)
+  const [showParentSection, setShowParentSection] = useState(false)
+  const [parentInfo, setParentInfo] = useState({
+    parent_name_1: '',
+    parent_phone_1: '',
+    parent_name_2: '',
+    parent_phone_2: ''
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -133,6 +172,9 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     const ageNum = parseInt(formData.age)
     const isAgeValid = formData.age && !isNaN(ageNum) && ageNum >= 1 && ageNum <= 120
 
+    // Check if at least one parent info is provided
+    const hasParentInfo = parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()
+
     // In override mode, only require name
     if (overrideMode) {
       if (!isFullNameValid) {
@@ -144,24 +186,35 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
         toast.error('Please fill in all required fields correctly')
         return
       }
+      if (!hasParentInfo) {
+        setHasAttemptedSave(true)
+        setShowParentSection(true)
+        toast.error('Please provide at least one parent/guardian contact')
+        return
+      }
     }
 
     setLoading(true)
 
     try {
-      await updateMember(member.id, {
+      await updateMember(latestMember.id, {
         // Pass normalized fields; AppContext will map to the correct table column
         full_name: formData.full_name,
         Gender: formData.gender,
         'Phone Number': formData.phone_number || null,
         Age: formData.age ? parseInt(formData.age) : null,
-        'Current Level': formData.current_level
+        'Current Level': formData.current_level,
+        // Parent info
+        parent_name_1: parentInfo.parent_name_1 || null,
+        parent_phone_1: parentInfo.parent_phone_1 || null,
+        parent_name_2: parentInfo.parent_name_2 || null,
+        parent_phone_2: parentInfo.parent_phone_2 || null
       })
 
       // Mark attendance for selected Sunday dates
       for (const [date, attendance] of Object.entries(sundayAttendance)) {
         if (attendance !== null) {
-          await markAttendance(member.id, new Date(date), attendance)
+          await markAttendance(latestMember.id, new Date(date), attendance)
         }
       }
 
@@ -374,10 +427,10 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
               <button
                 type="button"
                 onClick={() => setIsLevelOpen(!isLevelOpen)}
-                className={`w-full pl-10 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${hasAttemptedSave && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
+                className={`w-full pl-3 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${hasAttemptedSave && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
               >
                 <div className="flex items-center">
-                  <BookOpen className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-3" />
+                  <BookOpen className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
                   <span className={!formData.current_level ? 'text-gray-500 dark:text-gray-400' : ''}>
                     {formData.current_level || 'Select level'}
                   </span>
@@ -435,7 +488,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                       <button
                         type="button"
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
-                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${sundayAttendance[date] === true
+                        className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === true
                           ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
                           }`}
@@ -445,7 +498,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                       <button
                         type="button"
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
-                        className={`px-3 py-1 text-xs rounded-full font-bold transition-all duration-200 ${sundayAttendance[date] === false
+                        className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === false
                           ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
                           }`}
@@ -455,7 +508,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                       <button
                         type="button"
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: null }))}
-                        className="px-3 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+                        className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                       >
                         Clear
                       </button>
@@ -464,6 +517,92 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 )
               })}
             </div>
+          </div>
+
+          {/* Collapsible Parent/Guardian Info Section */}
+          <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowParentSection(!showParentSection)}
+              className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Parent/Guardian Info
+                </span>
+                {(parentInfo.parent_name_1 || parentInfo.parent_phone_1) && (
+                  <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">Saved</span>
+                )}
+              </div>
+              {showParentSection ? (
+                <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              )}
+            </button>
+            
+            {showParentSection && (
+              <div className="p-3 space-y-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
+                {/* Parent 1 */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Parent/Guardian 1 *
+                  </label>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={parentInfo.parent_name_1}
+                        onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_1: e.target.value }))}
+                        placeholder="Name"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={parentInfo.parent_phone_1}
+                        onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_1: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                        placeholder="Phone Number"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parent 2 */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Parent/Guardian 2 (Optional)
+                  </label>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={parentInfo.parent_name_2}
+                        onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_2: e.target.value }))}
+                        placeholder="Name"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={parentInfo.parent_phone_2}
+                        onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_2: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                        placeholder="Phone Number"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Form Actions */}

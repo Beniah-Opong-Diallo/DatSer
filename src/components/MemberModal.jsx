@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { X, User, Phone, Calendar, BookOpen, ChevronDown, Info } from 'lucide-react'
+import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Info, Users } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 const MemberModal = ({ isOpen, onClose }) => {
@@ -78,6 +78,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   const [previousIsOpen, setPreviousIsOpen] = useState(false)
   const [selectedTags, setSelectedTags] = useState([]) // ['member','regular','newcomer']
   const [showParentInfo, setShowParentInfo] = useState(false)
+  const [showParentSection, setShowParentSection] = useState(false)
   const [parentInfo, setParentInfo] = useState({
     parent_name_1: '',
     parent_phone_1: '',
@@ -93,6 +94,21 @@ const MemberModal = ({ isOpen, onClose }) => {
     }
     setPreviousIsOpen(isOpen)
   }, [isOpen, currentTable])
+
+  // Disable body scroll when modal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isOpen])
 
   const levels = [
     'SHS1', 'SHS2', 'SHS3',
@@ -140,10 +156,19 @@ const MemberModal = ({ isOpen, onClose }) => {
 
     // So yes, I should enforce all of them.
 
+    // Check if at least one parent info is provided
+    const hasParentInfo = parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()
+
     if (!isOverrideMode) {
       if (!isFullNameValid || !isGenderValid || !isLevelValid || !isPhoneValid || !isAgeValid) {
         setShowErrors(true)
         toast.error('Please fill in all required fields correctly')
+        return
+      }
+      if (!hasParentInfo) {
+        setShowErrors(true)
+        setShowParentSection(true)
+        toast.error('Please provide at least one parent/guardian contact')
         return
       }
     }
@@ -480,6 +505,89 @@ const MemberModal = ({ isOpen, onClose }) => {
                     )
                   })}
                 </div>
+              </div>
+
+              {/* Collapsible Parent/Guardian Info Section */}
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowParentSection(!showParentSection)}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Parent/Guardian Info (Optional)
+                    </span>
+                  </div>
+                  {showParentSection ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  )}
+                </button>
+                
+                {showParentSection && (
+                  <div className="p-3 space-y-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
+                    {/* Parent 1 */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Parent/Guardian 1
+                      </label>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={parentInfo.parent_name_1}
+                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_1: e.target.value }))}
+                            placeholder="Name"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="tel"
+                            value={parentInfo.parent_phone_1}
+                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_1: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                            placeholder="Phone Number"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Parent 2 */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Parent/Guardian 2
+                      </label>
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={parentInfo.parent_name_2}
+                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_2: e.target.value }))}
+                            placeholder="Name"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="tel"
+                            value={parentInfo.parent_phone_2}
+                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_2: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                            placeholder="Phone Number"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Form Actions */}

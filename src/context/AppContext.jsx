@@ -1026,14 +1026,17 @@ export const AppProvider = ({ children }) => {
 
       // Normalize name field using schema-aware detection
       const nameCol = await resolveNameColumn(currentTable)
+      console.log('[updateMember] Resolved name column:', nameCol)
       const incomingName = (
         typeof normalized.full_name === 'string' && normalized.full_name.trim()
       ) ? normalized.full_name : (typeof normalized['Full Name'] === 'string' ? normalized['Full Name'] : undefined)
+      console.log('[updateMember] Incoming name value:', incomingName)
       if (incomingName !== undefined) {
         normalized = { ...normalized, [nameCol]: incomingName }
         delete normalized.full_name
         delete normalized['Full Name']
       }
+      console.log('[updateMember] Normalized updates to send:', normalized)
 
       // Normalize gender to capitalized values the table expects
       const incomingGender = normalized.gender ?? normalized['Gender']
@@ -1077,6 +1080,7 @@ export const AppProvider = ({ children }) => {
         const { data: sampleRow } = await supabase.from(currentTable).select('*').limit(1)
         if (sampleRow && sampleRow.length > 0) {
           validColumns = new Set(Object.keys(sampleRow[0]))
+          console.log('[updateMember] Valid columns in table:', Array.from(validColumns))
         }
       } catch (e) {
         console.warn('Could not fetch table schema, proceeding with all fields:', e)
@@ -1089,11 +1093,21 @@ export const AppProvider = ({ children }) => {
           if (validColumns.has(key)) {
             filteredNormalized[key] = normalized[key]
           } else {
-            console.warn(`Skipping field "${key}" - column does not exist in table ${currentTable}`)
+            // Try alternative column names for name field
+            if (key === 'Full Name' && validColumns.has('full_name')) {
+              filteredNormalized['full_name'] = normalized[key]
+              console.log('[updateMember] Mapped "Full Name" to "full_name"')
+            } else if (key === 'full_name' && validColumns.has('Full Name')) {
+              filteredNormalized['Full Name'] = normalized[key]
+              console.log('[updateMember] Mapped "full_name" to "Full Name"')
+            } else {
+              console.warn(`Skipping field "${key}" - column does not exist in table ${currentTable}`)
+            }
           }
         }
         normalized = filteredNormalized
       }
+      console.log('[updateMember] Final normalized data to send:', normalized)
 
       // Ensure we have something to update
       if (Object.keys(normalized).length === 0) {
