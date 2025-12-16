@@ -22,7 +22,7 @@ import {
   Star
 } from 'lucide-react'
 
-const AdminPanel = ({ onBack }) => {
+const AdminPanel = ({ setCurrentView, onBack }) => {
   const {
     members,
     currentTable,
@@ -215,7 +215,7 @@ const AdminPanel = ({ onBack }) => {
               </p>
             </div>
             <button
-              onClick={onBack}
+              onClick={() => setCurrentView('dashboard')}
               className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               Back to Dashboard

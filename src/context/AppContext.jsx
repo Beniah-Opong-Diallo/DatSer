@@ -1783,29 +1783,47 @@ export const AppProvider = ({ children }) => {
 
       attendanceColumns.forEach(col => {
         const columnName = col.column_name
-        const dateMatch = columnName.match(/(\d+)(st|nd|rd|th)/)
+        const colNameLower = columnName.toLowerCase()
+        
+        let dateKey = null
 
-        if (dateMatch) {
-          const day = parseInt(dateMatch[1])
-          // Get current month and year from table name
-          const [monthName, year] = currentTable.split('_')
-          const monthIndex = [
-            'January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December'
-          ].indexOf(monthName)
+        // NEW format: attendance_2025_12_07
+        const newMatch = colNameLower.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
+        if (newMatch) {
+          const year = parseInt(newMatch[1])
+          const month = parseInt(newMatch[2]) - 1 // 0-indexed
+          const day = parseInt(newMatch[3])
+          const date = new Date(year, month, day)
+          dateKey = getLocalDateString(date)
+        }
 
-          if (monthIndex !== -1) {
-            const date = new Date(parseInt(year), monthIndex, day)
-            const dateKey = getLocalDateString(date)
+        // OLD format: Attendance 7th, Attendance 14th
+        if (!dateKey) {
+          const oldMatch = columnName.match(/(\d+)(st|nd|rd|th)/)
+          if (oldMatch) {
+            const day = parseInt(oldMatch[1])
+            // Get current month and year from table name
+            const [monthName, year] = currentTable.split('_')
+            const monthIndex = [
+              'January', 'February', 'March', 'April', 'May', 'June',
+              'July', 'August', 'September', 'October', 'November', 'December'
+            ].indexOf(monthName)
 
-            newAttendanceData[dateKey] = {}
-
-            data.forEach(record => {
-              if (record[columnName]) {
-                newAttendanceData[dateKey][record.id] = record[columnName] === 'Present'
-              }
-            })
+            if (monthIndex !== -1) {
+              const date = new Date(parseInt(year), monthIndex, day)
+              dateKey = getLocalDateString(date)
+            }
           }
+        }
+
+        if (dateKey) {
+          newAttendanceData[dateKey] = {}
+
+          data.forEach(record => {
+            if (record[columnName]) {
+              newAttendanceData[dateKey][record.id] = record[columnName] === 'Present'
+            }
+          })
         }
       })
 

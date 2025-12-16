@@ -1287,7 +1287,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                       ? 'bg-red-600 dark:bg-red-700 text-white shadow ring-1 ring-red-300 dark:ring-red-500'
                                       : attendanceLoading[member.id]
                                         ? 'bg-gray-200 dark:bg-gray-600 text-gray-400 cursor-not-allowed'
-                                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-700 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800'
+                                        : 'bg-red-600 dark:bg-red-700 text-white shadow-sm'
                                       }`}
                                     title={isAbsentSelected ? "Click to clear" : "Mark absent"}
                                   >
@@ -1403,8 +1403,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                   return (
                                     <div
                                       key={date}
-                                      className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3 transition-colors"
-                                      style={isDarkMode ? { backgroundColor: 'rgb(30, 41, 54)' } : {}}
+                                      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 transition-colors"
                                     >
                                       <div className="text-center mb-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">

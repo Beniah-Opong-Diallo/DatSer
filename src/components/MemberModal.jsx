@@ -392,10 +392,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => setIsLevelOpen(!isLevelOpen)}
-                    className={`w-full pl-10 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${showErrors && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
+                    className={`w-full pl-3 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${showErrors && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
                   >
                     <div className="flex items-center">
-                      <BookOpen className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-3" />
+                      <BookOpen className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
                       <span className={!formData.current_level ? 'text-gray-500 dark:text-gray-400' : ''}>
                         {formData.current_level || 'Select level'}
                       </span>
@@ -451,7 +451,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${sundayAttendance[date] === true
+                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === true
                               ? 'bg-green-600 text-white shadow-sm'
                               : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
                               }`}
@@ -461,7 +461,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${sundayAttendance[date] === false
+                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === false
                               ? 'bg-red-600 text-white shadow-sm'
                               : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
                               }`}
@@ -471,7 +471,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: null }))}
-                            className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+                            className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                           >
                             Clear
                           </button>
@@ -480,46 +480,6 @@ const MemberModal = ({ isOpen, onClose }) => {
                     )
                   })}
                 </div>
-              </div>
-
-              {/* Tags selection */}
-              <div className="pt-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Assign Tags (Optional)
-                </label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleTagSelect('member')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('member')
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800'
-                      }`}
-                  >
-                    Member
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleTagSelect('regular')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('regular')
-                      ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                      : 'bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800'
-                      }`}
-                  >
-                    Regular
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleTagSelect('newcomer')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${selectedTags.includes('newcomer')
-                      ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                      : 'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800'
-                      }`}
-                  >
-                    Newcomer
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Tap to select one or more tags to save with this member.</p>
               </div>
 
               {/* Form Actions */}
