@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Users,
-  Shield,
   TrendingUp,
   Menu,
   X,
@@ -202,10 +201,10 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       onClick: () => { setCurrentView('dashboard'); setDashboardTab('duplicates') }
     },
     {
-      id: 'analytics',
-      label: 'Analytics',
+      id: 'admin',
+      label: 'Admin Panel',
       icon: TrendingUp,
-      onClick: () => { setCurrentView('analytics') }
+      onClick: () => { setCurrentView('admin') }
     },
     // Action: Create new month goes into the menu
     {
@@ -215,22 +214,6 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       onClick: onCreateMonth
     }
   ]
-
-  if (isAdmin) {
-    menuItems.push({
-      id: 'admin',
-      label: 'Admin',
-      icon: Shield,
-      onClick: () => { setCurrentView('admin') }
-    })
-  } else {
-    menuItems.push({
-      id: 'admin',
-      label: 'Login',
-      icon: Shield,
-      onClick: () => { setCurrentView('admin') }
-    })
-  }
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm md:border-b border-gray-200 dark:border-gray-700 z-50 w-full safe-area-top fixed top-0 left-0 right-0">
@@ -280,16 +263,16 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                 )}
               </button>
 
-              {/* Analytics */}
+              {/* Admin Panel */}
               <button
-                onClick={() => setCurrentView('analytics')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'analytics'
+                onClick={() => setCurrentView('admin')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${currentView === 'admin'
                   ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
               >
                 <TrendingUp className="w-4 h-4" />
-                <span>Analytics</span>
+                <span>Admin</span>
               </button>
             </nav>
 
