@@ -1,6 +1,10 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, Check, X } from 'lucide-react'
+import { Turnstile } from '@marsidev/react-turnstile'
+
+// Turnstile site key from environment
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAACHPQ15KsTdGMaTu'
 
 // Password strength calculator
 const getPasswordStrength = (password) => {
@@ -8,7 +12,7 @@ const getPasswordStrength = (password) => {
   
   let score = 0
   const checks = {
-    length: password.length >= 8,
+    length: password.length >= 10,
     lowercase: /[a-z]/.test(password),
     uppercase: /[A-Z]/.test(password),
     number: /[0-9]/.test(password),
@@ -41,6 +45,8 @@ const LoginPage = () => {
   const [confirmationSent, setConfirmationSent] = useState(false)
 
   const [loginAttempts, setLoginAttempts] = useState(0)
+  const [captchaToken, setCaptchaToken] = useState(null)
+  const turnstileRef = useRef(null)
 
   // Calculate password strength for signup mode
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
@@ -68,7 +74,14 @@ const LoginPage = () => {
     setIsLoading(true)
     setError(null)
     try {
-      await signInWithEmail(email, password)
+      if (!captchaToken) {
+        setError('Please complete the security check')
+        setIsLoading(false)
+        return
+      }
+      await signInWithEmail(email, password, captchaToken)
+      setCaptchaToken(null)
+      turnstileRef.current?.reset()
       setLoginAttempts(0) // Reset on success
     } catch (err) {
       const newAttempts = loginAttempts + 1
@@ -99,15 +112,21 @@ const LoginPage = () => {
       setError('Please fill in all fields')
       return
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (password.length < 10) {
+      setError('Password must be at least 10 characters')
+      return
+    }
+    if (!captchaToken) {
+      setError('Please complete the security check')
       return
     }
 
     setIsLoading(true)
     setError(null)
     try {
-      const result = await signUpWithEmail(email, password, fullName)
+      const result = await signUpWithEmail(email, password, fullName, captchaToken)
+      setCaptchaToken(null)
+      turnstileRef.current?.reset()
       if (result?.needsConfirmation) {
         setConfirmationSent(true)
       } else if (result?.needsSignIn) {
@@ -129,8 +148,15 @@ const LoginPage = () => {
 
     setIsLoading(true)
     setError(null)
+    if (!captchaToken) {
+      setError('Please complete the security check')
+      setIsLoading(false)
+      return
+    }
     try {
-      await resetPassword(email)
+      await resetPassword(email, captchaToken)
+      setCaptchaToken(null)
+      turnstileRef.current?.reset()
       setConfirmationSent(true)
     } catch (err) {
       // Error is handled in AuthContext
@@ -143,6 +169,8 @@ const LoginPage = () => {
     setError(null)
     setConfirmationSent(false)
     setLoginAttempts(0)
+    setCaptchaToken(null)
+    turnstileRef.current?.reset()
   }
 
   const switchMode = (newMode) => {
@@ -304,7 +332,7 @@ const LoginPage = () => {
                     <div className="grid grid-cols-2 gap-1 text-xs">
                       <div className={`flex items-center gap-1 ${passwordStrength.checks?.length ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
                         {passwordStrength.checks?.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                        8+ characters
+                        10+ characters
                       </div>
                       <div className={`flex items-center gap-1 ${passwordStrength.checks?.uppercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
                         {passwordStrength.checks?.uppercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
@@ -331,6 +359,17 @@ const LoginPage = () => {
                 )}
               </div>
             )}
+
+            {/* Turnstile CAPTCHA */}
+            <div className="mb-4 flex justify-center">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                onSuccess={(token) => setCaptchaToken(token)}
+                onError={() => setCaptchaToken(null)}
+                onExpire={() => setCaptchaToken(null)}
+              />
+            </div>
 
             {/* Forgot Password Link - Login only */}
             {mode === 'login' && (

@@ -210,7 +210,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Sign up with email and password
-  const signUpWithEmail = async (email, password, fullName) => {
+  const signUpWithEmail = async (email, password, fullName, captchaToken) => {
     try {
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
       
@@ -219,6 +219,7 @@ export const AuthProvider = ({ children }) => {
         password,
         options: {
           emailRedirectTo: redirectUrl,
+          captchaToken,
           data: {
             full_name: fullName
           }
@@ -251,11 +252,12 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Sign in with email and password
-  const signInWithEmail = async (email, password) => {
+  const signInWithEmail = async (email, password, captchaToken) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
+        options: { captchaToken }
       })
 
       if (error) throw error
@@ -274,12 +276,13 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Reset password
-  const resetPassword = async (email) => {
+  const resetPassword = async (email, captchaToken) => {
     try {
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        captchaToken
       })
 
       if (error) throw error
