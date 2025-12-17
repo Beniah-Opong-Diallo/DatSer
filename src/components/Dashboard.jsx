@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, X, Feather } from 'lucide-react'
+import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, X, Feather, StickyNote, History, Eye } from 'lucide-react'
 import EditMemberModal from './EditMemberModal'
 import MemberModal from './MemberModal'
 
@@ -86,6 +86,27 @@ const Dashboard = ({ isAdmin = false }) => {
   // Tab state moved to AppContext: dashboardTab ('all' | 'edited')
   const [selectedSundayDate, setSelectedSundayDate] = useState(null)
   const [genderFilter, setGenderFilter] = useState(null)
+  const [levelFilter, setLevelFilter] = useState(null)
+  const [ministryFilter, setMinistryFilter] = useState(null)
+  const [visitorFilter, setVisitorFilter] = useState(null)
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Available filter options
+  const levels = ['SHS1', 'SHS2', 'SHS3', 'JHS1', 'JHS2', 'JHS3', 'COMPLETED', 'UNIVERSITY']
+  const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+  const [ministryOptions, setMinistryOptions] = useState(() => {
+    const saved = localStorage.getItem('customMinistries')
+    return saved ? JSON.parse(saved) : defaultMinistries
+  })
+
+  // Listen for ministry updates from Admin Panel
+  useEffect(() => {
+    const handleMinistriesUpdate = (e) => {
+      setMinistryOptions(e.detail)
+    }
+    window.addEventListener('ministriesUpdated', handleMinistriesUpdate)
+    return () => window.removeEventListener('ministriesUpdated', handleMinistriesUpdate)
+  }, [])
 
   // iOS detection (used for minor tweaks if needed)
   const searchInputRef = useRef(null)
@@ -316,23 +337,49 @@ const Dashboard = ({ isAdmin = false }) => {
   const getTabFilteredMembers = () => {
     const badgeFilteredMembers = getFilteredMembersByBadge()
 
-    // Apply gender filter (large-screen quick toggle)
-    const genderFilteredMembers = !genderFilter
-      ? badgeFilteredMembers
-      : badgeFilteredMembers.filter(member => {
+    // Apply all filters (gender, level, ministry, visitor)
+    let filteredMembers = badgeFilteredMembers
+
+    // Gender filter
+    if (genderFilter) {
+      filteredMembers = filteredMembers.filter(member => {
         const g = (member['Gender'] || member.gender || '').toString()
         return g.toLowerCase() === genderFilter.toLowerCase()
       })
+    }
+
+    // Level filter
+    if (levelFilter) {
+      filteredMembers = filteredMembers.filter(member => {
+        const level = (member['Current Level'] || '').toString().toUpperCase()
+        return level === levelFilter.toUpperCase()
+      })
+    }
+
+    // Ministry filter
+    if (ministryFilter) {
+      filteredMembers = filteredMembers.filter(member => {
+        const ministry = member.ministry || []
+        return Array.isArray(ministry) && ministry.includes(ministryFilter)
+      })
+    }
+
+    // Visitor filter
+    if (visitorFilter !== null) {
+      filteredMembers = filteredMembers.filter(member => {
+        return visitorFilter ? member.is_visitor === true : member.is_visitor !== true
+      })
+    }
 
     // When searching, ignore tab filters and show all matching results
     if (searchTerm && searchTerm.trim()) {
-      return genderFilteredMembers
+      return filteredMembers
     }
 
     if (dashboardTab === 'edited') {
       const dateKey = selectedSundayDate || (selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null)
       if (!dateKey) {
-        const editedOnly = genderFilteredMembers.filter(member => isEditedMember(member))
+        const editedOnly = filteredMembers.filter(member => isEditedMember(member))
         return editedOnly.sort((a, b) => {
           const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
           const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
@@ -340,7 +387,7 @@ const Dashboard = ({ isAdmin = false }) => {
         })
       }
       const map = attendanceData[dateKey] || {}
-      const filteredByDate = genderFilteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
+      const filteredByDate = filteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
       return filteredByDate.sort((a, b) => {
         const av = map[a.id]
         const bv = map[b.id]
@@ -359,10 +406,10 @@ const Dashboard = ({ isAdmin = false }) => {
       duplicateGroups.forEach(group => {
         group.members.forEach(member => duplicateMemberIds.add(member.id))
       })
-      return genderFilteredMembers.filter(member => duplicateMemberIds.has(member.id))
+      return filteredMembers.filter(member => duplicateMemberIds.has(member.id))
     }
 
-    return genderFilteredMembers
+    return filteredMembers
   }
 
   // Aggregated counts across selected/all Sundays for members in current view
@@ -1171,7 +1218,7 @@ const Dashboard = ({ isAdmin = false }) => {
                         <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
-                    <div className="absolute inset-y-0 right-0 w-12 flex items-center justify-center space-x-1 rounded-xl" style={{ display: selectionMode ? 'none' : 'flex' }}>
+                    <div className="absolute inset-y-0 right-0 w-12 md:hidden flex items-center justify-center space-x-1 rounded-xl" style={{ display: selectionMode ? 'none' : undefined }}>
                       <button
                         type="button"
                         onTouchStart={(e) => { e.stopPropagation() }}
@@ -1340,7 +1387,30 @@ const Dashboard = ({ isAdmin = false }) => {
                                       {member['Current Level']?.toLowerCase() || 'N/A'}
                                     </span>
                                   </div>
+                                  {/* Visitor Badge */}
+                                  {member.is_visitor && (
+                                    <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700/50">
+                                      <span className="text-gray-500 dark:text-gray-400">Status</span>
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                        Visitor
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* Ministry Tags */}
+                                {member.ministry && member.ministry.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Ministry</h4>
+                                    <div className="flex flex-wrap gap-1">
+                                      {member.ministry.map(m => (
+                                        <span key={m} className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
+                                          {m}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
 
                                 {/* Parent Information (if available) */}
                                 {(member['parent_name_1'] || member['parent_name_2']) && (
@@ -1386,6 +1456,19 @@ const Dashboard = ({ isAdmin = false }) => {
                                     <span>Edit Details</span>
                                   </button>
                                 </div>
+                                
+                                {/* Notes Section */}
+                                {member.notes && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                      <StickyNote className="w-3 h-3" />
+                                      Note
+                                    </h4>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-2 italic">
+                                      {member.notes}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -1439,6 +1522,42 @@ const Dashboard = ({ isAdmin = false }) => {
                                     </div>
                                   )
                                 })}
+                              </div>
+                            </div>
+
+                            {/* Attendance Summary */}
+                            <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+                              <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                                <History className="w-3 h-3" />
+                                Attendance Summary
+                              </h4>
+                              <div className="grid grid-cols-3 gap-3">
+                                {(() => {
+                                  // Calculate attendance stats for this member
+                                  let present = 0, absent = 0, total = 0
+                                  sundayDates.forEach(date => {
+                                    const status = attendanceData[date]?.[member.id]
+                                    if (status === true) { present++; total++ }
+                                    else if (status === false) { absent++; total++ }
+                                  })
+                                  const rate = total > 0 ? Math.round((present / total) * 100) : 0
+                                  return (
+                                    <>
+                                      <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                        <div className="text-lg font-bold text-green-600 dark:text-green-400">{present}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Present</div>
+                                      </div>
+                                      <div className="text-center p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                        <div className="text-lg font-bold text-red-600 dark:text-red-400">{absent}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Absent</div>
+                                      </div>
+                                      <div className="text-center p-2 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
+                                        <div className="text-lg font-bold text-primary-600 dark:text-primary-400">{rate}%</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Rate</div>
+                                      </div>
+                                    </>
+                                  )
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -1659,6 +1778,145 @@ const Dashboard = ({ isAdmin = false }) => {
         />
       )}
 
+      {/* Filter Modal */}
+      {showFilters && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowFilters(false)}
+          />
+          {/* Filter Panel */}
+          <div className="relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden animate-slide-up">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Filter className="w-5 h-5 text-primary-500" />
+                Filter Members
+              </h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Filter Content */}
+            <div className="px-5 py-4 space-y-5 overflow-y-auto max-h-[60vh]">
+              {/* Gender Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gender</label>
+                <div className="flex gap-2">
+                  {['Male', 'Female'].map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setGenderFilter(genderFilter === g ? null : g)}
+                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        genderFilter === g
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Level Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Education Level</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {levels.map(l => (
+                    <button
+                      key={l}
+                      onClick={() => setLevelFilter(levelFilter === l ? null : l)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                        levelFilter === l
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ministry Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ministry/Group</label>
+                <div className="flex flex-wrap gap-2">
+                  {ministryOptions.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setMinistryFilter(ministryFilter === m ? null : m)}
+                      className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${
+                        ministryFilter === m
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Member Status</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setVisitorFilter(visitorFilter === false ? null : false)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      visitorFilter === false
+                        ? 'bg-primary-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Members Only
+                  </button>
+                  <button
+                    onClick={() => setVisitorFilter(visitorFilter === true ? null : true)}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      visitorFilter === true
+                        ? 'bg-amber-500 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Visitors Only
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
+              <button
+                onClick={() => {
+                  setGenderFilter(null)
+                  setLevelFilter(null)
+                  setMinistryFilter(null)
+                  setVisitorFilter(null)
+                }}
+                disabled={!genderFilter && !levelFilter && !ministryFilter && visitorFilter === null}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 shadow-md transition-colors"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Search Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 safe-area-bottom">
         <div className="mx-auto px-3 sm:px-4 py-3">
@@ -1683,6 +1941,21 @@ const Dashboard = ({ isAdmin = false }) => {
                 </button>
               )}
             </div>
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+                showFilters || genderFilter || levelFilter || ministryFilter || visitorFilter !== null
+                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+              title="Filters"
+            >
+              <Filter className="w-4 h-4" />
+              {(genderFilter || levelFilter || ministryFilter || visitorFilter !== null) && (
+                <span className="w-2 h-2 bg-primary-500 rounded-full" />
+              )}
+            </button>
             {/* Add Member Button */}
             <button
               onClick={() => setShowMemberModal(true)}

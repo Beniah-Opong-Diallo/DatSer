@@ -19,7 +19,13 @@ import {
   Check,
   X,
   AlertTriangle,
-  Star
+  Star,
+  Tags,
+  Plus,
+  Trash2,
+  Edit3,
+  Printer,
+  Download
 } from 'lucide-react'
 
 const AdminPanel = ({ setCurrentView, onBack }) => {
@@ -34,10 +40,295 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   } = useApp()
   const { isDarkMode } = useTheme()
 
+  // Admin password protection
+  const ADMIN_PASSWORD = 'admin123' // Change this to your preferred password
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Check if already authenticated in this session
+    return sessionStorage.getItem('adminAuthenticated') === 'true'
+  })
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState(false)
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault()
+    if (passwordInput === ADMIN_PASSWORD) {
+      setIsAuthenticated(true)
+      sessionStorage.setItem('adminAuthenticated', 'true')
+      setPasswordError(false)
+    } else {
+      setPasswordError(true)
+      setPasswordInput('')
+    }
+  }
+
   // Badge processing state
   const [isProcessingBadges, setIsProcessingBadges] = useState(false)
   const [badgeResults, setBadgeResults] = useState(null)
   const [showBadgeResults, setShowBadgeResults] = useState(false)
+
+  // Ministry management state
+  const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+  const [ministries, setMinistries] = useState(() => {
+    const saved = localStorage.getItem('customMinistries')
+    return saved ? JSON.parse(saved) : defaultMinistries
+  })
+  const [newMinistry, setNewMinistry] = useState('')
+  const [editingMinistry, setEditingMinistry] = useState(null)
+  const [editMinistryValue, setEditMinistryValue] = useState('')
+
+  // Save ministries to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('customMinistries', JSON.stringify(ministries))
+    // Dispatch event so other components can listen for changes
+    window.dispatchEvent(new CustomEvent('ministriesUpdated', { detail: ministries }))
+  }, [ministries])
+
+  const addMinistry = () => {
+    const trimmed = newMinistry.trim()
+    if (trimmed && !ministries.includes(trimmed)) {
+      setMinistries([...ministries, trimmed])
+      setNewMinistry('')
+      toast.success(`Added "${trimmed}" ministry`)
+    }
+  }
+
+  const deleteMinistry = (ministry) => {
+    setMinistries(ministries.filter(m => m !== ministry))
+    toast.success(`Removed "${ministry}" ministry`)
+  }
+
+  const startEditMinistry = (ministry) => {
+    setEditingMinistry(ministry)
+    setEditMinistryValue(ministry)
+  }
+
+  const saveEditMinistry = () => {
+    const trimmed = editMinistryValue.trim()
+    if (trimmed && trimmed !== editingMinistry) {
+      setMinistries(ministries.map(m => m === editingMinistry ? trimmed : m))
+      toast.success(`Updated ministry to "${trimmed}"`)
+    }
+    setEditingMinistry(null)
+    setEditMinistryValue('')
+  }
+
+  // Print attendance sheet with editable preview
+  const printAttendanceSheet = () => {
+    const sundayDates = availableSundayDates?.map(d => {
+      if (d instanceof Date) {
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+      }
+      return d
+    }) || []
+
+    // Sort members alphabetically
+    const sortedMembers = [...members].sort((a, b) => {
+      const nameA = (a['full_name'] || a['Full Name'] || '').toLowerCase()
+      const nameB = (b['full_name'] || b['Full Name'] || '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Attendance Sheet - ${monthDisplayName}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; margin: 0; background: #f5f5f5; }
+          .toolbar { 
+            position: fixed; top: 0; left: 0; right: 0; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 12px 20px; 
+            display: flex; align-items: center; gap: 15px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            flex-wrap: wrap;
+          }
+          .toolbar label { color: white; font-size: 13px; font-weight: 500; }
+          .toolbar select, .toolbar input[type="number"] { 
+            padding: 6px 10px; border-radius: 6px; border: none; 
+            font-size: 13px; background: white; cursor: pointer;
+          }
+          .toolbar button {
+            padding: 8px 16px; border-radius: 6px; border: none;
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+          }
+          .btn-print { background: #10b981; color: white; }
+          .btn-print:hover { background: #059669; }
+          .btn-close { background: #ef4444; color: white; margin-left: auto; }
+          .btn-close:hover { background: #dc2626; }
+          .toolbar-group { display: flex; align-items: center; gap: 8px; }
+          
+          .content { margin-top: 80px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          h1 { text-align: center; margin-bottom: 5px; font-size: 24px; color: #1f2937; }
+          h2 { text-align: center; color: #6b7280; font-weight: normal; margin-top: 0; font-size: 16px; }
+          
+          .editable-title { 
+            border: 2px dashed transparent; padding: 5px 10px; border-radius: 4px;
+            transition: border-color 0.2s; cursor: text;
+          }
+          .editable-title:hover { border-color: #667eea; }
+          .editable-title:focus { outline: none; border-color: #667eea; background: #f0f4ff; }
+          
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #d1d5db; padding: 8px; text-align: center; }
+          th { background: #f3f4f6; font-weight: 600; color: #374151; }
+          td:nth-child(2) { text-align: left; }
+          .present { background: #d1fae5; color: #065f46; font-weight: bold; }
+          .absent { background: #fee2e2; color: #991b1b; font-weight: bold; }
+          
+          .summary { margin: 20px 0; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+          .summary-item { text-align: center; padding: 15px 25px; background: #f9fafb; border-radius: 8px; }
+          .summary-value { font-size: 28px; font-weight: bold; }
+          .summary-label { font-size: 12px; color: #6b7280; margin-top: 4px; }
+          
+          .footer { text-align: center; margin-top: 30px; color: #9ca3af; font-size: 11px; }
+          
+          @media print {
+            body { background: white; padding: 10px; }
+            .toolbar { display: none !important; }
+            .content { margin-top: 0; box-shadow: none; padding: 0; }
+            .editable-title { border: none !important; }
+            table { font-size: 10px; }
+            th, td { padding: 4px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <label>Font Size:</label>
+            <select id="fontSize" onchange="changeFontSize(this.value)">
+              <option value="10">Small (10px)</option>
+              <option value="12" selected>Normal (12px)</option>
+              <option value="14">Large (14px)</option>
+              <option value="16">X-Large (16px)</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label>Table Style:</label>
+            <select id="tableStyle" onchange="changeTableStyle(this.value)">
+              <option value="default">Default</option>
+              <option value="compact">Compact</option>
+              <option value="striped">Striped</option>
+            </select>
+          </div>
+          <div class="toolbar-group">
+            <label>
+              <input type="checkbox" id="showSummary" checked onchange="toggleSummary(this.checked)"> 
+              Show Summary
+            </label>
+          </div>
+          <div class="toolbar-group">
+            <label>
+              <input type="checkbox" id="boldNames" onchange="toggleBoldNames(this.checked)"> 
+              Bold Names
+            </label>
+          </div>
+          <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+          <button class="btn-close" onclick="window.close()">✕ Close</button>
+        </div>
+        
+        <div class="content">
+          <h1 contenteditable="true" class="editable-title">Attendance Sheet</h1>
+          <h2 contenteditable="true" class="editable-title">${monthDisplayName}</h2>
+          
+          <div class="summary" id="summarySection">
+            <div class="summary-item">
+              <div class="summary-value">${members.length}</div>
+              <div class="summary-label">Total Members</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value" style="color: #10b981">${stats.totalPresent}</div>
+              <div class="summary-label">Total Present</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value" style="color: #ef4444">${stats.totalAbsent}</div>
+              <div class="summary-label">Total Absent</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-value" style="color: #8b5cf6">${stats.attendanceRate}%</div>
+              <div class="summary-label">Attendance Rate</div>
+            </div>
+          </div>
+          
+          <table id="attendanceTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Gender</th>
+                <th>Level</th>
+                ${sundayDates.map(d => `<th>${new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</th>`).join('')}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedMembers.map((member, idx) => {
+                let presentCount = 0
+                const cells = sundayDates.map(date => {
+                  const status = attendanceData[date]?.[member.id]
+                  if (status === true) { presentCount++; return '<td class="present">P</td>' }
+                  if (status === false) { return '<td class="absent">A</td>' }
+                  return '<td>-</td>'
+                }).join('')
+                return `<tr>
+                  <td>${idx + 1}</td>
+                  <td class="member-name">${member['full_name'] || member['Full Name'] || 'N/A'}</td>
+                  <td>${member['Gender'] || 'N/A'}</td>
+                  <td>${member['Current Level'] || 'N/A'}</td>
+                  ${cells}
+                  <td><strong>${presentCount}/${sundayDates.length}</strong></td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+          
+          <p class="footer" contenteditable="true">Generated on ${new Date().toLocaleString()}</p>
+        </div>
+        
+        <script>
+          function changeFontSize(size) {
+            document.getElementById('attendanceTable').style.fontSize = size + 'px';
+          }
+          function changeTableStyle(style) {
+            const table = document.getElementById('attendanceTable');
+            table.className = '';
+            if (style === 'striped') {
+              const rows = table.querySelectorAll('tbody tr');
+              rows.forEach((row, i) => {
+                row.style.background = i % 2 === 0 ? '#f9fafb' : 'white';
+              });
+            } else if (style === 'compact') {
+              table.querySelectorAll('th, td').forEach(cell => {
+                cell.style.padding = '4px';
+              });
+            } else {
+              table.querySelectorAll('tbody tr').forEach(row => row.style.background = '');
+              table.querySelectorAll('th, td').forEach(cell => cell.style.padding = '');
+            }
+          }
+          function toggleSummary(show) {
+            document.getElementById('summarySection').style.display = show ? 'flex' : 'none';
+          }
+          function toggleBoldNames(bold) {
+            document.querySelectorAll('.member-name').forEach(cell => {
+              cell.style.fontWeight = bold ? 'bold' : 'normal';
+            });
+          }
+        </script>
+      </body>
+      </html>
+    `
+
+    const printWindow = window.open('', '_blank')
+    printWindow.document.write(printContent)
+    printWindow.document.close()
+  }
 
   // Get month display name
   const monthDisplayName = currentTable ? currentTable.replace('_', ' ') : 'No Month Selected'
@@ -199,6 +490,72 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     }
   }
 
+  // Password protection screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-8 text-center">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
+              <p className="text-white/80 text-sm mt-1">Enter password to continue</p>
+            </div>
+            
+            {/* Form */}
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Enter admin password"
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    passwordError 
+                      ? 'border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
+                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-colors`}
+                  autoFocus
+                />
+                {passwordError && (
+                  <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
+                    <X className="w-4 h-4" />
+                    Incorrect password. Please try again.
+                  </p>
+                )}
+              </div>
+              
+              <button
+                type="submit"
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
+              >
+                Access Admin Panel
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setCurrentView('dashboard')}
+                className="w-full py-3 text-gray-600 dark:text-gray-400 font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              >
+                ← Back to Dashboard
+              </button>
+            </form>
+          </div>
+          
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Default password: admin123
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
       {/* Header */}
@@ -225,6 +582,17 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Print Attendance Sheet Button */}
+        <div className="flex justify-end animate-fade-in-up">
+          <button
+            onClick={printAttendanceSheet}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+          >
+            <Printer className="w-4 h-4" />
+            <span className="text-sm font-medium">Print Attendance Sheet</span>
+          </button>
+        </div>
+
         {/* Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -420,8 +788,78 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           </div>
         </div>
 
-        {/* Top Attendees */}
+        {/* Ministry Management */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Tags className="w-5 h-5 text-primary-500" />
+              Ministry/Groups
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Manage ministry tags for members</p>
+          </div>
+          <div className="p-4">
+            {/* Add new ministry */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newMinistry}
+                onChange={(e) => setNewMinistry(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addMinistry()}
+                placeholder="Add new ministry..."
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                onClick={addMinistry}
+                disabled={!newMinistry.trim()}
+                className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Ministry list */}
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {ministries.map((ministry) => (
+                <div key={ministry} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg group">
+                  {editingMinistry === ministry ? (
+                    <input
+                      type="text"
+                      value={editMinistryValue}
+                      onChange={(e) => setEditMinistryValue(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEditMinistry()}
+                      onBlur={saveEditMinistry}
+                      autoFocus
+                      className="flex-1 px-2 py-1 text-sm border border-primary-500 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none"
+                    />
+                  ) : (
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ministry}</span>
+                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => startEditMinistry(ministry)}
+                      className="p-1 text-gray-400 hover:text-primary-500 transition-colors"
+                      title="Edit"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteMinistry(ministry)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ministries.length === 0 && (
+              <p className="text-center text-gray-400 py-4 text-sm">No ministries added yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Top Attendees */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '400ms' }}>
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <Star className="w-5 h-5 text-yellow-500" />

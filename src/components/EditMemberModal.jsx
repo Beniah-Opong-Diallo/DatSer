@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users, StickyNote } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 const EditMemberModal = ({ isOpen, onClose, member }) => {
@@ -25,8 +25,27 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     gender: '',
     phone_number: '',
     age: '',
-    current_level: ''
+    current_level: '',
+    notes: '',
+    ministry: [],
+    is_visitor: false
   })
+
+  // Available ministries - load from localStorage or use defaults
+  const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+  const [ministries, setMinistries] = React.useState(() => {
+    const saved = localStorage.getItem('customMinistries')
+    return saved ? JSON.parse(saved) : defaultMinistries
+  })
+
+  // Listen for ministry updates from Admin Panel
+  React.useEffect(() => {
+    const handleMinistriesUpdate = (e) => {
+      setMinistries(e.detail)
+    }
+    window.addEventListener('ministriesUpdated', handleMinistriesUpdate)
+    return () => window.removeEventListener('ministriesUpdated', handleMinistriesUpdate)
+  }, [])
 
   // Helper function to generate Sunday dates for the current month/year
   const generateSundayDates = (currentTable) => {
@@ -85,7 +104,10 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
         gender: normalizedGender,
         phone_number: latestMember['Phone Number'] || '',
         age: latestMember['Age'] || '',
-        current_level: latestMember['Current Level'] || ''
+        current_level: latestMember['Current Level'] || '',
+        notes: latestMember['notes'] || '',
+        ministry: latestMember['ministry'] || [],
+        is_visitor: latestMember['is_visitor'] || false
       })
       // Initialize parent info from member
       setParentInfo({
@@ -209,7 +231,12 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
         parent_name_1: parentInfo.parent_name_1 || null,
         parent_phone_1: parentInfo.parent_phone_1 || null,
         parent_name_2: parentInfo.parent_name_2 || null,
-        parent_phone_2: parentInfo.parent_phone_2 || null
+        parent_phone_2: parentInfo.parent_phone_2 || null,
+        // Notes
+        notes: formData.notes || null,
+        // Ministry and visitor status
+        ministry: formData.ministry || [],
+        is_visitor: formData.is_visitor || false
       })
 
       // Mark attendance for selected Sunday dates
@@ -648,6 +675,70 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Ministry/Groups Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Ministry/Groups (Optional)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ministries.map(ministry => (
+                <button
+                  key={ministry}
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      ministry: prev.ministry.includes(ministry)
+                        ? prev.ministry.filter(m => m !== ministry)
+                        : [...prev.ministry, ministry]
+                    }))
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    formData.ministry.includes(ministry)
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {ministry}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Visitor Toggle */}
+          <div className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mark as Visitor</span>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, is_visitor: !prev.is_visitor }))}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                formData.is_visitor ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                formData.is_visitor ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {/* Notes Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <span className="flex items-center gap-1.5">
+                <StickyNote className="w-4 h-4" />
+                Notes (Optional)
+              </span>
+            </label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleInputChange}
+              rows={2}
+              placeholder="Add any notes about this member..."
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border-gray-300 dark:border-gray-600 focus:ring-primary-500 text-sm resize-none"
+            />
           </div>
 
           {/* Form Actions */}
