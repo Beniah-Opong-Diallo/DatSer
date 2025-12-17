@@ -252,6 +252,10 @@ export const AppProvider = ({ children }) => {
         parent_phone_1: memberData.parent_phone_1 || null,
         parent_name_2: memberData.parent_name_2 || null,
         parent_phone_2: memberData.parent_phone_2 || null,
+        // Notes, ministry tags, and visitor status
+        notes: memberData.notes || null,
+        ministry: memberData.ministry || null,
+        is_visitor: memberData.is_visitor || false,
         // Link to current user
         user_id: user?.id
       }
@@ -1164,6 +1168,15 @@ export const AppProvider = ({ children }) => {
               filteredNormalized['Parent Name 2'] = normalized[key]
             } else if (key === 'parent_phone_2' && validColumns.has('Parent Phone 2')) {
               filteredNormalized['Parent Phone 2'] = normalized[key]
+            } else if (key === 'notes' && validColumns.has('notes')) {
+              filteredNormalized['notes'] = normalized[key]
+              console.log('[updateMember] Including notes field')
+            } else if (key === 'ministry' && validColumns.has('ministry')) {
+              filteredNormalized['ministry'] = normalized[key]
+              console.log('[updateMember] Including ministry field')
+            } else if (key === 'is_visitor' && validColumns.has('is_visitor')) {
+              filteredNormalized['is_visitor'] = normalized[key]
+              console.log('[updateMember] Including is_visitor field')
             } else {
               console.warn(`Skipping field "${key}" - column does not exist in table ${currentTable}`)
             }

@@ -175,6 +175,116 @@ const faqData = [
         answer: 'Tap on your profile photo in the header to open the profile menu. At the bottom, you\'ll see a red "Sign Out" button. Tap it to log out of your account.',
         quickAction: null,
         hasVideo: false
+    },
+
+    // Filters Category
+    {
+        id: 19,
+        category: 'filters',
+        question: 'How do I filter members?',
+        answer: 'Tap the Filter button (funnel icon) next to the search bar at the bottom. A filter panel will open where you can filter by Gender, Education Level, Ministry/Group, and Member Status (Members vs Visitors).',
+        quickAction: { type: 'navigate', label: 'Go to Dashboard', target: 'dashboard' },
+        hasVideo: false
+    },
+    {
+        id: 20,
+        category: 'filters',
+        question: 'How do I clear all filters?',
+        answer: 'In the Filter panel, tap the "Clear All" button at the bottom to remove all active filters. You can also tap individual filter buttons again to deselect them.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 21,
+        category: 'filters',
+        question: 'What is the Visitor filter?',
+        answer: 'The Visitor filter lets you show only visitors (people marked as visiting) or only regular members. This helps you quickly see who are first-time attendees vs regular members.',
+        quickAction: null,
+        hasVideo: false
+    },
+
+    // Notes & Ministry Category
+    {
+        id: 22,
+        category: 'members',
+        question: 'How do I add notes to a member?',
+        answer: 'When adding or editing a member, scroll down to find the "Notes" field. You can add any important information about the member here. Notes are displayed in a yellow box when you expand the member\'s card.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 23,
+        category: 'members',
+        question: 'How do I assign ministry tags to a member?',
+        answer: 'When adding or editing a member, you\'ll see a "Ministry/Groups" section with buttons like Choir, Ushers, Youth, etc. Tap to select multiple ministries. These tags help you filter and organize members by their church roles.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 24,
+        category: 'members',
+        question: 'How do I mark someone as a visitor?',
+        answer: 'When adding or editing a member, toggle the "Mark as Visitor" switch to ON. Visitors will show an amber "Visitor" badge on their card. You can filter to show only visitors using the Filter panel.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 25,
+        category: 'members',
+        question: 'How do I see a member\'s attendance history?',
+        answer: 'Expand any member\'s card by tapping their name. Scroll down to see the "Attendance Summary" section which shows their total Present count, Absent count, and attendance rate percentage for the current month.',
+        quickAction: null,
+        hasVideo: false
+    },
+
+    // Admin Panel Category
+    {
+        id: 26,
+        category: 'admin',
+        question: 'How do I access the Admin Panel?',
+        answer: 'Go to Settings and tap "Admin Panel". You\'ll need to enter your account password (the same one you use to sign in) to access admin features. This adds an extra layer of security.',
+        quickAction: { type: 'navigate', label: 'Go to Settings', target: 'settings' },
+        hasVideo: false
+    },
+    {
+        id: 27,
+        category: 'admin',
+        question: 'What is the "Stay logged in" option in Admin Panel?',
+        answer: 'When logging into the Admin Panel, check "Stay logged in" to keep your admin access for 7 days. Without this, you\'ll be automatically locked out after 15 minutes of inactivity for security.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 28,
+        category: 'admin',
+        question: 'How do I print an attendance sheet?',
+        answer: 'In the Admin Panel, tap "Print Attendance Sheet". A new window opens with an editable preview. You can adjust font size, table style, toggle columns, and edit titles before printing. Click "Print" when ready.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 29,
+        category: 'admin',
+        question: 'How do I manage ministry/group tags?',
+        answer: 'In the Admin Panel, find the "Ministry/Groups" section. Here you can add new ministries, edit existing ones (hover and click pencil), or delete them (hover and click trash). Changes sync across the app instantly.',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 30,
+        category: 'admin',
+        question: 'What is badge processing?',
+        answer: 'Badge processing automatically assigns badges (Member, Regular, Newcomer) based on attendance patterns. It requires all Sundays in the month to be marked. Members with 2+ Sundays get "Member", those with 3+ consecutive get "Regular".',
+        quickAction: null,
+        hasVideo: false
+    },
+    {
+        id: 31,
+        category: 'admin',
+        question: 'How do I lock the Admin Panel?',
+        answer: 'Click the red "Lock" button in the Admin Panel header. This immediately locks the panel and requires your password to re-enter. The panel also auto-locks after 15 minutes of inactivity (unless "Stay logged in" is checked).',
+        quickAction: null,
+        hasVideo: false
     }
 ]
 
@@ -182,6 +292,8 @@ const categories = [
     { id: 'all', label: 'All', icon: HelpCircle },
     { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
     { id: 'members', label: 'Members', icon: Users },
+    { id: 'filters', label: 'Filters', icon: Filter },
+    { id: 'admin', label: 'Admin', icon: Settings },
     { id: 'navigation', label: 'Navigation', icon: Calendar },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings }
@@ -191,6 +303,8 @@ const getCategoryIcon = (categoryId) => {
     switch (categoryId) {
         case 'attendance': return CalendarCheck
         case 'members': return Users
+        case 'filters': return Filter
+        case 'admin': return Settings
         case 'navigation': return Calendar
         case 'reports': return BarChart3
         case 'settings': return Settings

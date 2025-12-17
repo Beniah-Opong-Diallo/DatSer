@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 import {
   Users,
@@ -25,7 +27,10 @@ import {
   Trash2,
   Edit3,
   Printer,
-  Download
+  Download,
+  LogOut,
+  Shield,
+  Lock
 } from 'lucide-react'
 
 const AdminPanel = ({ setCurrentView, onBack }) => {
@@ -39,26 +44,109 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     calculateAttendanceRate
   } = useApp()
   const { isDarkMode } = useTheme()
+  const { user } = useAuth()
 
-  // Admin password protection
-  const ADMIN_PASSWORD = 'admin123' // Change this to your preferred password
+  // Admin password protection - uses the same password as user's account
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check if already authenticated in this session
+    // Check localStorage first (stay logged in), then sessionStorage
+    const stayLoggedIn = localStorage.getItem('adminStayLoggedIn') === 'true'
+    if (stayLoggedIn) {
+      const expiry = localStorage.getItem('adminAuthExpiry')
+      if (expiry && new Date().getTime() < parseInt(expiry)) {
+        return true
+      }
+      // Expired, clear it
+      localStorage.removeItem('adminStayLoggedIn')
+      localStorage.removeItem('adminAuthExpiry')
+    }
     return sessionStorage.getItem('adminAuthenticated') === 'true'
   })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [stayLoggedIn, setStayLoggedIn] = useState(false)
+  const [lastActivity, setLastActivity] = useState(Date.now())
+  const AUTO_LOCK_MINUTES = 15 // Auto-lock after 15 minutes of inactivity
 
-  const handlePasswordSubmit = (e) => {
+  // Auto-lock timer - locks admin panel after inactivity
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const checkInactivity = () => {
+      const stayLoggedInEnabled = localStorage.getItem('adminStayLoggedIn') === 'true'
+      if (stayLoggedInEnabled) return // Don't auto-lock if stay logged in is enabled
+      
+      const inactiveTime = Date.now() - lastActivity
+      if (inactiveTime > AUTO_LOCK_MINUTES * 60 * 1000) {
+        handleAdminLogout()
+        toast.info('Admin session expired due to inactivity')
+      }
+    }
+
+    const interval = setInterval(checkInactivity, 60000) // Check every minute
+    return () => clearInterval(interval)
+  }, [isAuthenticated, lastActivity])
+
+  // Track user activity
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const updateActivity = () => setLastActivity(Date.now())
+    window.addEventListener('mousemove', updateActivity)
+    window.addEventListener('keydown', updateActivity)
+    window.addEventListener('click', updateActivity)
+
+    return () => {
+      window.removeEventListener('mousemove', updateActivity)
+      window.removeEventListener('keydown', updateActivity)
+      window.removeEventListener('click', updateActivity)
+    }
+  }, [isAuthenticated])
+
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault()
-    if (passwordInput === ADMIN_PASSWORD) {
-      setIsAuthenticated(true)
-      sessionStorage.setItem('adminAuthenticated', 'true')
-      setPasswordError(false)
-    } else {
+    if (!user?.email || !passwordInput) return
+
+    setIsVerifying(true)
+    setPasswordError(false)
+
+    try {
+      // Verify password by attempting to sign in with Supabase
+      const { error } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: passwordInput
+      })
+
+      if (error) {
+        setPasswordError(true)
+        setPasswordInput('')
+      } else {
+        setIsAuthenticated(true)
+        setLastActivity(Date.now())
+        
+        if (stayLoggedIn) {
+          // Store for 7 days
+          const expiry = new Date().getTime() + (7 * 24 * 60 * 60 * 1000)
+          localStorage.setItem('adminStayLoggedIn', 'true')
+          localStorage.setItem('adminAuthExpiry', expiry.toString())
+        } else {
+          sessionStorage.setItem('adminAuthenticated', 'true')
+        }
+        toast.success('Admin access granted')
+      }
+    } catch (err) {
       setPasswordError(true)
       setPasswordInput('')
+    } finally {
+      setIsVerifying(false)
     }
+  }
+
+  const handleAdminLogout = () => {
+    setIsAuthenticated(false)
+    sessionStorage.removeItem('adminAuthenticated')
+    localStorage.removeItem('adminStayLoggedIn')
+    localStorage.removeItem('adminAuthExpiry')
   }
 
   // Badge processing state
@@ -141,27 +229,29 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; margin: 0; background: #f5f5f5; }
           .toolbar { 
             position: fixed; top: 0; left: 0; right: 0; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
             padding: 12px 20px; 
             display: flex; align-items: center; gap: 15px; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             z-index: 1000;
             flex-wrap: wrap;
           }
-          .toolbar label { color: white; font-size: 13px; font-weight: 500; }
+          .toolbar label { color: #e2e8f0; font-size: 13px; font-weight: 500; }
           .toolbar select, .toolbar input[type="number"] { 
-            padding: 6px 10px; border-radius: 6px; border: none; 
-            font-size: 13px; background: white; cursor: pointer;
+            padding: 8px 12px; border-radius: 8px; border: 1px solid #475569; 
+            font-size: 13px; background: #1e293b; color: white; cursor: pointer;
           }
+          .toolbar select:focus { outline: none; border-color: #3b82f6; }
           .toolbar button {
-            padding: 8px 16px; border-radius: 6px; border: none;
+            padding: 10px 20px; border-radius: 8px; border: none;
             font-weight: 600; cursor: pointer; transition: all 0.2s;
           }
-          .btn-print { background: #10b981; color: white; }
-          .btn-print:hover { background: #059669; }
-          .btn-close { background: #ef4444; color: white; margin-left: auto; }
-          .btn-close:hover { background: #dc2626; }
+          .btn-print { background: #059669; color: white; }
+          .btn-print:hover { background: #047857; transform: translateY(-1px); }
+          .btn-close { background: #475569; color: white; margin-left: auto; }
+          .btn-close:hover { background: #64748b; }
           .toolbar-group { display: flex; align-items: center; gap: 8px; }
+          .toolbar-divider { width: 1px; height: 24px; background: #475569; margin: 0 8px; }
           
           .content { margin-top: 80px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
           h1 { text-align: center; margin-bottom: 5px; font-size: 24px; color: #1f2937; }
@@ -201,26 +291,29 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       <body>
         <div class="toolbar">
           <div class="toolbar-group">
-            <label>Font Size:</label>
+            <label>📝 Font:</label>
             <select id="fontSize" onchange="changeFontSize(this.value)">
-              <option value="10">Small (10px)</option>
-              <option value="12" selected>Normal (12px)</option>
-              <option value="14">Large (14px)</option>
-              <option value="16">X-Large (16px)</option>
+              <option value="9">Tiny</option>
+              <option value="10">Small</option>
+              <option value="12" selected>Normal</option>
+              <option value="14">Large</option>
             </select>
           </div>
+          <div class="toolbar-divider"></div>
           <div class="toolbar-group">
-            <label>Table Style:</label>
+            <label>📊 Style:</label>
             <select id="tableStyle" onchange="changeTableStyle(this.value)">
               <option value="default">Default</option>
               <option value="compact">Compact</option>
               <option value="striped">Striped</option>
+              <option value="bordered">Bold Border</option>
             </select>
           </div>
+          <div class="toolbar-divider"></div>
           <div class="toolbar-group">
             <label>
               <input type="checkbox" id="showSummary" checked onchange="toggleSummary(this.checked)"> 
-              Show Summary
+              Summary
             </label>
           </div>
           <div class="toolbar-group">
@@ -229,6 +322,19 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
               Bold Names
             </label>
           </div>
+          <div class="toolbar-group">
+            <label>
+              <input type="checkbox" id="showGender" checked onchange="toggleColumn('gender', this.checked)"> 
+              Gender
+            </label>
+          </div>
+          <div class="toolbar-group">
+            <label>
+              <input type="checkbox" id="showLevel" checked onchange="toggleColumn('level', this.checked)"> 
+              Level
+            </label>
+          </div>
+          <div class="toolbar-divider"></div>
           <button class="btn-print" onclick="window.print()">🖨️ Print</button>
           <button class="btn-close" onclick="window.close()">✕ Close</button>
         </div>
@@ -297,19 +403,25 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           }
           function changeTableStyle(style) {
             const table = document.getElementById('attendanceTable');
-            table.className = '';
+            // Reset all styles first
+            table.querySelectorAll('tbody tr').forEach(row => row.style.background = '');
+            table.querySelectorAll('th, td').forEach(cell => {
+              cell.style.padding = '';
+              cell.style.borderWidth = '';
+            });
+            
             if (style === 'striped') {
-              const rows = table.querySelectorAll('tbody tr');
-              rows.forEach((row, i) => {
-                row.style.background = i % 2 === 0 ? '#f9fafb' : 'white';
+              table.querySelectorAll('tbody tr').forEach((row, i) => {
+                row.style.background = i % 2 === 0 ? '#f8fafc' : 'white';
               });
             } else if (style === 'compact') {
               table.querySelectorAll('th, td').forEach(cell => {
-                cell.style.padding = '4px';
+                cell.style.padding = '3px 5px';
               });
-            } else {
-              table.querySelectorAll('tbody tr').forEach(row => row.style.background = '');
-              table.querySelectorAll('th, td').forEach(cell => cell.style.padding = '');
+            } else if (style === 'bordered') {
+              table.querySelectorAll('th, td').forEach(cell => {
+                cell.style.borderWidth = '2px';
+              });
             }
           }
           function toggleSummary(show) {
@@ -318,6 +430,14 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           function toggleBoldNames(bold) {
             document.querySelectorAll('.member-name').forEach(cell => {
               cell.style.fontWeight = bold ? 'bold' : 'normal';
+            });
+          }
+          function toggleColumn(col, show) {
+            const colIndex = col === 'gender' ? 2 : col === 'level' ? 3 : -1;
+            if (colIndex === -1) return;
+            document.querySelectorAll('#attendanceTable tr').forEach(row => {
+              const cell = row.children[colIndex];
+              if (cell) cell.style.display = show ? '' : 'none';
             });
           }
         </script>
@@ -493,35 +613,43 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   // Password protection screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-8 text-center">
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-8 h-8 text-white" />
+            <div className="bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-900 px-6 py-8 text-center">
+              <div className="w-16 h-16 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/20">
+                <Shield className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
-              <p className="text-white/80 text-sm mt-1">Enter password to continue</p>
+              <p className="text-slate-300 text-sm mt-1">Secure Access Required</p>
             </div>
             
             {/* Form */}
-            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-5">
+              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                <p className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                  <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>Enter your account password to verify your identity and access admin features.</span>
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password
+                  Account Password
                 </label>
                 <input
                   type="password"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="Enter admin password"
+                  placeholder="Enter your account password"
                   className={`w-full px-4 py-3 rounded-xl border ${
                     passwordError 
-                      ? 'border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
-                  } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-colors`}
+                      ? 'border-red-400 focus:ring-red-400 bg-red-50 dark:bg-red-900/20' 
+                      : 'border-gray-200 dark:border-gray-600 focus:ring-slate-500 bg-gray-50 dark:bg-gray-700'
+                  } text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all`}
                   autoFocus
+                  disabled={isVerifying}
                 />
                 {passwordError && (
                   <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
@@ -530,27 +658,53 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   </p>
                 )}
               </div>
+
+              {/* Stay logged in checkbox */}
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={stayLoggedIn}
+                    onChange={(e) => setStayLoggedIn(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded peer-checked:border-slate-600 peer-checked:bg-slate-600 transition-all flex items-center justify-center">
+                    {stayLoggedIn && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stay logged in</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Keep admin access for 7 days</p>
+                </div>
+              </label>
               
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
+                disabled={isVerifying || !passwordInput}
+                className="w-full py-3 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold rounded-xl transition-all shadow-lg disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Access Admin Panel
+                {isVerifying ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    Access Admin Panel
+                  </>
+                )}
               </button>
               
               <button
                 type="button"
                 onClick={() => setCurrentView('dashboard')}
-                className="w-full py-3 text-gray-600 dark:text-gray-400 font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                className="w-full py-3 text-gray-500 dark:text-gray-400 font-medium hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
               >
                 ← Back to Dashboard
               </button>
             </form>
           </div>
-          
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Default password: admin123
-          </p>
         </div>
       </div>
     )
@@ -564,19 +718,32 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <TrendingUp className="w-6 h-6 text-blue-500" />
+                <Shield className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 Admin Panel
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {monthDisplayName}
               </p>
             </div>
-            <button
-              onClick={() => setCurrentView('dashboard')}
-              className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              Back to Dashboard
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  handleAdminLogout()
+                  toast.info('Admin session ended')
+                }}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                title="Lock Admin Panel"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Lock</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('dashboard')}
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </div>

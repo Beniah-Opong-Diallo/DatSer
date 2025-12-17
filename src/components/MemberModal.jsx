@@ -199,7 +199,10 @@ const MemberModal = ({ isOpen, onClose }) => {
         ...formData,
         ...parentInfo,
         age: formData.age ? parseInt(formData.age) : null,
-        phone_number: formData.phone_number || null
+        phone_number: formData.phone_number || null,
+        notes: formData.notes || null,
+        ministry: formData.ministry?.length > 0 ? formData.ministry : null,
+        is_visitor: formData.is_visitor || false
       })
 
       // Assign selected tags (Member / Regular / Newcomer)
