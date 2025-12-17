@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
     Search,
     ChevronDown,
     ChevronRight,
+    ChevronLeft,
     ArrowLeft,
     HelpCircle,
     Users,
@@ -316,6 +317,44 @@ const HelpCenterPage = ({ onBack, onNavigate }) => {
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [expandedQuestions, setExpandedQuestions] = useState(new Set())
+    const tabsContainerRef = useRef(null)
+    const [canScrollLeft, setCanScrollLeft] = useState(false)
+    const [canScrollRight, setCanScrollRight] = useState(false)
+
+    // Check scroll position to show/hide arrow buttons
+    const checkScrollPosition = () => {
+        const container = tabsContainerRef.current
+        if (!container) return
+        
+        const { scrollLeft, scrollWidth, clientWidth } = container
+        setCanScrollLeft(scrollLeft > 0)
+        setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 5)
+    }
+
+    useEffect(() => {
+        checkScrollPosition()
+        const container = tabsContainerRef.current
+        if (container) {
+            container.addEventListener('scroll', checkScrollPosition)
+            window.addEventListener('resize', checkScrollPosition)
+        }
+        return () => {
+            if (container) {
+                container.removeEventListener('scroll', checkScrollPosition)
+            }
+            window.removeEventListener('resize', checkScrollPosition)
+        }
+    }, [])
+
+    const scrollTabs = (direction) => {
+        const container = tabsContainerRef.current
+        if (!container) return
+        const scrollAmount = 200
+        container.scrollBy({
+            left: direction === 'left' ? -scrollAmount : scrollAmount,
+            behavior: 'smooth'
+        })
+    }
 
     // Filter FAQs based on search and category
     const filteredFaqs = useMemo(() => {
@@ -401,25 +440,53 @@ const HelpCenterPage = ({ onBack, onNavigate }) => {
                     )}
                 </div>
 
-                {/* Category Tabs */}
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide animate-fade-in-up" style={{ animationDelay: '50ms' }}>
-                    {categories.map((cat) => {
-                        const Icon = cat.icon
-                        const isActive = selectedCategory === cat.id
-                        return (
-                            <button
-                                key={cat.id}
-                                onClick={() => setSelectedCategory(cat.id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all btn-press ${isActive
-                                    ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
-                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                    }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {cat.label}
-                            </button>
-                        )
-                    })}
+                {/* Category Tabs with Arrow Navigation */}
+                <div className="relative animate-fade-in-up" style={{ animationDelay: '50ms' }}>
+                    {/* Left Arrow */}
+                    {canScrollLeft && (
+                        <button
+                            onClick={() => scrollTabs('left')}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
+                            aria-label="Scroll left"
+                        >
+                            <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                        </button>
+                    )}
+                    
+                    {/* Tabs Container */}
+                    <div 
+                        ref={tabsContainerRef}
+                        className={`flex gap-2 overflow-x-auto pb-2 scrollbar-hide scroll-smooth ${canScrollLeft ? 'pl-10' : ''} ${canScrollRight ? 'pr-10' : ''}`}
+                    >
+                        {categories.map((cat) => {
+                            const Icon = cat.icon
+                            const isActive = selectedCategory === cat.id
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all btn-press ${isActive
+                                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    <Icon className="w-4 h-4" />
+                                    {cat.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* Right Arrow */}
+                    {canScrollRight && (
+                        <button
+                            onClick={() => scrollTabs('right')}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
+                            aria-label="Scroll right"
+                        >
+                            <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                        </button>
+                    )}
                 </div>
 
                 {/* Results Count */}

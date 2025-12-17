@@ -1010,6 +1010,9 @@ const Dashboard = ({ isAdmin = false }) => {
               const presentCount = map
                 ? members.filter(m => map[m.id] === true).length
                 : 0
+              const absentCount = map
+                ? members.filter(m => map[m.id] === false).length
+                : 0
               return (
                 <button
                   key={dateStr}
@@ -1021,20 +1024,27 @@ const Dashboard = ({ isAdmin = false }) => {
                       setAttendanceData(prev => ({ ...prev, [dateStr]: map }))
                     }
                   }}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 border ${isSelected
-                    ? 'bg-primary-600 text-white border-primary-700 shadow'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border ${isSelected
+                    ? 'bg-slate-700 dark:bg-slate-600 text-white border-slate-800 shadow-lg'
+                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm'
                     }`}
-                  title={`View present members for ${label}`}
+                  title={`${label}: ${presentCount} present, ${absentCount} absent`}
                 >
-                  <span>{label}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${isSelected ? 'bg-white/20' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>{presentCount}</span>
+                  <span className="font-medium">{label}</span>
+                  <div className="flex items-center gap-1">
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-green-400/30 text-green-100' : 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400'}`}>
+                      {presentCount}
+                    </span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${isSelected ? 'bg-red-400/30 text-red-100' : 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'}`}>
+                      {absentCount}
+                    </span>
+                  </div>
                 </button>
               )
             })}
           </div>
 
-          {/* Present members summary for selected Sunday (no names list) */}
+          {/* Attendance summary for selected Sunday */}
           {selectedSundayDate && (
             <div className="mt-2">
               {(() => {
@@ -1042,13 +1052,23 @@ const Dashboard = ({ isAdmin = false }) => {
                 const labelFull = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
                 const map = attendanceData[selectedSundayDate] || {}
                 const presentCount = members.filter(m => map[m.id] === true).length
+                const absentCount = members.filter(m => map[m.id] === false).length
                 return (
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3">
                     <div className="flex items-center justify-between">
                       <div className="font-medium text-gray-900 dark:text-white">
-                        Present on {labelFull}
+                        {labelFull}
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-300">{presentCount} member{presentCount !== 1 ? 's' : ''}</div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                          <span className="text-green-600 dark:text-green-400 font-medium">{presentCount} Present</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                          <span className="text-red-600 dark:text-red-400 font-medium">{absentCount} Absent</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )
@@ -1192,7 +1212,8 @@ const Dashboard = ({ isAdmin = false }) => {
 
           if (dashboardTab === 'edited' && selectedSundayDate) {
             const map = attendanceData[selectedSundayDate] || {}
-            tabFilteredMembers = tabFilteredMembers.filter(m => map[m.id] === true)
+            // Show both Present (true) AND Absent (false) - not just Present
+            tabFilteredMembers = tabFilteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
           }
 
           const membersToShow = searchTerm

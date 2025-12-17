@@ -17,6 +17,7 @@ import WorkspaceSettingsModal from './components/WorkspaceSettingsModal'
 import DeleteAccountModal from './components/DeleteAccountModal'
 import ExportDataModal from './components/ExportDataModal'
 import SettingsPage from './components/SettingsPage'
+import OnboardingWizard from './components/OnboardingWizard'
 
 // Context
 import { AppProvider } from './context/AppContext'
@@ -25,6 +26,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Main app content - only shown when authenticated
 function AppContent({ isMobile, onShowDecemberPreview }) {
+  const { preferences } = useAuth()
   const [currentView, setCurrentView] = useState('dashboard')
   const [isAdmin, setIsAdmin] = useState(() => {
     return localStorage.getItem('tmht_admin_session') === 'true'
@@ -32,10 +34,25 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showMonthModal, setShowMonthModal] = useState(false)
 
+  // Onboarding wizard for new users
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    const onboardingComplete = localStorage.getItem('onboardingComplete')
+    // Show onboarding if not completed and no workspace name set
+    return !onboardingComplete && !preferences?.workspace_name
+  })
+
   // Global modals - accessible from profile dropdown anywhere
   const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [showExportData, setShowExportData] = useState(false)
+
+  // Handle navigation from onboarding wizard
+  const handleOnboardingNavigate = (view, options) => {
+    setCurrentView(view)
+    if (options?.openModal === 'addMember') {
+      setTimeout(() => setShowMemberModal(true), 100)
+    }
+  }
 
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
@@ -117,6 +134,13 @@ function AppContent({ isMobile, onShowDecemberPreview }) {
       <ExportDataModal
         isOpen={showExportData}
         onClose={() => setShowExportData(false)}
+      />
+
+      {/* Onboarding Wizard for new users */}
+      <OnboardingWizard
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onNavigate={handleOnboardingNavigate}
       />
 
       <ToastContainer

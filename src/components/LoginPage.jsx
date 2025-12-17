@@ -1,6 +1,31 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Mail, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, Check, X } from 'lucide-react'
+
+// Password strength calculator
+const getPasswordStrength = (password) => {
+  if (!password) return { score: 0, label: '', color: '' }
+  
+  let score = 0
+  const checks = {
+    length: password.length >= 8,
+    lowercase: /[a-z]/.test(password),
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  }
+  
+  if (password.length >= 6) score += 1
+  if (password.length >= 8) score += 1
+  if (checks.lowercase && checks.uppercase) score += 1
+  if (checks.number) score += 1
+  if (checks.special) score += 1
+  
+  if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500', textColor: 'text-red-500', checks }
+  if (score <= 3) return { score, label: 'Fair', color: 'bg-orange-500', textColor: 'text-orange-500', checks }
+  if (score <= 4) return { score, label: 'Good', color: 'bg-yellow-500', textColor: 'text-yellow-500', checks }
+  return { score, label: 'Strong', color: 'bg-green-500', textColor: 'text-green-500', checks }
+}
 
 const LoginPage = () => {
   const { signInWithGoogle, signUpWithEmail, signInWithEmail, resetPassword } = useAuth()
@@ -16,6 +41,9 @@ const LoginPage = () => {
   const [confirmationSent, setConfirmationSent] = useState(false)
 
   const [loginAttempts, setLoginAttempts] = useState(0)
+
+  // Calculate password strength for signup mode
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
@@ -255,8 +283,51 @@ const LoginPage = () => {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
-                {mode === 'signup' && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 6 characters</p>
+                
+                {/* Password Strength Indicator - Signup only */}
+                {mode === 'signup' && password && (
+                  <div className="mt-2 space-y-2">
+                    {/* Strength Bar */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${passwordStrength.color} transition-all duration-300`}
+                          style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${passwordStrength.textColor}`}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+                    
+                    {/* Requirements Checklist */}
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <div className={`flex items-center gap-1 ${passwordStrength.checks?.length ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {passwordStrength.checks?.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        8+ characters
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.checks?.uppercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {passwordStrength.checks?.uppercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        Uppercase
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.checks?.lowercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {passwordStrength.checks?.lowercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        Lowercase
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.checks?.number ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {passwordStrength.checks?.number ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        Number
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.checks?.special ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {passwordStrength.checks?.special ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        Special char
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {mode === 'signup' && !password && (
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Create a strong password</p>
                 )}
               </div>
             )}

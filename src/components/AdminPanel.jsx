@@ -153,6 +153,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   const [isProcessingBadges, setIsProcessingBadges] = useState(false)
   const [badgeResults, setBadgeResults] = useState(null)
   const [showBadgeResults, setShowBadgeResults] = useState(false)
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false)
 
   // Ministry management state
   const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
@@ -811,53 +812,76 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           </div>
         </div>
 
-        {/* Badge Processing - Hero Section */}
-        <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="w-6 h-6" />
-                <h2 className="text-lg font-bold">Badge Processing</h2>
-              </div>
-              <p className="text-white/80 text-sm mb-4">
-                Automatically assign badges based on attendance
-              </p>
-              <div className="space-y-1 text-sm text-white/70 mb-4">
-                <p>• <span className="text-blue-200 font-medium">Member</span> = 2+ Sundays present</p>
-                <p>• <span className="text-green-200 font-medium">Regular</span> = 3+ consecutive Sundays</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold">{stats.sundaysCompleted}/{stats.totalSundays}</div>
-              <p className="text-xs text-white/70">Sundays Marked</p>
-            </div>
-          </div>
-
+        {/* Advanced Features - Collapsible */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           <button
-            onClick={processBadges}
-            disabled={isProcessingBadges || stats.sundaysCompleted < stats.totalSundays}
-            className={`w-full mt-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${stats.sundaysCompleted < stats.totalSundays
-                ? 'bg-white/20 text-white/50 cursor-not-allowed'
-                : 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg btn-press'
-              }`}
+            onClick={() => setShowAdvancedFeatures(!showAdvancedFeatures)}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
-            {isProcessingBadges ? (
-              <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                Processing...
-              </>
-            ) : stats.sundaysCompleted < stats.totalSundays ? (
-              <>
-                <AlertTriangle className="w-5 h-5" />
-                Complete All Sundays First
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Process Badges for {monthDisplayName}
-              </>
-            )}
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-xl">
+                <Award className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Advanced Features</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Badge processing & automation</p>
+              </div>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedFeatures ? 'rotate-180' : ''}`} />
           </button>
+          
+          {showAdvancedFeatures && (
+            <div className="p-4 pt-0 border-t border-gray-200 dark:border-gray-700">
+              {/* Badge Processing Content */}
+              <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl p-5 text-white mt-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-5 h-5" />
+                      <h4 className="font-bold">Badge Processing</h4>
+                    </div>
+                    <p className="text-white/80 text-sm mb-3">
+                      Auto-assign badges based on attendance
+                    </p>
+                    <div className="space-y-1 text-xs text-white/70">
+                      <p>• <span className="text-blue-200 font-medium">Member</span> = 2+ Sundays</p>
+                      <p>• <span className="text-green-200 font-medium">Regular</span> = 3+ consecutive</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold">{stats.sundaysCompleted}/{stats.totalSundays}</div>
+                    <p className="text-xs text-white/70">Sundays</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={processBadges}
+                  disabled={isProcessingBadges || stats.sundaysCompleted < stats.totalSundays}
+                  className={`w-full mt-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-sm ${stats.sundaysCompleted < stats.totalSundays
+                      ? 'bg-white/20 text-white/50 cursor-not-allowed'
+                      : 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg btn-press'
+                    }`}
+                >
+                  {isProcessingBadges ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : stats.sundaysCompleted < stats.totalSundays ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      Complete All Sundays First
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Process Badges
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Badge Results */}
