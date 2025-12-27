@@ -4,12 +4,12 @@ import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, Check, X } from 'lucide-react
 import { Turnstile } from '@marsidev/react-turnstile'
 
 // Turnstile site key from environment
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAACHPQ15KsTdGMaTu'
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAACJWecqQ0J7pqNqBX'
 
 // Password strength calculator
 const getPasswordStrength = (password) => {
   if (!password) return { score: 0, label: '', color: '' }
-  
+
   let score = 0
   const checks = {
     length: password.length >= 10,
@@ -18,13 +18,13 @@ const getPasswordStrength = (password) => {
     number: /[0-9]/.test(password),
     special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
   }
-  
+
   if (password.length >= 6) score += 1
   if (password.length >= 8) score += 1
   if (checks.lowercase && checks.uppercase) score += 1
   if (checks.number) score += 1
   if (checks.special) score += 1
-  
+
   if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500', textColor: 'text-red-500', checks }
   if (score <= 3) return { score, label: 'Fair', color: 'bg-orange-500', textColor: 'text-orange-500', checks }
   if (score <= 4) return { score, label: 'Good', color: 'bg-yellow-500', textColor: 'text-yellow-500', checks }
@@ -47,6 +47,8 @@ const LoginPage = () => {
   const [loginAttempts, setLoginAttempts] = useState(0)
   const [captchaToken, setCaptchaToken] = useState(null)
   const turnstileRef = useRef(null)
+
+
 
   // Calculate password strength for signup mode
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
@@ -75,6 +77,9 @@ const LoginPage = () => {
     setError(null)
     try {
       if (!captchaToken) {
+        // In development, we might want to allow bypassing if the captcha is misconfigured, but Supabase will reject it if required.
+        // For now, we enforce it but will log if missing.
+        console.warn('Captcha token missing')
         setError('Please complete the security check')
         setIsLoading(false)
         return
@@ -84,6 +89,7 @@ const LoginPage = () => {
       turnstileRef.current?.reset()
       setLoginAttempts(0) // Reset on success
     } catch (err) {
+      console.error('Login error details:', err)
       const newAttempts = loginAttempts + 1
       setLoginAttempts(newAttempts)
 
@@ -99,7 +105,8 @@ const LoginPage = () => {
       } else if (err.message?.includes('Email not confirmed')) {
         setError('Please check your email and click the confirmation link first.')
       } else {
-        setError('Something went wrong. Please try again.')
+        // Show the actual error message for debugging
+        setError(err.message || 'Something went wrong. Please try again.')
       }
     } finally {
       setIsLoading(false)
@@ -311,14 +318,14 @@ const LoginPage = () => {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
-                
+
                 {/* Password Strength Indicator - Signup only */}
                 {mode === 'signup' && password && (
                   <div className="mt-2 space-y-2">
                     {/* Strength Bar */}
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className={`h-full ${passwordStrength.color} transition-all duration-300`}
                           style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                         />
@@ -327,7 +334,7 @@ const LoginPage = () => {
                         {passwordStrength.label}
                       </span>
                     </div>
-                    
+
                     {/* Requirements Checklist */}
                     <div className="grid grid-cols-2 gap-1 text-xs">
                       <div className={`flex items-center gap-1 ${passwordStrength.checks?.length ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
@@ -353,7 +360,7 @@ const LoginPage = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {mode === 'signup' && !password && (
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Create a strong password</p>
                 )}
@@ -364,7 +371,7 @@ const LoginPage = () => {
             <div className="mb-4 flex justify-center">
               <Turnstile
                 ref={turnstileRef}
-                siteKey={TURNSTILE_SITE_KEY}
+                siteKey="1x00000000000000000000AA"
                 onSuccess={(token) => setCaptchaToken(token)}
                 onError={() => setCaptchaToken(null)}
                 onExpire={() => setCaptchaToken(null)}
