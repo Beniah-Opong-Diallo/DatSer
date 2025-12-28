@@ -11,36 +11,51 @@ export const useTheme = () => {
 }
 
 export const ThemeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check localStorage for saved theme preference
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme) {
-      return savedTheme === 'dark'
-    }
-    // Default to system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  const [themeMode, setThemeMode] = useState(() => {
+    return localStorage.getItem('themeMode') || 'system'
   })
 
+  const [systemTheme, setSystemTheme] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  )
+
   useEffect(() => {
-    // Save theme preference to localStorage
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
-    
-    // Apply theme to document
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const listener = (e) => setSystemTheme(e.matches ? 'dark' : 'light')
+    media.addEventListener('change', listener)
+    return () => media.removeEventListener('change', listener)
+  }, [])
+
+  const resolvedTheme = themeMode === 'system' ? systemTheme : themeMode
+  const isDarkMode = resolvedTheme === 'dark'
+
+  useEffect(() => {
+    localStorage.setItem('themeMode', themeMode)
+
     if (isDarkMode) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
     }
-  }, [isDarkMode])
+
+    // Also update legacy key for other tabs/compatibility
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
+  }, [themeMode, isDarkMode])
 
   const toggleTheme = () => {
-    setIsDarkMode(prev => !prev)
+    // Simple toggle overrides system preference
+    setThemeMode((prev) => {
+      // If currently dark (resolved), go to light. Else dark.
+      return isDarkMode ? 'light' : 'dark'
+    })
   }
 
   const value = {
     isDarkMode,
     toggleTheme,
-    theme: isDarkMode ? 'dark' : 'light'
+    themeMode,
+    setThemeMode,
+    theme: resolvedTheme
   }
 
   return (

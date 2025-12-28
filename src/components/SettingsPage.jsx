@@ -16,6 +16,7 @@ import {
     Calendar,
     Moon,
     Sun,
+    Laptop,
     CheckCircle,
     Shield,
     RefreshCw,
@@ -38,7 +39,7 @@ import HelpCenterPage from './HelpCenterPage'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
-    const { isDarkMode, toggleTheme } = useTheme()
+    const { isDarkMode, toggleTheme, themeMode, setThemeMode } = useTheme()
     const { members, monthlyTables, currentTable, setCurrentTable } = useApp()
 
     const [activeSection, setActiveSection] = useState('account')
@@ -383,10 +384,10 @@ const SettingsPage = ({ onBack }) => {
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                     <button
-                        onClick={() => { if (isDarkMode) toggleTheme() }}
-                        className={`p-4 rounded-xl border-2 transition-all ${!isDarkMode
+                        onClick={() => setThemeMode('light')}
+                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'light'
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                             }`}
@@ -396,15 +397,15 @@ const SettingsPage = ({ onBack }) => {
                                 <Sun className="w-6 h-6 text-yellow-500" />
                             </div>
                             <span className="font-medium text-gray-900 dark:text-white">Light</span>
-                            {!isDarkMode && (
+                            {themeMode === 'light' && (
                                 <CheckCircle className="w-5 h-5 text-blue-600" />
                             )}
                         </div>
                     </button>
 
                     <button
-                        onClick={() => { if (!isDarkMode) toggleTheme() }}
-                        className={`p-4 rounded-xl border-2 transition-all ${isDarkMode
+                        onClick={() => setThemeMode('dark')}
+                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'dark'
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                             }`}
@@ -414,8 +415,26 @@ const SettingsPage = ({ onBack }) => {
                                 <Moon className="w-6 h-6 text-blue-400" />
                             </div>
                             <span className="font-medium text-gray-900 dark:text-white">Dark</span>
-                            {isDarkMode && (
+                            {themeMode === 'dark' && (
                                 <CheckCircle className="w-5 h-5 text-blue-400" />
+                            )}
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => setThemeMode('system')}
+                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'system'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                            }`}
+                    >
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm">
+                                <Laptop className="w-6 h-6 text-purple-500" />
+                            </div>
+                            <span className="font-medium text-gray-900 dark:text-white">Auto</span>
+                            {themeMode === 'system' && (
+                                <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                             )}
                         </div>
                     </button>

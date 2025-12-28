@@ -32,7 +32,7 @@ const getPasswordStrength = (password) => {
 }
 
 const LoginPage = () => {
-  const { signInWithGoogle, signUpWithEmail, signInWithEmail, resetPassword } = useAuth()
+  const { signInWithGoogle, signUpWithEmail, signInWithEmail, resetPassword, bypassAuth } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -442,15 +442,27 @@ const LoginPage = () => {
           {/* Switch Mode */}
           <div className="mt-5 text-center text-sm">
             {mode === 'login' ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                Don't have an account?{' '}
-                <button
-                  onClick={() => switchMode('signup')}
-                  className="text-primary-600 dark:text-primary-400 font-medium hover:underline"
-                >
-                  Sign up
-                </button>
-              </p>
+              <>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Don't have an account?{' '}
+                  <button
+                    onClick={() => switchMode('signup')}
+                    className="text-primary-600 dark:text-primary-400 font-medium hover:underline"
+                  >
+                    Sign up
+                  </button>
+                </p>
+
+                {/* Dev Skip Button */}
+                <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => bypassAuth()}
+                    className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 font-mono mt-2"
+                  >
+                    Need quick access? [God Mode (Bypass)]
+                  </button>
+                </div>
+              </>
             ) : mode === 'signup' ? (
               <p className="text-gray-600 dark:text-gray-400">
                 Already have an account?{' '}

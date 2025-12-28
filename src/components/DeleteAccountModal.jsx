@@ -89,15 +89,37 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                 console.log('Could not delete preferences:', e)
             }
 
-            // Note: Deleting the user from auth.users requires admin privileges
-            // We'll sign out and show instructions
-            toast.success('Your data has been deleted. Please contact support to complete account deletion.')
+            // Delete collaborators where I am the owner
+            try {
+                await supabase
+                    .from('collaborators')
+                    .delete()
+                    .eq('owner_id', user.id)
+            } catch (e) {
+                console.log('Could not delete collaborators:', e)
+            }
+
+            // 3. Delete the Auth User (Requires 'delete_user' RPC in Supabase)
+            const { error: deleteError } = await supabase.rpc('delete_user')
+
+            if (deleteError) {
+                console.error('Delete Auth Error:', deleteError)
+                // If RPC fails (e.g. doesn't exist yet), we still sign out but warn the user
+                if (deleteError.message?.includes('does not exist')) {
+                    toast.warning('Data cleared, but Account Login remains (Setup RPC required)')
+                } else {
+                    toast.error('Failed to delete login: ' + deleteError.message)
+                }
+            } else {
+                toast.success('Account successfully deleted')
+            }
+
             await signOut()
             onClose()
 
         } catch (error) {
             console.error('Delete error:', error)
-            toast.error('Failed to delete account. Please try again.')
+            toast.error('Failed to process deletion')
         } finally {
             setIsDeleting(false)
         }
@@ -125,8 +147,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                     <button
                         onClick={onClose}
                         className={`p-1.5 rounded-lg transition-colors ${isDarkMode
-                                ? 'hover:bg-red-800 text-gray-400 hover:text-white'
-                                : 'hover:bg-red-100 text-gray-500 hover:text-red-700'
+                            ? 'hover:bg-red-800 text-gray-400 hover:text-white'
+                            : 'hover:bg-red-100 text-gray-500 hover:text-red-700'
                             }`}
                     >
                         <X className="w-5 h-5" />
@@ -158,8 +180,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
 
                     {/* Warning box - styled like the user's image */}
                     <div className={`p-4 rounded-xl flex items-start gap-3 ${isDarkMode
-                            ? 'bg-yellow-900/30 border border-yellow-700'
-                            : 'bg-yellow-50 border border-yellow-200'
+                        ? 'bg-yellow-900/30 border border-yellow-700'
+                        : 'bg-yellow-50 border border-yellow-200'
                         }`}>
                         <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
                             }`} />
@@ -185,8 +207,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                                 onClick={handleExportCSV}
                                 disabled={isExporting}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${isDarkMode
-                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
                                     } disabled:opacity-50`}
                             >
                                 {isExporting ? (
@@ -211,8 +233,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                             onChange={(e) => setConfirmText(e.target.value)}
                             placeholder="Type DELETE here"
                             className={`w-full px-4 py-3 rounded-lg border-2 transition-colors ${isDarkMode
-                                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-red-500'
-                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'
+                                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-red-500'
+                                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'
                                 } focus:outline-none focus:ring-2 focus:ring-red-500/20`}
                         />
                     </div>
@@ -225,8 +247,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                         onClick={onClose}
                         disabled={isDeleting}
                         className={`flex-1 py-3 rounded-xl font-medium transition-colors ${isDarkMode
-                                ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                                : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
                             } disabled:opacity-50`}
                     >
                         Cancel
@@ -235,8 +257,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                         onClick={handleDeleteAccount}
                         disabled={isDeleting || confirmText !== 'DELETE'}
                         className={`flex-1 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${confirmText === 'DELETE'
-                                ? 'bg-red-600 hover:bg-red-700 text-white'
-                                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             } disabled:opacity-50`}
                     >
                         {isDeleting ? (

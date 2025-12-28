@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     if (hadExistingSession) {
       welcomeToastShownRef.current = true // Prevent welcome toast on page refresh
     }
-    
+
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -55,11 +55,11 @@ export const AuthProvider = ({ children }) => {
         }
 
         const { data: { session }, error } = await supabase.auth.getSession()
-        
+
         if (error) {
           console.error('Error getting session:', error)
         }
-        
+
         if (mounted) {
           setUser(session?.user ?? null)
           setLoading(false)
@@ -79,13 +79,13 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state changed:', event, session?.user?.email)
-      
+
       if (!mounted) return
 
       // Update user state immediately
       setUser(session?.user ?? null)
       setLoading(false)
-      
+
       if (event === 'SIGNED_IN' && session?.user) {
         // Load preferences in background
         loadUserPreferencesBackground(session.user.id)
@@ -191,7 +191,7 @@ export const AuthProvider = ({ children }) => {
       // Build the redirect URL - must include the full path
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
       console.log('Redirect URL:', redirectUrl)
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -213,7 +213,7 @@ export const AuthProvider = ({ children }) => {
   const signUpWithEmail = async (email, password, fullName, captchaToken) => {
     try {
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
-      
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -227,18 +227,18 @@ export const AuthProvider = ({ children }) => {
       })
 
       if (error) throw error
-      
+
       // Check if email confirmation is required
       if (data?.user?.identities?.length === 0) {
         toast.info('This email is already registered. Please sign in instead.')
         return { needsSignIn: true }
       }
-      
+
       if (data?.user && !data?.session) {
         toast.success('Check your email for a confirmation link!')
         return { needsConfirmation: true }
       }
-      
+
       return data
     } catch (error) {
       console.error('Error signing up:', error)
@@ -279,7 +279,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email, captchaToken) => {
     try {
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
-      
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
         captchaToken
@@ -341,6 +341,44 @@ export const AuthProvider = ({ children }) => {
     saveUserPreferences,
     updatePreference,
     loadUserPreferences,
+    bypassAuth: async () => {
+      try {
+        setLoading(true)
+        // 1. Try to sign in as the persistent God Mode user
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: 'dev@datser.local',
+          password: 'GodMode123!'
+        })
+
+        if (!signInError) {
+          toast.success('Logged in as God Mode User')
+          return
+        }
+
+        // 2. If sign in fails, try to create the account
+        if (signInError.message.includes('Invalid login credentials')) {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: 'dev@datser.local',
+            password: 'GodMode123!',
+            options: {
+              data: { full_name: 'God Mode User' },
+              emailRedirectTo: window.location.origin
+            }
+          })
+
+          if (signUpError) throw signUpError
+          toast.success('God Mode Account Created & Logged In')
+        } else {
+          throw signInError
+        }
+
+      } catch (error) {
+        console.error('God Mode Error:', error)
+        toast.error('God Mode Failed: ' + error.message)
+      } finally {
+        setLoading(false)
+      }
+    },
     isAuthenticated: !!user
   }
 
