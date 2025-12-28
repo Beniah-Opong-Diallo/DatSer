@@ -361,8 +361,7 @@ export const AuthProvider = ({ children }) => {
             email: 'dev@datser.local',
             password: 'GodMode123!',
             options: {
-              data: { full_name: 'God Mode User' },
-              emailRedirectTo: window.location.origin
+              data: { full_name: 'God Mode User' }
             }
           })
 
