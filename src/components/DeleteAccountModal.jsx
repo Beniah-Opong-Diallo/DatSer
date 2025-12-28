@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -13,6 +13,11 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
     const [isDeleting, setIsDeleting] = useState(false)
     const [isExporting, setIsExporting] = useState(false)
     const [confirmText, setConfirmText] = useState('')
+    const [delayMinutes, setDelayMinutes] = useState(5)
+    const [isWaiting, setIsWaiting] = useState(false)
+    const [countdownMs, setCountdownMs] = useState(0)
+    const timerRef = useRef(null)
+    const deleteTimerRef = useRef(null)
 
     // Export data as CSV
     const handleExportCSV = async () => {
@@ -55,13 +60,8 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
         }
     }
 
-    // Delete account and all data
-    const handleDeleteAccount = async () => {
-        if (confirmText !== 'DELETE') {
-            toast.error('Please type DELETE to confirm')
-            return
-        }
-
+    // Perform deletion after delay
+    const performDeletion = async () => {
         setIsDeleting(true)
         try {
             // The CASCADE DELETE we set up will automatically delete all user data
@@ -99,12 +99,11 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                 console.log('Could not delete collaborators:', e)
             }
 
-            // 3. Delete the Auth User (Requires 'delete_user' RPC in Supabase)
+            // Delete the Auth User (Requires 'delete_user' RPC in Supabase)
             const { error: deleteError } = await supabase.rpc('delete_user')
 
             if (deleteError) {
                 console.error('Delete Auth Error:', deleteError)
-                // If RPC fails (e.g. doesn't exist yet), we still sign out but warn the user
                 if (deleteError.message?.includes('does not exist')) {
                     toast.warning('Data cleared, but Account Login remains (Setup RPC required)')
                 } else {
@@ -116,14 +115,49 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
 
             await signOut()
             onClose()
-
         } catch (error) {
             console.error('Delete error:', error)
             toast.error('Failed to process deletion')
         } finally {
             setIsDeleting(false)
+            setIsWaiting(false)
+            setCountdownMs(0)
         }
     }
+
+    const handleScheduleDeletion = () => {
+        if (confirmText !== 'DELETE') {
+            toast.error('Please type DELETE to confirm')
+            return
+        }
+        // Inform the user that an email would be sent (placeholder)
+        toast.info(`We’ll send a warning email to ${user?.email || 'your email'} and delete in ${delayMinutes} minutes.`)
+        setIsWaiting(true)
+        const totalMs = delayMinutes * 60 * 1000
+        setCountdownMs(totalMs)
+
+        // Countdown display
+        const start = Date.now()
+        timerRef.current = setInterval(() => {
+            const elapsed = Date.now() - start
+            const remaining = Math.max(totalMs - elapsed, 0)
+            setCountdownMs(remaining)
+        }, 1000)
+
+        // Actual deletion after delay
+        deleteTimerRef.current = setTimeout(() => {
+            clearInterval(timerRef.current)
+            performDeletion()
+        }, totalMs)
+    }
+
+    // Cleanup timers on close/unmount
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current)
+            if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+        }
+    }, [])
 
     if (!isOpen) return null
 
@@ -236,6 +270,7 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                                 ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-500 focus:border-red-500'
                                 : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-red-500'
                                 } focus:outline-none focus:ring-2 focus:ring-red-500/20`}
+                            disabled={isWaiting || isDeleting}
                         />
                     </div>
                 </div>
@@ -254,9 +289,9 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                         Cancel
                     </button>
                     <button
-                        onClick={handleDeleteAccount}
-                        disabled={isDeleting || confirmText !== 'DELETE'}
-                        className={`flex-1 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${confirmText === 'DELETE'
+                        onClick={handleScheduleDeletion}
+                        disabled={isDeleting || confirmText !== 'DELETE' || isWaiting}
+                        className={`flex-1 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${confirmText === 'DELETE' && !isWaiting
                             ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             } disabled:opacity-50`}
@@ -266,10 +301,15 @@ const DeleteAccountModal = ({ isOpen, onClose }) => {
                                 <Loader2 className="w-4 h-4 animate-spin" />
                                 Deleting...
                             </>
+                        ) : isWaiting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Scheduled...
+                            </>
                         ) : (
                             <>
                                 <Trash2 className="w-4 h-4" />
-                                Delete Account
+                                Schedule Delete
                             </>
                         )}
                     </button>

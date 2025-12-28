@@ -51,6 +51,7 @@ const SettingsPage = ({ onBack }) => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
     const [showHelpCenter, setShowHelpCenter] = useState(false)
+    const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
 
     // Fetch collaborators for Team section display
     useEffect(() => {
@@ -98,6 +99,35 @@ const SettingsPage = ({ onBack }) => {
             toast.success('Signed out successfully')
         } catch (error) {
             toast.error('Failed to sign out')
+        }
+    }
+
+    const handleDeleteCollaborator = async (collaboratorId) => {
+        if (!user || !isSupabaseConfigured) {
+            toast.error('Not authorized')
+            return
+        }
+
+        const target = collaborators.find(c => c.id === collaboratorId)
+        const emailLabel = target?.email || 'this user'
+        const confirm = window.confirm(`Remove access for ${emailLabel}? This will revoke their workspace access but will not delete their Supabase account.`)
+        if (!confirm) return
+
+        setDeletingCollaboratorId(collaboratorId)
+        try {
+            const { error } = await supabase
+                .from('collaborators')
+                .delete()
+                .eq('id', collaboratorId)
+                .eq('owner_id', user.id)
+            if (error) throw error
+            setCollaborators(prev => prev.filter(c => c.id !== collaboratorId))
+            toast.success('Access removed')
+        } catch (err) {
+            console.error('Error deleting collaborator:', err)
+            toast.error('Failed to remove collaborator from database')
+        } finally {
+            setDeletingCollaboratorId(null)
         }
     }
 
@@ -350,7 +380,7 @@ const SettingsPage = ({ onBack }) => {
                         {collaborators.map((collaborator) => (
                             <div
                                 key={collaborator.id}
-                                className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                                className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg w-full"
                             >
                                 <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
@@ -371,6 +401,13 @@ const SettingsPage = ({ onBack }) => {
                                         {collaborator.status === 'accepted' ? 'Accepted' : collaborator.status === 'rejected' ? 'Rejected' : 'Pending'}
                                     </span>
                                 </div>
+                                <button
+                                    onClick={() => handleDeleteCollaborator(collaborator.id)}
+                                    disabled={deletingCollaboratorId === collaborator.id}
+                                    className="px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-60"
+                                >
+                                    {deletingCollaboratorId === collaborator.id ? 'Removing...' : 'Remove'}
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -643,8 +680,8 @@ const SettingsPage = ({ onBack }) => {
     const renderMainList = () => (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
-            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-                <div className="px-4 py-4 flex items-center gap-4">
+            <div className="sticky top-0 z-10 w-full bg-gray-50 dark:bg-gray-900">
+                <div className="max-w-4xl mx-auto w-full px-4 py-4 flex items-center gap-4">
                     <button
                         onClick={onBack}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -655,9 +692,9 @@ const SettingsPage = ({ onBack }) => {
                 </div>
             </div>
 
-            <div className="px-4 py-4 space-y-3">
+            <div className="max-w-4xl mx-auto px-4 space-y-3">
                 {/* Profile Card at top */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
+                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
                     <div className="flex items-center gap-4">
                         <div className="relative flex-shrink-0">
                             {(() => {
@@ -698,7 +735,7 @@ const SettingsPage = ({ onBack }) => {
                 </div>
 
                 {/* Settings Sections */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
                     {sections.filter(s => s.id !== 'danger').map((section) => {
                         const Icon = section.icon
                         return (
@@ -734,7 +771,7 @@ const SettingsPage = ({ onBack }) => {
                 </div>
 
                 {/* Danger Zone - Separate Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 overflow-hidden mt-4">
+                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 overflow-hidden mt-4">
                     <button
                         onClick={() => setActiveSection('danger')}
                         className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
@@ -769,19 +806,21 @@ const SettingsPage = ({ onBack }) => {
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
                 {/* Header */}
-                <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-                    <div className="px-4 py-4 flex items-center gap-4">
-                        <button
-                            onClick={() => setActiveSection(null)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                        </button>
-                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{currentSection?.label || 'Settings'}</h1>
+                <div className="sticky top-0 z-10 w-full bg-gray-50 dark:bg-gray-900">
+                    <div className="max-w-4xl mx-auto w-full px-4 py-4">
+                        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl py-4 flex items-center gap-4 px-4 shadow-sm">
+                            <button
+                                onClick={() => setActiveSection(null)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{currentSection?.label || 'Settings'}</h1>
+                        </div>
                     </div>
                 </div>
 
-                <div className="px-4 py-4">
+                <div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
                     {renderContent()}
                 </div>
             </div>
