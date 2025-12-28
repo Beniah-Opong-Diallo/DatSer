@@ -1707,7 +1707,11 @@ const Dashboard = ({ isAdmin = false }) => {
                                 <div className="space-y-2 text-sm">
                                   <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
                                     <span className="text-gray-500 dark:text-gray-400">Gender</span>
-                                    <span className="font-medium capitalize text-gray-900 dark:text-white truncate ml-2">{member['Gender']}</span>
+                                    <span className="font-medium capitalize text-gray-900 dark:text-white truncate ml-2">
+                                      {member['Gender']?.toLowerCase() === 'm' || member['Gender']?.toLowerCase() === 'male' ? 'Male' : 
+                                       member['Gender']?.toLowerCase() === 'f' || member['Gender']?.toLowerCase() === 'female' ? 'Female' : 
+                                       member['Gender'] || 'N/A'}
+                                    </span>
                                   </div>
                                   <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
                                     <span className="text-gray-500 dark:text-gray-400">Phone</span>
@@ -1770,18 +1774,18 @@ const Dashboard = ({ isAdmin = false }) => {
 
                                     return (
                                       <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 border border-primary-200 dark:border-primary-800/50">
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-shrink-0">Registered</p>
+                                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium truncate max-w-[100px] ${badgeColor}`} title={relativeTime}>
+                                            {relativeTime}
+                                          </span>
+                                        </div>
                                         <div className="flex items-start gap-3">
                                           <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center flex-shrink-0">
                                             <Calendar className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                                           </div>
                                           <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between gap-2">
-                                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Registered</p>
-                                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}>
-                                                {relativeTime}
-                                              </span>
-                                            </div>
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
                                               {regDate.toLocaleDateString('en-US', { 
                                                 weekday: 'short',
                                                 month: 'short', 
