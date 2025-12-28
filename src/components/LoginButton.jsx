@@ -13,13 +13,13 @@ import {
   HelpCircle,
   Lock,
   Bell,
-  Shield
+  Shield,
+  X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
-import FullscreenPhotoViewer from './FullscreenPhotoViewer'
 
 const LoginButton = () => {
   const { user, loading, signInWithGoogle, signOut, isAuthenticated, preferences } = useAuth()
@@ -27,7 +27,6 @@ const LoginButton = () => {
   const { members, currentTable } = useApp()
   const [showDropdown, setShowDropdown] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
-  const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false)
   const dropdownRef = useRef(null)
 
   // Close dropdown when clicking outside
@@ -141,42 +140,41 @@ const LoginButton = () => {
             onClick={() => setShowDropdown(false)}
           />
 
-          <div className="absolute right-0 mt-2 w-72 z-50 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl overflow-hidden animate-scale-in">
+          <div className="fixed inset-0 md:absolute md:inset-auto md:right-0 md:mt-2 md:w-72 z-50 md:rounded-xl border-0 md:border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl overflow-hidden animate-scale-in flex flex-col">
+
+            {/* Mobile Header with Close Button */}
+            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Profile</h2>
+              <button
+                onClick={() => setShowDropdown(false)}
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
 
             {/* User Profile Section */}
-            <div className="px-4 py-4 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-gray-800 dark:to-gray-750 border-b border-gray-200 dark:border-gray-700">
+            <div className="px-4 py-6 md:py-4 bg-gradient-to-r from-primary-50 to-blue-50 dark:from-gray-800 dark:to-gray-750 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
                 {userPhoto ? (
                   <img
                     src={userPhoto}
                     alt={userName}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowDropdown(false)
-                      setShowFullscreenPhoto(true)
-                    }}
-                    className="w-12 h-12 rounded-full object-cover aspect-square border-2 border-white shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                    className="w-16 h-16 md:w-12 md:h-12 rounded-full object-cover aspect-square border-2 border-white shadow-sm"
                   />
                 ) : (
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowDropdown(false)
-                      setShowFullscreenPhoto(true)
-                    }}
-                    className="w-12 h-12 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
-                  >
+                  <div className="w-16 h-16 md:w-12 md:h-12 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-bold text-xl md:text-lg shadow-sm">
                     {userName?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  <p className="text-base md:text-sm font-semibold text-gray-900 dark:text-white truncate">
                     {userName}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-sm md:text-xs text-gray-500 dark:text-gray-400 truncate">
                     {user?.email}
                   </p>
-                  <p className="text-xs text-primary-600 dark:text-primary-400 truncate mt-0.5">
+                  <p className="text-sm md:text-xs text-primary-600 dark:text-primary-400 truncate mt-0.5">
                     {workspaceName}
                   </p>
                 </div>
@@ -184,18 +182,18 @@ const LoginButton = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="px-2 py-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-1 px-3 md:px-2 py-4 md:py-2 border-b border-gray-200 dark:border-gray-700 overflow-y-auto">
               {/* Theme Toggle */}
               <button
                 onClick={() => { toggleTheme(); }}
-                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center justify-between gap-3 px-4 md:px-3 py-4 md:py-2.5 rounded-lg text-base md:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <span className="flex items-center gap-3">
-                  {isDarkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                  {isDarkMode ? <Moon className="w-5 h-5 md:w-4 md:h-4" /> : <Sun className="w-5 h-5 md:w-4 md:h-4" />}
                   <span>Dark Mode</span>
                 </span>
-                <div className={`w-9 h-5 rounded-full transition-colors ${isDarkMode ? 'bg-primary-500' : 'bg-gray-300'}`}>
-                  <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${isDarkMode ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
+                <div className={`w-11 h-6 md:w-9 md:h-5 rounded-full transition-colors ${isDarkMode ? 'bg-primary-500' : 'bg-gray-300'}`}>
+                  <div className={`w-5 h-5 md:w-4 md:h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${isDarkMode ? 'translate-x-5 md:translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
                 </div>
               </button>
 
@@ -205,45 +203,34 @@ const LoginButton = () => {
                   setShowDropdown(false)
                   if (window.openSettings) window.openSettings()
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center gap-3 px-4 md:px-3 py-4 md:py-2.5 rounded-lg text-base md:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
-                <Building2 className="w-4 h-4" />
+                <Building2 className="w-5 h-5 md:w-4 md:h-4" />
                 <span>Settings</span>
-                <span className="ml-auto text-xs text-gray-400">Account, Team, Data</span>
+                <span className="ml-auto text-sm md:text-xs text-gray-400">Account, Team, Data</span>
               </button>
             </div>
 
             {/* Sign Out */}
-            <div className="px-2 py-2">
+            <div className="px-3 md:px-2 py-3 md:py-2">
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors btn-press"
+                className="w-full flex items-center gap-3 px-4 md:px-3 py-4 md:py-2.5 rounded-lg text-base md:text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors btn-press"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-5 h-5 md:w-4 md:h-4" />
                 <span>Sign Out</span>
               </button>
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-[10px] text-gray-400 text-center">
+            <div className="px-4 py-4 md:py-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-xs md:text-[10px] text-gray-400 text-center">
                 Datsar v1.0 • TMH Teen Ministry
               </p>
             </div>
           </div>
         </>
       )}
-
-      {/* Fullscreen Photo Viewer */}
-      <FullscreenPhotoViewer
-        isOpen={showFullscreenPhoto}
-        onClose={() => setShowFullscreenPhoto(false)}
-        photoUrl={userPhoto}
-        userName={userName}
-        onEditPhoto={() => {
-          if (window.openSettings) window.openSettings()
-        }}
-      />
     </div>
   )
 }

@@ -25,8 +25,7 @@ import {
     HelpCircle,
     ChevronDown,
     X,
-    Loader2,
-    Camera
+    Loader2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -39,7 +38,6 @@ import DeleteAccountModal from './DeleteAccountModal'
 import ExportDataModal from './ExportDataModal'
 import ProfilePhotoEditor from './ProfilePhotoEditor'
 import HelpCenterPage from './HelpCenterPage'
-import FullscreenPhotoViewer from './FullscreenPhotoViewer'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
@@ -55,7 +53,6 @@ const SettingsPage = ({ onBack }) => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
     const [showHelpCenter, setShowHelpCenter] = useState(false)
-    const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false)
     const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
     const [pendingRemoval, setPendingRemoval] = useState(null)
     const [removeDelay, setRemoveDelay] = useState(0)
@@ -192,8 +189,6 @@ const SettingsPage = ({ onBack }) => {
         switch (sectionId) {
             case 'account':
                 return user?.email || 'Manage your account'
-            case 'photo':
-                return 'Change profile picture'
             case 'workspace':
                 return preferences?.workspace_name || 'TMH Teen Ministry'
             case 'team':
@@ -229,14 +224,10 @@ const SettingsPage = ({ onBack }) => {
                                 <img
                                     src={avatarUrl}
                                     alt="Profile"
-                                    onClick={() => setShowFullscreenPhoto(true)}
-                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md"
                                 />
                             ) : (
-                                <div 
-                                    onClick={() => setShowFullscreenPhoto(true)}
-                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
-                                >
+                                <div className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
                                     {user?.email?.[0]?.toUpperCase() || 'U'}
                                 </div>
                             )
@@ -689,7 +680,6 @@ const SettingsPage = ({ onBack }) => {
     // Section definitions with icons and metadata
     const sections = [
         { id: 'account', label: 'Account', icon: User, color: 'blue' },
-        { id: 'photo', label: 'Edit Photo', icon: Camera, color: 'indigo' },
         { id: 'workspace', label: 'Workspace', icon: Building2, color: 'purple' },
         { id: 'team', label: 'Team & Sharing', icon: Users, color: 'green' },
         { id: 'data', label: 'Data Management', icon: Database, color: 'orange' },
@@ -701,7 +691,6 @@ const SettingsPage = ({ onBack }) => {
     const getIconBgColor = (color) => {
         const colors = {
             blue: 'bg-blue-100 dark:bg-blue-900/30',
-            indigo: 'bg-indigo-100 dark:bg-indigo-900/30',
             purple: 'bg-purple-100 dark:bg-purple-900/30',
             green: 'bg-green-100 dark:bg-green-900/30',
             orange: 'bg-orange-100 dark:bg-orange-900/30',
@@ -715,7 +704,6 @@ const SettingsPage = ({ onBack }) => {
     const getIconColor = (color) => {
         const colors = {
             blue: 'text-blue-600 dark:text-blue-400',
-            indigo: 'text-indigo-600 dark:text-indigo-400',
             purple: 'text-purple-600 dark:text-purple-400',
             green: 'text-green-600 dark:text-green-400',
             orange: 'text-orange-600 dark:text-orange-400',
@@ -769,20 +757,10 @@ const SettingsPage = ({ onBack }) => {
                                     <img
                                         src={avatarUrl}
                                         alt="Profile"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setShowFullscreenPhoto(true)
-                                        }}
-                                        className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                                        className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md"
                                     />
                                 ) : (
-                                    <div 
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setShowFullscreenPhoto(true)
-                                        }}
-                                        className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
-                                    >
+                                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
                                         {user?.email?.[0]?.toUpperCase() || 'U'}
                                     </div>
                                 )
@@ -819,8 +797,6 @@ const SettingsPage = ({ onBack }) => {
                                 onClick={() => {
                                     if (section.id === 'help') {
                                         setShowHelpCenter(true)
-                                    } else if (section.id === 'photo') {
-                                        setIsPhotoEditorOpen(true)
                                     } else {
                                         setActiveSection(section.id)
                                     }
@@ -931,18 +907,6 @@ const SettingsPage = ({ onBack }) => {
                 isOpen={isPhotoEditorOpen}
                 onClose={() => setIsPhotoEditorOpen(false)}
                 user={user}
-            />
-
-            {/* Fullscreen Photo Viewer */}
-            <FullscreenPhotoViewer
-                isOpen={showFullscreenPhoto}
-                onClose={() => setShowFullscreenPhoto(false)}
-                photoUrl={(() => {
-                    const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null
-                    return localAvatar || user?.user_metadata?.avatar_url
-                })()}
-                userName={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
-                onEditPhoto={() => setIsPhotoEditorOpen(true)}
             />
 
             {/* Remove Collaborator Modal */}
