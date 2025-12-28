@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { supabase, hasStoredSession } from '../lib/supabase'
+import { supabase, hasStoredSession, isSupabaseConfigured } from '../lib/supabase'
 import { toast } from 'react-toastify'
 
 const AuthContext = createContext(null)
@@ -30,6 +30,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true
 
+    // Check if Supabase is configured
+    if (!isSupabaseConfigured) {
+      console.error('Supabase is not configured')
+      setLoading(false)
+      return
+    }
+
     // FAST PATH: Check localStorage synchronously first
     // If session already exists, mark welcome toast as shown (don't show on refresh)
     const hadExistingSession = hasStoredSession()
@@ -45,27 +52,31 @@ export const AuthProvider = ({ children }) => {
           // Fresh login via OAuth - allow welcome toast
           welcomeToastShownRef.current = false
           // Let Supabase handle the hash - it will trigger onAuthStateChange
-          const { data, error } = await supabase.auth.getSession()
-          if (error) {
-            console.error('Error processing OAuth callback:', error)
+          if (supabase) {
+            const { data, error } = await supabase.auth.getSession()
+            if (error) {
+              console.error('Error processing OAuth callback:', error)
+            }
+            // Clear the hash from URL
+            window.history.replaceState(null, '', window.location.pathname)
           }
-          // Clear the hash from URL
-          window.history.replaceState(null, '', window.location.pathname)
           return
         }
 
-        const { data: { session }, error } = await supabase.auth.getSession()
+        if (supabase) {
+          const { data: { session }, error } = await supabase.auth.getSession()
 
-        if (error) {
-          console.error('Error getting session:', error)
-        }
+          if (error) {
+            console.error('Error getting session:', error)
+          }
 
-        if (mounted) {
-          setUser(session?.user ?? null)
-          setLoading(false)
-          // Load preferences in background - don't block UI
-          if (session?.user) {
-            loadUserPreferencesBackground(session.user.id)
+          if (mounted) {
+            setUser(session?.user ?? null)
+            setLoading(false)
+            // Load preferences in background - don't block UI
+            if (session?.user) {
+              loadUserPreferencesBackground(session.user.id)
+            }
           }
         }
       } catch (error) {
@@ -77,63 +88,67 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Listen for auth changes FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email)
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email)
 
-      if (!mounted) return
+        if (!mounted) return
 
-      // Update user state immediately
-      setUser(session?.user ?? null)
-      setLoading(false)
+        // Update user state immediately
+        setUser(session?.user ?? null)
+        setLoading(false)
 
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Load preferences in background
-        loadUserPreferencesBackground(session.user.id)
-        // Show welcome toast only on fresh login (not refresh)
-        if (!welcomeToastShownRef.current) {
-          welcomeToastShownRef.current = true
-          toast.success(`Welcome, ${session.user.user_metadata?.full_name || session.user.email}!`)
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Load preferences in background
+          loadUserPreferencesBackground(session.user.id)
+          // Show welcome toast only on fresh login (not refresh)
+          if (!welcomeToastShownRef.current) {
+            welcomeToastShownRef.current = true
+            toast.success(`Welcome, ${session.user.user_metadata?.full_name || session.user.email}!`)
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setPreferences(null)
+          welcomeToastShownRef.current = false // Reset for next login
+          toast.info('Signed out successfully')
         }
-      } else if (event === 'SIGNED_OUT') {
-        setPreferences(null)
-        welcomeToastShownRef.current = false // Reset for next login
-        toast.info('Signed out successfully')
+      })
+
+      // Then get initial session
+      getInitialSession()
+
+      return () => {
+        mounted = false
+        subscription?.unsubscribe()
       }
-    })
-
-    // Then get initial session
-    getInitialSession()
-
-    return () => {
-      mounted = false
-      subscription?.unsubscribe()
     }
   }, [loadUserPreferencesBackground])
 
   // Load user preferences from database
   const loadUserPreferences = async (userId) => {
     try {
-      const { data, error } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('*')
+          .eq('user_id', userId)
+          .single()
 
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = no rows returned (new user)
-        console.error('Error loading preferences:', error)
-        return
-      }
-
-      if (data) {
-        setPreferences(data)
-        // Only apply database preferences if localStorage doesn't have values
-        // This preserves user's most recent selections even after logout
-        if (data.selected_month_table && !localStorage.getItem('selectedMonthTable')) {
-          localStorage.setItem('selectedMonthTable', data.selected_month_table)
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows returned (new user)
+          console.error('Error loading preferences:', error)
+          return
         }
-        if (data.badge_filter && !localStorage.getItem('badgeFilter')) {
-          localStorage.setItem('badgeFilter', JSON.stringify(data.badge_filter))
+
+        if (data) {
+          setPreferences(data)
+          // Only apply database preferences if localStorage doesn't have values
+          // This preserves user's most recent selections even after logout
+          if (data.selected_month_table && !localStorage.getItem('selectedMonthTable')) {
+            localStorage.setItem('selectedMonthTable', data.selected_month_table)
+          }
+          if (data.badge_filter && !localStorage.getItem('badgeFilter')) {
+            localStorage.setItem('badgeFilter', JSON.stringify(data.badge_filter))
+          }
         }
       }
     } catch (error) {
@@ -146,22 +161,24 @@ export const AuthProvider = ({ children }) => {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from('user_preferences')
-        .upsert({
-          user_id: user.id,
-          ...newPreferences,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        })
-        .select()
-        .single()
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            ...newPreferences,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+          .select()
+          .single()
 
-      if (error) throw error
+        if (error) throw error
 
-      setPreferences(data)
-      return data
+        setPreferences(data)
+        return data
+      }
     } catch (error) {
       console.error('Error saving preferences:', error)
       throw error
@@ -176,10 +193,12 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      await saveUserPreferences({
-        ...preferences,
-        [key]: value
-      })
+      if (supabase) {
+        await saveUserPreferences({
+          ...preferences,
+          [key]: value
+        })
+      }
     } catch (error) {
       console.error('Error updating preference:', error)
     }
@@ -188,6 +207,11 @@ export const AuthProvider = ({ children }) => {
   // Sign in with Google
   const signInWithGoogle = async () => {
     try {
+      if (!isSupabaseConfigured || !supabase) {
+        toast.error('Authentication is not configured')
+        throw new Error('Supabase is not configured')
+      }
+
       // Build the redirect URL - must include the full path
       const redirectUrl = `${window.location.origin}${window.location.pathname}`
       console.log('Redirect URL:', redirectUrl)
@@ -195,12 +219,17 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: false
+          redirectTo: redirectUrl
         }
       })
 
       if (error) throw error
+
+      // If we get a URL back, redirect to it
+      if (data?.url) {
+        window.location.href = data.url
+      }
+
       return data
     } catch (error) {
       console.error('Error signing in with Google:', error)
@@ -212,34 +241,36 @@ export const AuthProvider = ({ children }) => {
   // Sign up with email and password
   const signUpWithEmail = async (email, password, fullName, captchaToken) => {
     try {
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`
+      if (supabase) {
+        const redirectUrl = `${window.location.origin}${window.location.pathname}`
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          captchaToken,
-          data: {
-            full_name: fullName
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl,
+            captchaToken,
+            data: {
+              full_name: fullName
+            }
           }
+        })
+
+        if (error) throw error
+
+        // Check if email confirmation is required
+        if (data?.user?.identities?.length === 0) {
+          toast.info('This email is already registered. Please sign in instead.')
+          return { needsSignIn: true }
         }
-      })
 
-      if (error) throw error
+        if (data?.user && !data?.session) {
+          toast.success('Check your email for a confirmation link!')
+          return { needsConfirmation: true }
+        }
 
-      // Check if email confirmation is required
-      if (data?.user?.identities?.length === 0) {
-        toast.info('This email is already registered. Please sign in instead.')
-        return { needsSignIn: true }
+        return data
       }
-
-      if (data?.user && !data?.session) {
-        toast.success('Check your email for a confirmation link!')
-        return { needsConfirmation: true }
-      }
-
-      return data
     } catch (error) {
       console.error('Error signing up:', error)
       if (error.message?.includes('already registered')) {
@@ -254,14 +285,16 @@ export const AuthProvider = ({ children }) => {
   // Sign in with email and password
   const signInWithEmail = async (email, password, captchaToken) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-        options: { captchaToken }
-      })
+      if (supabase) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: { captchaToken }
+        })
 
-      if (error) throw error
-      return data
+        if (error) throw error
+        return data
+      }
     } catch (error) {
       console.error('Error signing in:', error)
       if (error.message?.includes('Invalid login credentials')) {
@@ -278,16 +311,18 @@ export const AuthProvider = ({ children }) => {
   // Reset password
   const resetPassword = async (email, captchaToken) => {
     try {
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`
+      if (supabase) {
+        const redirectUrl = `${window.location.origin}${window.location.pathname}`
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
-        captchaToken
-      })
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: redirectUrl,
+          captchaToken
+        })
 
-      if (error) throw error
-      toast.success('Password reset email sent! Check your inbox.')
-      return true
+        if (error) throw error
+        toast.success('Password reset email sent! Check your inbox.')
+        return true
+      }
     } catch (error) {
       console.error('Error resetting password:', error)
       toast.error(error.message || 'Failed to send reset email')
@@ -300,18 +335,20 @@ export const AuthProvider = ({ children }) => {
     // Supabase can throw AuthSessionMissingError if the session is already gone.
     // We still want the UI to reliably log out in that case.
     try {
-      // Save current preferences before signing out
-      if (user && preferences) {
-        const currentPrefs = {
-          selected_month_table: localStorage.getItem('selectedMonthTable'),
-          badge_filter: JSON.parse(localStorage.getItem('badgeFilter') || '[]'),
-          dashboard_tab: 'all'
+      if (supabase) {
+        // Save current preferences before signing out
+        if (user && preferences) {
+          const currentPrefs = {
+            selected_month_table: localStorage.getItem('selectedMonthTable'),
+            badge_filter: JSON.parse(localStorage.getItem('badgeFilter') || '[]'),
+            dashboard_tab: 'all'
+          }
+          await saveUserPreferences(currentPrefs)
         }
-        await saveUserPreferences(currentPrefs)
-      }
 
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+        const { error } = await supabase.auth.signOut()
+        if (error) throw error
+      }
     } catch (error) {
       console.error('Error signing out:', error)
       const msg = (error?.message || '').toLowerCase()
@@ -345,32 +382,33 @@ export const AuthProvider = ({ children }) => {
       try {
         setLoading(true)
         // 1. Try to sign in as the persistent God Mode user
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: 'dev@datser.local',
-          password: 'GodMode123!'
-        })
-
-        if (!signInError) {
-          toast.success('Logged in as God Mode User')
-          return
-        }
-
-        // 2. If sign in fails, try to create the account
-        if (signInError.message.includes('Invalid login credentials')) {
-          const { error: signUpError } = await supabase.auth.signUp({
+        if (supabase) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
             email: 'dev@datser.local',
-            password: 'GodMode123!',
-            options: {
-              data: { full_name: 'God Mode User' }
-            }
+            password: 'GodMode123!'
           })
 
-          if (signUpError) throw signUpError
-          toast.success('God Mode Account Created & Logged In')
-        } else {
-          throw signInError
-        }
+          if (!signInError) {
+            toast.success('Logged in as God Mode User')
+            return
+          }
 
+          // 2. If sign in fails, try to create the account
+          if (signInError.message.includes('Invalid login credentials')) {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: 'dev@datser.local',
+              password: 'GodMode123!',
+              options: {
+                data: { full_name: 'God Mode User' }
+              }
+            })
+
+            if (signUpError) throw signUpError
+            toast.success('God Mode Account Created & Logged In')
+          } else {
+            throw signInError
+          }
+        }
       } catch (error) {
         console.error('God Mode Error:', error)
         toast.error('God Mode Failed: ' + error.message)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { X, UserPlus, Mail, Trash2, Users, AlertCircle } from 'lucide-react'
+import { X, UserPlus, Mail, Trash2, Users, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
 
@@ -9,6 +9,8 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
   const { user } = useAuth()
   const { isDarkMode } = useTheme()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [collaborators, setCollaborators] = useState([])
   const [fetchingCollaborators, setFetchingCollaborators] = useState(false)
@@ -59,6 +61,12 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
       return
     }
 
+    // Password validation
+    if (!password.trim() || password.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+
     // Check if already added
     if (collaborators.some(c => c.email.toLowerCase() === email.trim().toLowerCase())) {
       toast.warning('This email has already been added')
@@ -69,13 +77,64 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
     setError('')
 
     try {
-      // First, add to collaborators table
+      const collaboratorEmail = email.trim().toLowerCase()
+      
+      // First, create the auth user via Edge Function (email = password)
+      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const createUserResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-collaborator-user`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({ 
+              email: collaboratorEmail, 
+              password: password.trim(),
+              appUrl: window.location.origin + '/DatSer/'
+            })
+          }
+        )
+        
+        const createUserResult = await createUserResponse.json()
+        console.log('Edge function response:', createUserResponse.status, createUserResult)
+        if (!createUserResponse.ok) {
+          console.error('Edge function error:', createUserResult.error)
+          toast.error(`Failed to create user: ${createUserResult.error || 'Unknown error'}`)
+          setLoading(false)
+          return
+        }
+        if (createUserResult.error) {
+          console.warn('Could not create auth user:', createUserResult.error)
+          toast.error(`Failed to create user: ${createUserResult.error}`)
+          setLoading(false)
+          return
+        } else if (createUserResult.alreadyExists) {
+          console.log('User already exists in auth, password updated')
+        } else {
+          console.log('Auth user created successfully:', createUserResult.userId)
+        }
+        
+        // Log magic link for debugging (in production, this would be emailed)
+        if (createUserResult.magicLink) {
+          console.log('Magic link generated (backup login method):', createUserResult.magicLink)
+        }
+      } catch (createUserErr) {
+        console.warn('Could not create auth user:', createUserErr)
+        toast.error('Failed to create user account')
+        setLoading(false)
+        return
+      }
+
+      // Add to collaborators table
       const { data, error } = await supabase
         .from('collaborators')
         .insert([
           {
             owner_id: user.id,
-            email: email.trim().toLowerCase(),
+            email: collaboratorEmail,
             status: 'pending'
           }
         ])
@@ -87,7 +146,6 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
       // Send invitation email via Edge Function
       const appUrl = window.location.origin + '/DatSer/'
       try {
-        const { data: { session } } = await supabase.auth.getSession()
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-collaborator-invite`,
           {
@@ -97,7 +155,7 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
               'Authorization': `Bearer ${session?.access_token}`
             },
             body: JSON.stringify({
-              email: email.trim().toLowerCase(),
+              email: collaboratorEmail,
               inviterName: user.email,
               appUrl: appUrl
             })
@@ -106,18 +164,19 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
         
         const result = await response.json()
         if (result.success) {
-          toast.success(`Invitation email sent to ${email}!`)
+          toast.success(`Invitation sent to ${email}! They can login with their email as password.`)
         } else if (result.error) {
           console.warn('Email sending failed:', result.error)
-          toast.success(`Collaborator added! (Email notification may not have been sent)`)
+          toast.success(`Collaborator added! They can login with their email as password.`)
         }
       } catch (emailErr) {
         console.warn('Could not send invitation email:', emailErr)
-        toast.success(`Collaborator added successfully!`)
+        toast.success(`Collaborator added! They can login with their email as password.`)
       }
 
       setCollaborators(prev => [data, ...prev])
       setEmail('')
+      setPassword('')
     } catch (err) {
       console.error('Error adding collaborator:', err)
       if (err.code === '23505') {
@@ -203,8 +262,8 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Add collaborator
             </label>
-            <form onSubmit={handleAddCollaborator} className="flex space-x-2">
-              <div className="relative flex-1">
+            <form onSubmit={handleAddCollaborator} className="space-y-3">
+              <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
                 <input
                   type="email"
@@ -214,13 +273,30 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                 />
               </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Set password for this user"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <button
                 type="submit"
-                disabled={loading || !email.trim()}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={loading || !email.trim() || !password.trim()}
+                className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <UserPlus className="w-4 h-4 mr-1.5" />
-                {loading ? 'Adding...' : 'Add'}
+                {loading ? 'Adding...' : 'Add Collaborator'}
               </button>
             </form>
           </div>

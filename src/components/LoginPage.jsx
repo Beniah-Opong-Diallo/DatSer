@@ -453,15 +453,6 @@ const LoginPage = () => {
                   </button>
                 </p>
 
-                {/* Dev Skip Button */}
-                <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    onClick={() => bypassAuth()}
-                    className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 font-mono mt-2"
-                  >
-                    Need quick access? [God Mode (Bypass)]
-                  </button>
-                </div>
               </>
             ) : mode === 'signup' ? (
               <p className="text-gray-600 dark:text-gray-400">

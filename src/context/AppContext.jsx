@@ -93,6 +93,11 @@ export const AppProvider = ({ children }) => {
   const authLoading = authContext?.loading
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  
+  // Collaborator state - tracks if current user is viewing someone else's data
+  const [dataOwnerId, setDataOwnerId] = useState(null) // The owner whose data we're viewing
+  const [isCollaborator, setIsCollaborator] = useState(false)
+  const [ownerEmail, setOwnerEmail] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [serverSearchResults, setServerSearchResults] = useState(null)
   const searchCacheRef = useRef(new Map())
@@ -120,6 +125,56 @@ export const AppProvider = ({ children }) => {
     return supabase && import.meta.env.VITE_SUPABASE_URL &&
       import.meta.env.VITE_SUPABASE_URL !== 'your_supabase_url_here' &&
       import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co'
+  }
+
+  // Check if current user is a collaborator and get the owner's ID
+  const checkCollaboratorStatus = async () => {
+    if (!user?.email || !isSupabaseConfigured()) {
+      setIsCollaborator(false)
+      setDataOwnerId(null)
+      setOwnerEmail(null)
+      return null
+    }
+
+    try {
+      // Check if this user's email exists in the collaborators table
+      const { data, error } = await supabase
+        .from('collaborators')
+        .select('owner_id, status')
+        .eq('email', user.email.toLowerCase())
+        .eq('status', 'pending') // or 'accepted' if you have that status
+        .single()
+
+      if (error || !data) {
+        // Not a collaborator - user views their own data
+        setIsCollaborator(false)
+        setDataOwnerId(user.id)
+        setOwnerEmail(null)
+        return user.id
+      }
+
+      // User is a collaborator - they should see the owner's data
+      console.log('User is a collaborator, owner_id:', data.owner_id)
+      setIsCollaborator(true)
+      setDataOwnerId(data.owner_id)
+      
+      // Get owner's email for display
+      const { data: ownerData } = await supabase
+        .from('collaborators')
+        .select('owner_id')
+        .eq('owner_id', data.owner_id)
+        .limit(1)
+      
+      // Get owner email from auth.users via a different method
+      setOwnerEmail(null) // We'll show owner_id for now
+      
+      return data.owner_id
+    } catch (err) {
+      console.error('Error checking collaborator status:', err)
+      setIsCollaborator(false)
+      setDataOwnerId(user.id)
+      return user.id
+    }
   }
 
   // Fetch members from current monthly table or use mock data
