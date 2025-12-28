@@ -42,11 +42,15 @@
     }
   }
 
-  /* Slightly increase base font size on small screens for readability */
+  /* Professional app text sizing */
+  html {
+    font-size: 16px;
+  }
+
   @media (max-width: 640px) {
     html {
-      font-size: 17px;
-      /* was browser default ~16px */
+      font-size: 16px;
+      /* Standard professional app size for mobile */
     }
   }
 

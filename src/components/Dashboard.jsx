@@ -1315,9 +1315,27 @@ const Dashboard = ({ isAdmin = false }) => {
                               <Check className="w-3 h-3 text-white" />
                             </div>
                           )}
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-base sm:text-lg truncate flex-1">
-                            {member['full_name'] || member['Full Name']}
-                          </h3>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 dark:text-white text-base sm:text-lg truncate">
+                              {member['full_name'] || member['Full Name']}
+                            </h3>
+                            {(member.inserted_at || member.created_at) && (() => {
+                              const regDate = new Date(member.inserted_at || member.created_at)
+                              const now = new Date()
+                              const diffDays = Math.floor((now - regDate) / (1000 * 60 * 60 * 24))
+                              let label = ''
+                              if (diffDays === 0) label = 'Today'
+                              else if (diffDays === 1) label = 'Yesterday'
+                              else if (diffDays < 7) label = `${diffDays}d ago`
+                              else label = regDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                              
+                              return (
+                                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                                  Joined {label}
+                                </p>
+                              )
+                            })()}
+                          </div>
                           <span className="hidden xs:inline text-[11px] text-gray-500 dark:text-gray-400 flex-shrink-0 ml-1">
                             {isExpanded ? 'Hide details' : 'Details'}
                           </span>
@@ -1417,6 +1435,76 @@ const Dashboard = ({ isAdmin = false }) => {
                                       </span>
                                     </div>
                                   )}
+                                  {/* Registration Date/Time Card */}
+                                  {(member.inserted_at || member.created_at) && (() => {
+                                    const regDate = new Date(member.inserted_at || member.created_at)
+                                    const now = new Date()
+                                    const diffMs = now - regDate
+                                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+                                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+                                    const diffMins = Math.floor(diffMs / (1000 * 60))
+                                    
+                                    let relativeTime = ''
+                                    let badgeColor = 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                    
+                                    if (diffDays === 0) {
+                                      if (diffHours === 0) {
+                                        relativeTime = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
+                                      } else {
+                                        relativeTime = diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`
+                                      }
+                                      badgeColor = 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                    } else if (diffDays === 1) {
+                                      relativeTime = 'Yesterday'
+                                      badgeColor = 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                    } else if (diffDays < 7) {
+                                      relativeTime = `${diffDays} days ago`
+                                      badgeColor = 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
+                                    } else if (diffDays < 30) {
+                                      const weeks = Math.floor(diffDays / 7)
+                                      relativeTime = weeks === 1 ? '1 week ago' : `${weeks} weeks ago`
+                                    } else if (diffDays < 365) {
+                                      const months = Math.floor(diffDays / 30)
+                                      relativeTime = months === 1 ? '1 month ago' : `${months} months ago`
+                                    } else {
+                                      const years = Math.floor(diffDays / 365)
+                                      relativeTime = years === 1 ? '1 year ago' : `${years} years ago`
+                                    }
+
+                                    return (
+                                      <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/20 dark:to-blue-900/20 border border-primary-200 dark:border-primary-800/50">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center">
+                                              <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                                            </div>
+                                            <div>
+                                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Registered</p>
+                                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                {regDate.toLocaleDateString('en-US', { 
+                                                  weekday: 'short',
+                                                  month: 'short', 
+                                                  day: 'numeric',
+                                                  year: 'numeric'
+                                                })}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${badgeColor}`}>
+                                              {relativeTime}
+                                            </span>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                              {regDate.toLocaleTimeString('en-US', { 
+                                                hour: '2-digit', 
+                                                minute: '2-digit'
+                                              })}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
 
                                 {/* Ministry Tags */}

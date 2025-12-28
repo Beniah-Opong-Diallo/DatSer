@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
     User,
     Building2,
@@ -7,6 +7,7 @@ import {
     Palette,
     AlertTriangle,
     ChevronLeft,
+    ChevronRight,
     Lock,
     Mail,
     Download,
@@ -20,9 +21,7 @@ import {
     CheckCircle,
     Shield,
     RefreshCw,
-    FileSpreadsheet,
     Pencil,
-    Camera,
     HelpCircle,
     ChevronDown
 } from 'lucide-react'
@@ -31,6 +30,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
 import ShareAccessModal from './ShareAccessModal'
+import { supabase } from '../lib/supabase'
 import WorkspaceSettingsModal from './WorkspaceSettingsModal'
 import DeleteAccountModal from './DeleteAccountModal'
 import ExportDataModal from './ExportDataModal'
@@ -40,25 +40,57 @@ import HelpCenterPage from './HelpCenterPage'
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode } = useTheme()
-    const { members, monthlyTables, currentTable, setCurrentTable } = useApp()
+    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured } = useApp()
 
-    const [activeSection, setActiveSection] = useState('account')
+    const [activeSection, setActiveSection] = useState(null) // null = show main list
     const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+    const [collaborators, setCollaborators] = useState([])
+    const [fetchingCollaborators, setFetchingCollaborators] = useState(false)
     const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
     const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false)
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
     const [showHelpCenter, setShowHelpCenter] = useState(false)
 
-    const sections = [
-        { id: 'account', label: 'Account', icon: User },
-        { id: 'workspace', label: 'Workspace', icon: Building2 },
-        { id: 'team', label: 'Team & Sharing', icon: Users },
-        { id: 'data', label: 'Data Management', icon: Database },
-        { id: 'appearance', label: 'Appearance', icon: Palette },
-        { id: 'help', label: 'Help Center', icon: HelpCircle, highlight: true },
-        { id: 'danger', label: 'Danger Zone', icon: AlertTriangle, danger: true }
-    ]
+    // Fetch collaborators for Team section display
+    useEffect(() => {
+        const fetchCollaborators = async () => {
+            if (!user || !isSupabaseConfigured) return
+            setFetchingCollaborators(true)
+            try {
+                const { data, error } = await supabase
+                    .from('collaborators')
+                    .select('*')
+                    .eq('owner_id', user.id)
+                    .order('created_at', { ascending: false })
+                if (!error && data) {
+                    setCollaborators(data)
+                }
+            } catch (err) {
+                console.error('Error fetching collaborators:', err)
+            } finally {
+                setFetchingCollaborators(false)
+            }
+        }
+        fetchCollaborators()
+    }, [user, isSupabaseConfigured])
+
+    // Refresh collaborators when modal closes
+    const handleShareModalClose = async () => {
+        setIsShareModalOpen(false)
+        if (user && isSupabaseConfigured) {
+            try {
+                const { data } = await supabase
+                    .from('collaborators')
+                    .select('*')
+                    .eq('owner_id', user.id)
+                    .order('created_at', { ascending: false })
+                if (data) setCollaborators(data)
+            } catch (err) {
+                console.error('Error refreshing collaborators:', err)
+            }
+        }
+    }
 
     const handleSignOut = async () => {
         try {
@@ -66,6 +98,28 @@ const SettingsPage = ({ onBack }) => {
             toast.success('Signed out successfully')
         } catch (error) {
             toast.error('Failed to sign out')
+        }
+    }
+
+    // Get preview text for each section
+    const getSectionPreview = (sectionId) => {
+        switch (sectionId) {
+            case 'account':
+                return user?.email || 'Manage your account'
+            case 'workspace':
+                return preferences?.workspace_name || 'TMH Teen Ministry'
+            case 'team':
+                return `${collaborators.length} collaborator${collaborators.length !== 1 ? 's' : ''}`
+            case 'data':
+                return `${members?.length || 0} members`
+            case 'appearance':
+                return themeMode === 'system' ? 'Auto' : themeMode === 'dark' ? 'Dark' : 'Light'
+            case 'help':
+                return 'Get help & support'
+            case 'danger':
+                return 'Delete account'
+            default:
+                return ''
         }
     }
 
@@ -273,6 +327,54 @@ const SettingsPage = ({ onBack }) => {
                     <UserPlus className="w-4 h-4" />
                     Share Access
                 </button>
+            </div>
+
+            {/* Always Visible Collaborators List */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    People with Access ({collaborators.length})
+                </h4>
+                {fetchingCollaborators ? (
+                    <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    </div>
+                ) : collaborators.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                        <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No collaborators yet</p>
+                        <p className="text-xs mt-1">Click "Share Access" to invite someone</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {collaborators.map((collaborator) => (
+                            <div
+                                key={collaborator.id}
+                                className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                            >
+                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                        {collaborator.email.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                        {collaborator.email}
+                                    </p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                        collaborator.status === 'accepted'
+                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                            : collaborator.status === 'rejected'
+                                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                    }`}>
+                                        {collaborator.status === 'accepted' ? 'Accepted' : collaborator.status === 'rejected' ? 'Rejected' : 'Pending'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Permissions Info */}
@@ -485,6 +587,43 @@ const SettingsPage = ({ onBack }) => {
         }
     }
 
+    // Section definitions with icons and metadata
+    const sections = [
+        { id: 'account', label: 'Account', icon: User, color: 'blue' },
+        { id: 'workspace', label: 'Workspace', icon: Building2, color: 'purple' },
+        { id: 'team', label: 'Team & Sharing', icon: Users, color: 'green' },
+        { id: 'data', label: 'Data Management', icon: Database, color: 'orange' },
+        { id: 'appearance', label: 'Appearance', icon: Palette, color: 'pink' },
+        { id: 'help', label: 'Help Center', icon: HelpCircle, color: 'cyan', highlight: true },
+        { id: 'danger', label: 'Danger Zone', icon: AlertTriangle, color: 'red', danger: true }
+    ]
+
+    const getIconBgColor = (color) => {
+        const colors = {
+            blue: 'bg-blue-100 dark:bg-blue-900/30',
+            purple: 'bg-purple-100 dark:bg-purple-900/30',
+            green: 'bg-green-100 dark:bg-green-900/30',
+            orange: 'bg-orange-100 dark:bg-orange-900/30',
+            pink: 'bg-pink-100 dark:bg-pink-900/30',
+            cyan: 'bg-cyan-100 dark:bg-cyan-900/30',
+            red: 'bg-red-100 dark:bg-red-900/30'
+        }
+        return colors[color] || colors.blue
+    }
+
+    const getIconColor = (color) => {
+        const colors = {
+            blue: 'text-blue-600 dark:text-blue-400',
+            purple: 'text-purple-600 dark:text-purple-400',
+            green: 'text-green-600 dark:text-green-400',
+            orange: 'text-orange-600 dark:text-orange-400',
+            pink: 'text-pink-600 dark:text-pink-400',
+            cyan: 'text-cyan-600 dark:text-cyan-400',
+            red: 'text-red-600 dark:text-red-400'
+        }
+        return colors[color] || colors.blue
+    }
+
     // Show Help Center Page
     if (showHelpCenter) {
         return (
@@ -492,7 +631,6 @@ const SettingsPage = ({ onBack }) => {
                 onBack={() => setShowHelpCenter(false)}
                 onNavigate={(target, options) => {
                     setShowHelpCenter(false)
-                    // Navigate back to main app if needed
                     if (target === 'dashboard' || target === 'settings') {
                         onBack?.()
                     }
@@ -501,11 +639,12 @@ const SettingsPage = ({ onBack }) => {
         )
     }
 
-    return (
+    // Render main settings list (when no section is active)
+    const renderMainList = () => (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
             <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-                <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-4">
+                <div className="px-4 py-4 flex items-center gap-4">
                     <button
                         onClick={onBack}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -516,57 +655,148 @@ const SettingsPage = ({ onBack }) => {
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto px-4 py-6">
-                <div className="flex flex-col md:flex-row gap-6">
-                    {/* Sidebar */}
-                    <div className="md:w-64 flex-shrink-0">
-                        <nav className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                            {sections.map((section) => {
-                                const Icon = section.icon
-                                const isActive = activeSection === section.id
-                                return (
-                                    <button
-                                        key={section.id}
-                                        onClick={() => {
-                                            if (section.id === 'help') {
-                                                setShowHelpCenter(true)
-                                            } else {
-                                                setActiveSection(section.id)
-                                            }
-                                        }}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors btn-press ${isActive
-                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-l-2 border-blue-600'
-                                            : section.danger
-                                                ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10'
-                                                : section.highlight
-                                                    ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10'
-                                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                            }`}
-                                    >
-                                        <Icon className="w-5 h-5" />
-                                        <span className="font-medium">{section.label}</span>
-                                        {section.highlight && (
-                                            <span className="ml-auto text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                                                New
-                                            </span>
-                                        )}
-                                    </button>
+            <div className="px-4 py-4 space-y-3">
+                {/* Profile Card at top */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
+                    <div className="flex items-center gap-4">
+                        <div className="relative flex-shrink-0">
+                            {(() => {
+                                const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null
+                                const avatarUrl = localAvatar || user?.user_metadata?.avatar_url
+                                return avatarUrl ? (
+                                    <img
+                                        src={avatarUrl}
+                                        alt="Profile"
+                                        className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md"
+                                    />
+                                ) : (
+                                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
+                                        {user?.email?.[0]?.toUpperCase() || 'U'}
+                                    </div>
                                 )
-                            })}
-                        </nav>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                        {renderContent()}
+                            })()}
+                            <button
+                                onClick={() => setIsPhotoEditorOpen(true)}
+                                className="absolute -bottom-1 -right-1 p-1 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-colors"
+                            >
+                                <Pencil className="w-2.5 h-2.5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-gray-900 dark:text-white truncate">
+                                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                            </h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+                        </div>
+                        <button
+                            onClick={() => setActiveSection('account')}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                            <ChevronRight className="w-5 h-5 text-gray-400" />
+                        </button>
                     </div>
                 </div>
+
+                {/* Settings Sections */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
+                    {sections.filter(s => s.id !== 'danger').map((section) => {
+                        const Icon = section.icon
+                        return (
+                            <button
+                                key={section.id}
+                                onClick={() => {
+                                    if (section.id === 'help') {
+                                        setShowHelpCenter(true)
+                                    } else {
+                                        setActiveSection(section.id)
+                                    }
+                                }}
+                                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                            >
+                                <div className={`p-2 rounded-lg ${getIconBgColor(section.color)}`}>
+                                    <Icon className={`w-5 h-5 ${getIconColor(section.color)}`} />
+                                </div>
+                                <div className="flex-1 text-left min-w-0">
+                                    <p className="font-medium text-gray-900 dark:text-white">{section.label}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{getSectionPreview(section.id)}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {section.highlight && (
+                                        <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                            New
+                                        </span>
+                                    )}
+                                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                                </div>
+                            </button>
+                        )
+                    })}
+                </div>
+
+                {/* Danger Zone - Separate Card */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 overflow-hidden mt-4">
+                    <button
+                        onClick={() => setActiveSection('danger')}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+                    >
+                        <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="font-medium text-red-600 dark:text-red-400">Danger Zone</p>
+                            <p className="text-sm text-red-500/70 dark:text-red-400/70">Delete account</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-red-400" />
+                    </button>
+                </div>
+
+                {/* Sign Out Button */}
+                <button
+                    onClick={handleSignOut}
+                    className="w-full mt-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                    Sign Out
+                </button>
             </div>
+        </div>
+    )
+
+    // Render detail view (when a section is active)
+    const renderDetailView = () => {
+        const currentSection = sections.find(s => s.id === activeSection)
+        const Icon = currentSection?.icon || User
+
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                {/* Header */}
+                <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+                    <div className="px-4 py-4 flex items-center gap-4">
+                        <button
+                            onClick={() => setActiveSection(null)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                        </button>
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">{currentSection?.label || 'Settings'}</h1>
+                    </div>
+                </div>
+
+                <div className="px-4 py-4">
+                    {renderContent()}
+                </div>
+            </div>
+        )
+    }
+
+    // Main render
+    return (
+        <>
+            {activeSection === null ? renderMainList() : renderDetailView()}
 
             {/* Modals */}
             <ShareAccessModal
                 isOpen={isShareModalOpen}
-                onClose={() => setIsShareModalOpen(false)}
+                onClose={handleShareModalClose}
                 user={user}
             />
             <WorkspaceSettingsModal
@@ -586,7 +816,7 @@ const SettingsPage = ({ onBack }) => {
                 onClose={() => setIsPhotoEditorOpen(false)}
                 user={user}
             />
-        </div>
+        </>
     )
 }
 
