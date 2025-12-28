@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
     User,
     Building2,
@@ -23,7 +23,10 @@ import {
     RefreshCw,
     Pencil,
     HelpCircle,
-    ChevronDown
+    ChevronDown,
+    X,
+    Loader2,
+    Camera
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -36,6 +39,7 @@ import DeleteAccountModal from './DeleteAccountModal'
 import ExportDataModal from './ExportDataModal'
 import ProfilePhotoEditor from './ProfilePhotoEditor'
 import HelpCenterPage from './HelpCenterPage'
+import FullscreenPhotoViewer from './FullscreenPhotoViewer'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
@@ -51,7 +55,15 @@ const SettingsPage = ({ onBack }) => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
     const [showHelpCenter, setShowHelpCenter] = useState(false)
+    const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false)
     const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
+    const [pendingRemoval, setPendingRemoval] = useState(null)
+    const [removeDelay, setRemoveDelay] = useState(0)
+    const [isRemovingCollaborator, setIsRemovingCollaborator] = useState(false)
+    const [isExportingCollaborator, setIsExportingCollaborator] = useState(false)
+    const removeTimerRef = useRef(null)
+    const removeCountdownRef = useRef(null)
+    const [removeCountdownMs, setRemoveCountdownMs] = useState(0)
 
     // Fetch collaborators for Team section display
     useEffect(() => {
@@ -102,40 +114,86 @@ const SettingsPage = ({ onBack }) => {
         }
     }
 
-    const handleDeleteCollaborator = async (collaboratorId) => {
+    const handleDeleteCollaborator = (collaboratorId) => {
         if (!user || !isSupabaseConfigured) {
             toast.error('Not authorized')
             return
         }
-
         const target = collaborators.find(c => c.id === collaboratorId)
-        const emailLabel = target?.email || 'this user'
-        const confirm = window.confirm(`Remove access for ${emailLabel}? This will revoke their workspace access but will not delete their Supabase account.`)
-        if (!confirm) return
+        setPendingRemoval(target || null)
+        setRemoveDelay(0)
+    }
 
-        setDeletingCollaboratorId(collaboratorId)
+    const performCollaboratorDeletion = async (target) => {
+        setDeletingCollaboratorId(target.id)
         try {
             const { error } = await supabase
                 .from('collaborators')
                 .delete()
-                .eq('id', collaboratorId)
+                .eq('id', target.id)
                 .eq('owner_id', user.id)
             if (error) throw error
-            setCollaborators(prev => prev.filter(c => c.id !== collaboratorId))
-            toast.success('Access removed')
+            setCollaborators(prev => prev.filter(c => c.id !== target.id))
+            toast.success(`Removed access for ${target.email}`)
         } catch (err) {
             console.error('Error deleting collaborator:', err)
             toast.error('Failed to remove collaborator from database')
         } finally {
             setDeletingCollaboratorId(null)
+            setIsRemovingCollaborator(false)
+            setPendingRemoval(null)
         }
     }
+
+    const confirmRemoveCollaborator = async () => {
+        if (!pendingRemoval) return
+        setIsRemovingCollaborator(true)
+        if (removeDelay > 0) {
+            toast.info(`Will remove ${pendingRemoval.email} in ${removeDelay} minutes`)
+        }
+        const totalMs = removeDelay * 60 * 1000
+        setRemoveCountdownMs(totalMs)
+        const start = Date.now()
+        if (removeCountdownRef.current) clearInterval(removeCountdownRef.current)
+        removeCountdownRef.current = setInterval(() => {
+            const elapsed = Date.now() - start
+            const remaining = Math.max(totalMs - elapsed, 0)
+            setRemoveCountdownMs(remaining)
+        }, 1000)
+        removeTimerRef.current = setTimeout(() => performCollaboratorDeletion(pendingRemoval), totalMs || 0)
+    }
+
+    const handleExportCollaboratorData = async () => {
+        setIsExportingCollaborator(true)
+        try {
+            toast.info('Export collaborator data: please export from Supabase (not implemented here).')
+        } finally {
+            setIsExportingCollaborator(false)
+        }
+    }
+
+    const closeRemoveModal = () => {
+        if (removeTimerRef.current) clearTimeout(removeTimerRef.current)
+        if (removeCountdownRef.current) clearInterval(removeCountdownRef.current)
+        setPendingRemoval(null)
+        setIsRemovingCollaborator(false)
+        setRemoveCountdownMs(0)
+    }
+
+    useEffect(() => {
+        return () => {
+            if (removeTimerRef.current) clearTimeout(removeTimerRef.current)
+            if (removeCountdownRef.current) clearInterval(removeCountdownRef.current)
+        }
+    }, [])
 
     // Get preview text for each section
     const getSectionPreview = (sectionId) => {
         switch (sectionId) {
             case 'account':
                 return user?.email || 'Manage your account'
+            case 'photo':
+                return 'Change profile picture'
             case 'workspace':
                 return preferences?.workspace_name || 'TMH Teen Ministry'
             case 'team':
@@ -171,10 +229,14 @@ const SettingsPage = ({ onBack }) => {
                                 <img
                                     src={avatarUrl}
                                     alt="Profile"
-                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md"
+                                    onClick={() => setShowFullscreenPhoto(true)}
+                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
                                 />
                             ) : (
-                                <div className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                                <div 
+                                    onClick={() => setShowFullscreenPhoto(true)}
+                                    className="w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                                >
                                     {user?.email?.[0]?.toUpperCase() || 'U'}
                                 </div>
                             )
@@ -627,6 +689,7 @@ const SettingsPage = ({ onBack }) => {
     // Section definitions with icons and metadata
     const sections = [
         { id: 'account', label: 'Account', icon: User, color: 'blue' },
+        { id: 'photo', label: 'Edit Photo', icon: Camera, color: 'indigo' },
         { id: 'workspace', label: 'Workspace', icon: Building2, color: 'purple' },
         { id: 'team', label: 'Team & Sharing', icon: Users, color: 'green' },
         { id: 'data', label: 'Data Management', icon: Database, color: 'orange' },
@@ -638,6 +701,7 @@ const SettingsPage = ({ onBack }) => {
     const getIconBgColor = (color) => {
         const colors = {
             blue: 'bg-blue-100 dark:bg-blue-900/30',
+            indigo: 'bg-indigo-100 dark:bg-indigo-900/30',
             purple: 'bg-purple-100 dark:bg-purple-900/30',
             green: 'bg-green-100 dark:bg-green-900/30',
             orange: 'bg-orange-100 dark:bg-orange-900/30',
@@ -651,6 +715,7 @@ const SettingsPage = ({ onBack }) => {
     const getIconColor = (color) => {
         const colors = {
             blue: 'text-blue-600 dark:text-blue-400',
+            indigo: 'text-indigo-600 dark:text-indigo-400',
             purple: 'text-purple-600 dark:text-purple-400',
             green: 'text-green-600 dark:text-green-400',
             orange: 'text-orange-600 dark:text-orange-400',
@@ -704,10 +769,20 @@ const SettingsPage = ({ onBack }) => {
                                     <img
                                         src={avatarUrl}
                                         alt="Profile"
-                                        className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setShowFullscreenPhoto(true)
+                                        }}
+                                        className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-600 shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
                                     />
                                 ) : (
-                                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
+                                    <div 
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setShowFullscreenPhoto(true)
+                                        }}
+                                        className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                                    >
                                         {user?.email?.[0]?.toUpperCase() || 'U'}
                                     </div>
                                 )
@@ -744,6 +819,8 @@ const SettingsPage = ({ onBack }) => {
                                 onClick={() => {
                                     if (section.id === 'help') {
                                         setShowHelpCenter(true)
+                                    } else if (section.id === 'photo') {
+                                        setIsPhotoEditorOpen(true)
                                     } else {
                                         setActiveSection(section.id)
                                     }
@@ -855,6 +932,119 @@ const SettingsPage = ({ onBack }) => {
                 onClose={() => setIsPhotoEditorOpen(false)}
                 user={user}
             />
+
+            {/* Fullscreen Photo Viewer */}
+            <FullscreenPhotoViewer
+                isOpen={showFullscreenPhoto}
+                onClose={() => setShowFullscreenPhoto(false)}
+                photoUrl={(() => {
+                    const localAvatar = typeof window !== 'undefined' ? localStorage.getItem('user_avatar_url') : null
+                    return localAvatar || user?.user_metadata?.avatar_url
+                })()}
+                userName={user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                onEditPhoto={() => setIsPhotoEditorOpen(true)}
+            />
+
+            {/* Remove Collaborator Modal */}
+            {pendingRemoval && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        {/* Header */}
+                        <div className={`px-6 py-4 flex items-center justify-between border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-red-900/30' : 'bg-red-50'}`}>
+                                    <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-red-700 dark:text-red-300">Remove access?</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{pendingRemoval.email}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={closeRemoveModal}
+                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                aria-label="Close"
+                            >
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="px-6 py-4 space-y-4">
+                            <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-yellow-900/30 border border-yellow-800' : 'bg-yellow-50 border border-yellow-200'}`}>
+                                <p className={`text-sm ${isDarkMode ? 'text-yellow-100' : 'text-yellow-800'}`}>
+                                    This removes their workspace access. It does not delete their Supabase account.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Wait time</p>
+                                <div className="flex items-center gap-3">
+                                    {[0, 5, 10].map((m) => (
+                                        <label key={m} className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="removeDelay"
+                                                value={m}
+                                                checked={removeDelay === m}
+                                                onChange={() => setRemoveDelay(m)}
+                                                disabled={isRemovingCollaborator}
+                                            />
+                                            <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>
+                                                {m === 0 ? 'No wait' : `${m} minutes`}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {isRemovingCollaborator && removeDelay > 0 && (
+                                    <p className={`text-xs ${isDarkMode ? 'text-yellow-200' : 'text-yellow-700'}`}>
+                                        Scheduled... time left: {Math.ceil(removeCountdownMs / 1000)}s
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Export this collaborator’s data</p>
+                                <button
+                                    onClick={handleExportCollaboratorData}
+                                    disabled={isExportingCollaborator}
+                                    className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
+                                >
+                                    {isExportingCollaborator ? 'Preparing...' : 'Export to CSV (placeholder)'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`px-6 py-4 flex gap-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <button
+                                onClick={closeRemoveModal}
+                                disabled={isRemovingCollaborator}
+                                className={`flex-1 py-3 rounded-xl font-medium transition-colors ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'} disabled:opacity-50`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmRemoveCollaborator}
+                                disabled={isRemovingCollaborator}
+                                className={`flex-1 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${isRemovingCollaborator ? 'bg-gray-400 text-gray-700' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                            >
+                                {isRemovingCollaborator ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Removing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4" />
+                                        {removeDelay ? 'Schedule Remove' : 'Remove Now'}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }

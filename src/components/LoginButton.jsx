@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
+import FullscreenPhotoViewer from './FullscreenPhotoViewer'
 
 const LoginButton = () => {
   const { user, loading, signInWithGoogle, signOut, isAuthenticated, preferences } = useAuth()
@@ -26,6 +27,7 @@ const LoginButton = () => {
   const { members, currentTable } = useApp()
   const [showDropdown, setShowDropdown] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false)
   const dropdownRef = useRef(null)
 
   // Close dropdown when clicking outside
@@ -148,10 +150,22 @@ const LoginButton = () => {
                   <img
                     src={userPhoto}
                     alt={userName}
-                    className="w-12 h-12 rounded-full object-cover aspect-square border-2 border-white shadow-sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDropdown(false)
+                      setShowFullscreenPhoto(true)
+                    }}
+                    className="w-12 h-12 rounded-full object-cover aspect-square border-2 border-white shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                  <div 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDropdown(false)
+                      setShowFullscreenPhoto(true)
+                    }}
+                    className="w-12 h-12 rounded-full aspect-square bg-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                  >
                     {userName?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                 )}
@@ -219,6 +233,17 @@ const LoginButton = () => {
           </div>
         </>
       )}
+
+      {/* Fullscreen Photo Viewer */}
+      <FullscreenPhotoViewer
+        isOpen={showFullscreenPhoto}
+        onClose={() => setShowFullscreenPhoto(false)}
+        photoUrl={userPhoto}
+        userName={userName}
+        onEditPhoto={() => {
+          if (window.openSettings) window.openSettings()
+        }}
+      />
     </div>
   )
 }
