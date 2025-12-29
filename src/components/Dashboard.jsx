@@ -1271,7 +1271,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
                     {/* Registered Members List - Stacked on mobile, side by side on desktop */}
                     {(presentCount > 0 || absentCount > 0) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                         {/* Present Members - Left Column (Collapsible) */}
                         <details className="bg-white dark:bg-gray-800 rounded-xl border border-green-200 dark:border-green-900/50 overflow-hidden">
                           <summary className="px-3 py-2.5 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-900/50 cursor-pointer list-none flex items-center justify-between hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
@@ -1501,7 +1501,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Members List */}
-      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-8 sm:mt-10'} grid grid-cols-1 lg:grid-cols-3 gap-3`}>
+      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-8 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -1529,7 +1529,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 const isSelected = longPressSelectedIds.has(member.id)
 
                 return (
-                  <div key={member.id} className="relative">
+                  <div key={member.id} className="relative transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform">
                     {/* Selection checkmark */}
                     {isSelected && (
                       <div className="selection-checkmark">
@@ -1548,7 +1548,7 @@ const Dashboard = ({ isAdmin = false }) => {
                       </button>
                     </div>
                     <div
-                      className={`relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-primary-300 dark:hover:border-primary-600 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${isSelected ? 'selection-highlight' : ''
+                      className={`relative bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-primary-300 dark:hover:border-primary-600 shadow-sm hover:shadow-md transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${isSelected ? 'selection-highlight' : ''
                         }`}
                       style={{ transform: swipeOpenId === member.id ? 'translateX(-64px)' : 'translateX(0)', touchAction: 'pan-y', userSelect: 'none' }}
                       onTouchStart={(e) => {
@@ -1701,7 +1701,7 @@ const Dashboard = ({ isAdmin = false }) => {
                           <div className="pt-2 sm:pt-2.5">
                             {/* Member Details */}
                             {/* Member Details */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]">
                               <div className="space-y-3">
                                 <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Member Info</h4>
                                 <div className="space-y-2 text-sm">
@@ -1883,7 +1883,7 @@ const Dashboard = ({ isAdmin = false }) => {
                             {/* Sunday Attendance */}
                             <div className="border-t border-gray-200 dark:border-gray-600 pt-4 transition-colors">
                               <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 transition-colors">{getMonthDisplayName(currentTable)} Sunday Attendance</h4>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                                 {sundayDates.map(date => {
                                   const dateKey = date
                                   const dateAttendance = attendanceData[dateKey] || {}
@@ -1939,7 +1939,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                 <History className="w-3 h-3" />
                                 Attendance Summary
                               </h4>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]">
                                 {(() => {
                                   // Calculate attendance stats for this member
                                   let present = 0, absent = 0, total = 0

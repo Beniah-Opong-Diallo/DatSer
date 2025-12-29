@@ -346,7 +346,7 @@ const WorkspaceInsights = () => {
                         <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
                             Quick Actions
                         </h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                             <button
                                 onClick={exportCurrentMonth}
                                 className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isDarkMode

@@ -222,7 +222,7 @@ const MonthlyExport = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
         <div className={`rounded-lg shadow-sm border p-6 transition-colors ${
           isDarkMode 
             ? 'bg-gray-800 border-gray-700' 

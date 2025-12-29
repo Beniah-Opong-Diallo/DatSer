@@ -808,7 +808,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
@@ -946,7 +946,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]">
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {badgeResults.qualified.length}

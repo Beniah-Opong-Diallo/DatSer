@@ -274,7 +274,7 @@ const DecemberQuickView = ({ onOpenFullApp, showPreview, onTogglePreview }) => {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                   {displayedMembers.map((m) => {
                     const name = m['Full Name'] || 'Member'
                     const status = getStatus(m)

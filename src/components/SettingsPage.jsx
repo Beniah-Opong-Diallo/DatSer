@@ -372,7 +372,7 @@ const SettingsPage = ({ onBack }) => {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{members?.length || 0}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Total Members</p>
@@ -576,7 +576,7 @@ const SettingsPage = ({ onBack }) => {
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                     <button
                         onClick={() => setThemeMode('light')}
                         className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'light'

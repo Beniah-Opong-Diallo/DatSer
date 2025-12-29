@@ -212,7 +212,7 @@ const OnboardingWizard = ({ isOpen, onClose, onNavigate }) => {
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
                   This quick setup will help you get started with tracking attendance for your ministry.
                 </p>
-                <div className="grid grid-cols-2 gap-3 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 text-center">
                     <Users className="w-6 h-6 text-blue-500 mx-auto mb-1" />
                     <p className="text-xs text-gray-600 dark:text-gray-300">Manage Members</p>
@@ -348,7 +348,7 @@ const OnboardingWizard = ({ isOpen, onClose, onNavigate }) => {
                 <p className="text-gray-600 dark:text-gray-300">
                   You're ready to start managing attendance!
                 </p>
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
                   <button
                     onClick={() => handleAction('dashboard')}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors"
