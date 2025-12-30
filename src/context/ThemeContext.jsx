@@ -45,9 +45,9 @@ export const ThemeProvider = ({ children }) => {
     return preferences?.font_size || (typeof window !== 'undefined' ? localStorage.getItem('fontSize') : null) || '16'
   })
 
-  // 5. Font Family
+  // 5. Font Family - Default to dyslexia-friendly font
   const [fontFamily, setFontFamily] = useState(() => {
-    return preferences?.font_family || (typeof window !== 'undefined' ? localStorage.getItem('fontFamily') : null) || 'Inter'
+    return preferences?.font_family || (typeof window !== 'undefined' ? localStorage.getItem('fontFamily') : null) || 'OpenDyslexic'
   })
 
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
@@ -73,7 +73,7 @@ export const ThemeProvider = ({ children }) => {
     if (!loading && !user) {
       setThemeMode('system')
       setFontSize('16')
-      setFontFamily('Inter')
+      setFontFamily('OpenDyslexic')
       setPreferencesLoaded(false)
       if (typeof window !== 'undefined') {
         localStorage.removeItem('themeMode')

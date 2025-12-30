@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=OpenDyslexic&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -148,7 +150,7 @@
   }
 
   body {
-    font-family: var(--font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    font-family: var(--font-family), 'OpenDyslexic', 'Comic Sans MS', Verdana, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -332,6 +334,132 @@
   .dark .slider::-moz-range-track {
     background: #374151;
   }
+}
+
+/* Accessibility Settings Styles */
+
+/* Disable all animations when animations-disabled class is present */
+.animations-disabled *,
+.animations-disabled *::before,
+.animations-disabled *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Enhanced reduced motion */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.2s !important;
+  transition-duration: 0.1s !important;
+}
+
+/* High contrast mode */
+.high-contrast {
+  --tw-bg-opacity: 1 !important;
+}
+
+.high-contrast .bg-white {
+  background-color: #ffffff !important;
+}
+
+.high-contrast .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+.high-contrast .bg-gray-100 {
+  background-color: #f3f4f6 !important;
+}
+
+.high-contrast .bg-gray-200 {
+  background-color: #e5e7eb !important;
+}
+
+.high-contrast .bg-gray-800 {
+  background-color: #1f2937 !important;
+}
+
+.high-contrast .bg-gray-900 {
+  background-color: #111827 !important;
+}
+
+.high-contrast .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.high-contrast .text-gray-700 {
+  color: #374151 !important;
+}
+
+.high-contrast .text-gray-400 {
+  color: #6b7280 !important;
+}
+
+.high-contrast .border-gray-200 {
+  border-color: #d1d5db !important;
+}
+
+.high-contrast .border-gray-300 {
+  border-color: #9ca3af !important;
+}
+
+.high-contrast .border-gray-600 {
+  border-color: #4b5563 !important;
+}
+
+.high-contrast .border-gray-700 {
+  border-color: #374151 !important;
+}
+
+/* Enhanced focus indicators */
+.focus-visible *:focus,
+.focus-visible button:focus,
+.focus-visible input:focus,
+.focus-visible select:focus,
+.focus-visible textarea:focus {
+  outline: 3px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+}
+
+.focus-visible *:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
+/* Performance mode - ultra fast transitions */
+.performance-mode *,
+.performance-mode *::before,
+.performance-mode *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+  transform: translateZ(0); /* Still keep GPU acceleration */
+}
+
+/* Performance mode specific optimizations */
+.performance-mode .animate-fade-in,
+.performance-mode .animate-fade-in-up,
+.performance-mode .animate-scale-in,
+.performance-mode .animate-slide-up,
+.performance-mode .page-enter,
+.performance-mode .page-exit,
+.performance-mode .filter-enter,
+.performance-mode .filter-exit {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.performance-mode .stagger-item {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
+.performance-mode .spin-slow,
+.performance-mode .pulse-dot {
+  animation: none !important;
 }
 
 /* Force toasts to render at the top on mobile when root has .mobile-toast-top */

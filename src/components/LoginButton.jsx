@@ -279,7 +279,7 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
                     <div className={`w-5 h-5 md:w-4 md:h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${isDarkMode ? 'translate-x-5 md:translate-x-4 ml-0.5' : 'translate-x-0.5'}`} />
                   </div>
                 </button>
-                <button
+                                <button
                   onClick={() => {
                     setShowDropdown(false)
                     if (window.openSettings) window.openSettings()

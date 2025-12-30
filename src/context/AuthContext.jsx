@@ -161,6 +161,17 @@ export const AuthProvider = ({ children }) => {
     if (!user) return
 
     try {
+      // If Supabase isn't configured/available (or user is offline), do not spam errors.
+      // Still update local state so the UI keeps working.
+      if (!isSupabaseConfigured || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+        setPreferences(prev => ({
+          ...(prev || {}),
+          user_id: prev?.user_id || user.id,
+          ...newPreferences
+        }))
+        return
+      }
+
       if (supabase) {
         const { data, error } = await supabase
           .from('user_preferences')
@@ -180,8 +191,15 @@ export const AuthProvider = ({ children }) => {
         return data
       }
     } catch (error) {
+      // Network / fetch errors are expected when Supabase is unreachable.
+      // Keep the UI responsive and avoid throwing (which can cascade into repeated calls).
       console.error('Error saving preferences:', error)
-      throw error
+      setPreferences(prev => ({
+        ...(prev || {}),
+        user_id: prev?.user_id || user.id,
+        ...newPreferences
+      }))
+      return
     }
   }
 
@@ -193,12 +211,22 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      if (supabase) {
-        await saveUserPreferences({
-          ...preferences,
-          [key]: value
-        })
+      // Always update local state immediately so UI reflects change.
+      setPreferences(prev => ({
+        ...(prev || {}),
+        user_id: prev?.user_id || user.id,
+        [key]: value
+      }))
+
+      // If Supabase isn't ready/online, skip remote write.
+      if (!isSupabaseConfigured || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+        return
       }
+
+      await saveUserPreferences({
+        ...preferences,
+        [key]: value
+      })
     } catch (error) {
       console.error('Error updating preference:', error)
     }

@@ -27,7 +27,12 @@ import {
     X,
     Loader2,
     Search,
-    ClipboardList
+    ClipboardList,
+    Zap,
+    Eye,
+    Monitor,
+    RotateCcw,
+    Sparkles
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -48,6 +53,48 @@ const SettingsPage = ({ onBack }) => {
     const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured } = useApp()
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
+    const [showHelpCenter, setShowHelpCenter] = useState(false)
+    useEffect(() => {
+        const scrollToTop = () => {
+            try {
+                window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+            } catch {
+                window.scrollTo(0, 0)
+            }
+        }
+        scrollToTop()
+        const raf1 = requestAnimationFrame(() => {
+            const raf2 = requestAnimationFrame(scrollToTop)
+            return () => cancelAnimationFrame(raf2)
+        })
+        return () => cancelAnimationFrame(raf1)
+    }, [activeSection, showHelpCenter])
+    
+    // Accessibility settings state
+    const [animationsEnabled, setAnimationsEnabled] = useState(() => {
+        const saved = localStorage.getItem('animationsEnabled')
+        return saved !== 'false' // Default to true
+    })
+    
+    const [reducedMotion, setReducedMotion] = useState(() => {
+        const saved = localStorage.getItem('reducedMotion')
+        return saved === 'true'
+    })
+    
+    const [highContrast, setHighContrast] = useState(() => {
+        const saved = localStorage.getItem('highContrast')
+        return saved === 'true'
+    })
+    
+    const [focusVisible, setFocusVisible] = useState(() => {
+        const saved = localStorage.getItem('focusVisible')
+        return saved !== 'false' // Default to true
+    })
+    
+    const [performanceMode, setPerformanceMode] = useState(() => {
+        const saved = localStorage.getItem('performanceMode')
+        return saved === 'true'
+    })
     const [isShareModalOpen, setIsShareModalOpen] = useState(false)
     const [collaborators, setCollaborators] = useState([])
     const [fetchingCollaborators, setFetchingCollaborators] = useState(false)
@@ -55,9 +102,33 @@ const SettingsPage = ({ onBack }) => {
     const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false)
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
-    const [showHelpCenter, setShowHelpCenter] = useState(false)
     const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
     const [pendingRemoval, setPendingRemoval] = useState(null)
+    
+    // Apply accessibility settings
+    useEffect(() => {
+        localStorage.setItem('animationsEnabled', String(animationsEnabled))
+        localStorage.setItem('reducedMotion', String(reducedMotion))
+        localStorage.setItem('highContrast', String(highContrast))
+        localStorage.setItem('focusVisible', String(focusVisible))
+        localStorage.setItem('performanceMode', String(performanceMode))
+        
+        // Apply to document
+        document.documentElement.classList.toggle('animations-disabled', !animationsEnabled)
+        document.documentElement.classList.toggle('reduced-motion', reducedMotion)
+        document.documentElement.classList.toggle('high-contrast', highContrast)
+        document.documentElement.classList.toggle('focus-visible', focusVisible)
+        document.documentElement.classList.toggle('performance-mode', performanceMode)
+        
+        // Add custom CSS for performance mode
+        if (performanceMode) {
+            document.documentElement.style.setProperty('--transition-duration', '0ms')
+            document.documentElement.style.setProperty('--animation-duration', '0ms')
+        } else {
+            document.documentElement.style.setProperty('--transition-duration', '')
+            document.documentElement.style.setProperty('--animation-duration', '')
+        }
+    }, [animationsEnabled, reducedMotion, highContrast, focusVisible, performanceMode])
     const [removeDelay, setRemoveDelay] = useState(0)
     const [isRemovingCollaborator, setIsRemovingCollaborator] = useState(false)
     const [isExportingCollaborator, setIsExportingCollaborator] = useState(false)
@@ -201,6 +272,8 @@ const SettingsPage = ({ onBack }) => {
                 return `${members?.length || 0} members`
             case 'appearance':
                 return themeMode === 'system' ? 'Auto' : themeMode === 'dark' ? 'Dark' : 'Light'
+            case 'accessibility':
+                return performanceMode ? 'Performance Mode' : animationsEnabled ? 'Animations On' : 'Reduced'
             case 'help':
                 return 'Get help & support'
             case 'danger':
@@ -576,27 +649,7 @@ const SettingsPage = ({ onBack }) => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datsar looks</p>
             </div>
 
-            {/* General Interface Settings */}
-            <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Interface</h4>
-                <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
-                    <div>
-                        <span className="block text-sm font-medium text-gray-900 dark:text-white">Command Menu</span>
-                        <span className="block text-xs text-gray-500 dark:text-gray-400">
-                            Press {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'} + K to open quick menu
-                        </span>
-                    </div>
-                    <button
-                        onClick={() => setCommandKEnabled(!commandKEnabled)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${commandKEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
-                    >
-                        <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${commandKEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                        />
-                    </button>
-                </div>
-            </div>
-
+            
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
@@ -644,102 +697,295 @@ const SettingsPage = ({ onBack }) => {
 
                 </div>
             </div>
+        </div>
+    )
 
-            {/* Font Size */}
-            <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Font Size</h4>
-                <div className="space-y-3">
-                    <div className="pt-2 pb-6"> {/* Added padding for ticks/labels */}
-                        <div className="flex items-center gap-4">
-                            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">A</span>
-                            <div className="relative flex-1 h-8 flex items-center">
-                                {/* Track and Ticks Container */}
-                                <div className="absolute left-0 right-0 h-0.5 bg-gray-300 dark:bg-gray-600 rounded flex justify-between items-center mx-[10px]">
-                                    {[14, 16, 18, 20, 22, 24].map((mark) => (
-                                        <div
-                                            key={mark}
-                                            className={`w-0.5 h-2 ${mark === 16 ? 'h-3 bg-gray-400 dark:bg-gray-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                                        />
-                                    ))}
-                                </div>
+    const renderAccessibilitySection = () => (
+        <div className="space-y-6">
+            <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Accessibility</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Performance and accessibility settings</p>
+            </div>
 
-                                <input
-                                    type="range"
-                                    min="14"
-                                    max="24"
-                                    step="1" // Step 1 to allow selecting intermediate values too, though ticks are every 2
-                                    value={fontSize}
-                                    onChange={(e) => setFontSize(e.target.value)}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" // Invisible input on top
-                                    aria-label="Font Size"
-                                />
-
-                                {/* Custom Thumb (Visual Only - tracks input value) */}
-                                {/* Note: We are using the native slider styled in CSS with 'slider' class instead of a fully custom thumb div to ensure accessible interaction. 
-                                However, to match the "ticks behind line" look perfectly, we might need the input to be transparent and render our own thumb. 
-                                Let's try standard styling first with the new CSS. 
-                                Actually, the user wants the Reference Look: Line with ticks. 
-                                The CSS I updated targets .slider. Let's use that but we need to remove the inline style background.
-                            */}
-                                <input
-                                    type="range"
-                                    min="14"
-                                    max="24"
-                                    step="1"
-                                    value={fontSize}
-                                    onChange={(e) => setFontSize(e.target.value)}
-                                    className="w-full h-full absolute z-20 opacity-100 bg-transparent slider appearance-none" // bg-transparent is key
-                                />
-                            </div>
-                            <span className="text-lg font-medium text-gray-500 dark:text-gray-400">A</span>
+            {/* Performance Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Zap className="w-5 h-5 text-yellow-500" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Performance</h4>
+                </div>
+                
+                <div className="space-y-4">
+                    {/* Performance Mode */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">Performance Mode</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Disable all animations for maximum speed</p>
                         </div>
-
-                        {/* "Default" Label */}
-                        <div className="relative h-6 mt-1">
-                            {parseInt(fontSize) === 16 && (
-                                <div className="absolute left-1/2 transform -translate-x-1/2 text-xs text-gray-500 dark:text-gray-400 font-medium transition-opacity">
-                                    Default
-                                </div>
-                            )}
-                            <div className="absolute left-1/2 transform -translate-x-1/2 top-0 -mt-8 pointer-events-none">
-                                {/* Center tick alignment helper if needed */}
-                            </div>
+                        <button
+                            onClick={() => setPerformanceMode(!performanceMode)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                performanceMode ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    performanceMode ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    
+                    {/* Animations Toggle */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">Animations</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Enable visual animations and transitions</p>
+                        </div>
+                        <button
+                            onClick={() => setAnimationsEnabled(!animationsEnabled)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                animationsEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    animationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    
+                    {/* Reduced Motion */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">Reduced Motion</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Minimize animations for users with motion sensitivity</p>
+                        </div>
+                        <button
+                            onClick={() => setReducedMotion(!reducedMotion)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                reducedMotion ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    reducedMotion ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Visual Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Eye className="w-5 h-5 text-blue-500" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Visual</h4>
+                </div>
+                
+                <div className="space-y-4">
+                    {/* High Contrast */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">High Contrast</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Increase contrast for better visibility</p>
+                        </div>
+                        <button
+                            onClick={() => setHighContrast(!highContrast)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                highContrast ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    highContrast ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    
+                    {/* Focus Visible */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">Focus Indicators</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Show clear focus outlines for keyboard navigation</p>
+                        </div>
+                        <button
+                            onClick={() => setFocusVisible(!focusVisible)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                focusVisible ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    focusVisible ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Command Menu Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Zap className="w-5 h-5 text-green-500" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Command Menu</h4>
+                </div>
+                
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="font-medium text-gray-900 dark:text-white">Enable Command Menu</label>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Press {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'} + K to open quick navigation
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setCommandKEnabled(!commandKEnabled)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                commandKEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    commandKEnabled ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    
+                    {commandKEnabled && (
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-1">💡 Pro Tip</p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                                Use Command Menu to quickly navigate to any page, search members, or access settings without clicking through menus.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            {/* Typography Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Monitor className="w-5 h-5 text-purple-500" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Typography</h4>
+                </div>
+                
+                <div className="space-y-4">
+                    {/* Font Size */}
+                    <div>
+                        <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Size</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                            {[
+                                { label: 'Small', value: '14' },
+                                { label: 'Medium', value: '16' },
+                                { label: 'Large', value: '18' },
+                                { label: 'Extra Large', value: '20' },
+                                { label: 'XXL', value: '24' }
+                            ].map((size) => (
+                                <button
+                                    key={size.value}
+                                    onClick={() => setFontSize(size.value)}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        fontSize === size.value
+                                            ? 'bg-primary-600 text-white'
+                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    {size.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Font Family */}
+                    <div>
+                        <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Family</label>
+                        <div className="space-y-2">
+                            {[
+                                { value: 'OpenDyslexic', label: 'OpenDyslexic (Default)', description: 'Dyslexia-friendly' },
+                                { value: 'Comic Sans MS, cursive', label: 'Comic Sans', description: 'Dyslexia-friendly' },
+                                { value: 'Verdana, sans-serif', label: 'Verdana', description: 'High readability' },
+                                { value: 'Arial, sans-serif', label: 'Arial', description: 'Clean sans-serif' },
+                                { value: 'system-ui', label: 'System', description: 'OS default' },
+                                { value: 'Georgia, serif', label: 'Georgia', description: 'Serif, readable' },
+                                { value: 'Courier New, monospace', label: 'Courier New', description: 'Monospace' }
+                            ].map((font) => (
+                                <button
+                                    key={font.value}
+                                    onClick={() => setFontFamily(font.value)}
+                                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                                        fontFamily === font.value
+                                            ? 'bg-primary-600 text-white'
+                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    }`}
+                                    style={{ fontFamily: font.value }}
+                                >
+                                    {font.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* Font Family */}
-            <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Font Family</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                    {[
-                        { value: 'Inter', label: 'Inter', description: 'Modern sans-serif' },
-                        { value: 'system-ui', label: 'System', description: 'OS default' },
-                        { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'SF Pro', description: 'Apple-style' },
-                        { value: 'Roboto, "Helvetica Neue", Arial, sans-serif', label: 'Roboto', description: 'Material Design' },
-                        { value: '"Merriweather", Georgia, serif', label: 'Merriweather', description: 'Serif, readable' },
-                        { value: 'OpenDyslexicRegular, sans-serif', label: 'Dyslexic', description: 'Dyslexia friendly' }
-                    ].map((font) => (
-                        <button
-                            key={font.value}
-                            onClick={() => setFontFamily(font.value)}
-                            className={`p-3 rounded-lg border-2 transition-all text-left ${fontFamily === font.value
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            <div className="font-medium text-gray-900 dark:text-white text-sm" style={{ fontFamily: font.value }}>
-                                {font.label}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                {font.description}
-                            </div>
-                            {fontFamily === font.value && (
-                                <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-1" />
-                            )}
-                        </button>
-                    ))}
+            
+            {/* Quick Actions */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                        onClick={() => {
+                            setPerformanceMode(true)
+                            setAnimationsEnabled(false)
+                            setReducedMotion(true)
+                        }}
+                        className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Zap className="w-4 h-4" />
+                        Maximum Performance
+                    </button>
+                    <button
+                        onClick={() => {
+                            setPerformanceMode(false)
+                            setAnimationsEnabled(true)
+                            setReducedMotion(false)
+                            setHighContrast(false)
+                        }}
+                        className="px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        Full Animations
+                    </button>
+                    <button
+                        onClick={() => {
+                            setHighContrast(true)
+                            setFontSize('20')
+                            setFocusVisible(true)
+                        }}
+                        className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Eye className="w-4 h-4" />
+                        High Visibility
+                    </button>
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('animationsEnabled')
+                            localStorage.removeItem('reducedMotion')
+                            localStorage.removeItem('highContrast')
+                            localStorage.removeItem('focusVisible')
+                            localStorage.removeItem('performanceMode')
+                            localStorage.removeItem('fontSize')
+                            localStorage.removeItem('fontFamily')
+                            window.location.reload()
+                        }}
+                        className="px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        Reset All Settings
+                    </button>
                 </div>
             </div>
         </div>
@@ -782,6 +1028,7 @@ const SettingsPage = ({ onBack }) => {
             case 'team': return renderTeamSection()
             case 'data': return renderDataSection()
             case 'appearance': return renderAppearanceSection()
+            case 'accessibility': return renderAccessibilitySection()
             case 'activity': return <ActivityLogViewer />
             case 'danger': return renderDangerSection()
             default: return renderAccountSection()
@@ -829,8 +1076,16 @@ const SettingsPage = ({ onBack }) => {
             label: 'Appearance',
             icon: Palette,
             color: 'pink',
-            content: 'Customize theme, font size, font family, colors, and display settings. Switch between dark and light modes, adjust text size for better readability, and choose your preferred font style.',
-            keywords: 'theme dark light font size style colors display visual text readability'
+            content: 'Customize theme, colors, and display settings. Switch between dark and light modes, adjust visual preferences, and personalize your interface.',
+            keywords: 'theme dark light colors display visual interface'
+        },
+        {
+            id: 'accessibility',
+            label: 'Accessibility',
+            icon: Zap,
+            color: 'yellow',
+            content: 'Performance and accessibility settings. Control animations, reduce motion, adjust font size and family, enable high contrast mode, and optimize for screen readers and keyboard navigation.',
+            keywords: 'accessibility performance animations reduced motion font size high contrast focus keyboard screen reader'
         },
         {
             id: 'help',
@@ -1117,8 +1372,8 @@ const SettingsPage = ({ onBack }) => {
     const renderMainList = () => (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             {/* Header */}
-            <div className="sticky top-0 z-10 w-full bg-gray-50 dark:bg-gray-900">
-                <div className="max-w-4xl mx-auto w-full px-4 py-4 flex items-center gap-4">
+            <div className="fixed top-[40px] md:top-[48px] left-0 right-0 z-50 w-full bg-gray-100/95 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm">
+                <div className="max-w-4xl mx-auto w-full px-4 py-4 flex items-center gap-4 font-[var(--font-family)]">
                     <button
                         onClick={onBack}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -1129,7 +1384,7 @@ const SettingsPage = ({ onBack }) => {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4 space-y-3">
+            <div className="max-w-4xl mx-auto px-4 pt-[116px] md:pt-[132px] space-y-3">
                 {/* Search Bar */}
                 <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
                     <div className="relative">
@@ -1335,8 +1590,8 @@ const SettingsPage = ({ onBack }) => {
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
                 {/* Sticky Header - stays visible when scrolling */}
-                <div className="sticky top-0 z-20 w-full bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-transparent [&:not(:first-child)]:border-gray-200 dark:[&:not(:first-child)]:border-gray-700 shadow-sm">
-                    <div className="max-w-4xl mx-auto w-full px-4 py-3">
+                <div className="fixed top-[40px] md:top-[48px] left-0 right-0 z-50 w-full bg-gray-100/95 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div className="max-w-4xl mx-auto w-full px-4 py-3 font-[var(--font-family)]">
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setActiveSection(null)}
@@ -1354,7 +1609,7 @@ const SettingsPage = ({ onBack }) => {
                     </div>
                 </div>
 
-                <div className="max-w-4xl mx-auto px-4 py-4 space-y-4">
+                <div className="max-w-4xl mx-auto px-4 pt-[100px] md:pt-[116px] pb-4 space-y-4">
                     {renderContent()}
                 </div>
             </div>

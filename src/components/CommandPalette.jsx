@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, UserPlus, Settings, Moon, Sun, Download, Home, X, Users, LogOut } from 'lucide-react'
+import { Search, UserPlus, Settings, Moon, Sun, Download, Home, X, Users, LogOut, Zap, Eye, Monitor, Palette, Building2, Database, TrendingUp, HelpCircle, AlertTriangle } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -40,58 +40,186 @@ const CommandPalette = ({ setCurrentView, onAddMember }) => {
     }, [isOpen])
 
     const actions = [
-        {
-            id: 'add-member',
-            label: 'Add New Member',
-            icon: UserPlus,
-            shortcut: 'A',
-            action: () => {
-                // Open Add Member Modal
-                if (onAddMember) onAddMember()
-                setIsOpen(false)
-            }
-        },
+        // Navigation Actions
         {
             id: 'dashboard',
             label: 'Go to Dashboard',
             icon: Home,
-            action: () => setCurrentView('dashboard')
-        },
-        {
-            id: 'settings',
-            label: 'Settings',
-            icon: Settings,
-            action: () => setCurrentView('settings')
+            category: 'navigation',
+            shortcut: 'D',
+            action: () => {
+                setCurrentView('dashboard')
+                setIsOpen(false)
+            }
         },
         {
             id: 'analytics',
             label: 'View Analytics',
-            icon: Users,
-            action: () => setCurrentView('analytics')
-        },
-        {
-            id: 'theme',
-            label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-            icon: isDarkMode ? Sun : Moon,
-            action: () => toggleTheme()
+            icon: TrendingUp,
+            category: 'navigation',
+            shortcut: 'A',
+            action: () => {
+                setCurrentView('analytics')
+                setIsOpen(false)
+            }
         },
         {
             id: 'admin',
             label: 'Admin Panel',
             icon: Users,
-            action: () => setCurrentView('admin')
+            category: 'navigation',
+            shortcut: 'M',
+            action: () => {
+                setCurrentView('admin')
+                setIsOpen(false)
+            }
         },
+        
+        // Settings Actions
+        {
+            id: 'settings',
+            label: 'Open Settings',
+            icon: Settings,
+            category: 'settings',
+            shortcut: 'S',
+            action: () => {
+                setCurrentView('settings')
+                setIsOpen(false)
+            }
+        },
+        {
+            id: 'settings-appearance',
+            label: 'Settings → Appearance',
+            icon: Palette,
+            category: 'settings',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the appearance section
+                setIsOpen(false)
+            }
+        },
+        {
+            id: 'settings-accessibility',
+            label: 'Settings → Accessibility',
+            icon: Zap,
+            category: 'settings',
+            shortcut: 'K',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the accessibility section
+                setIsOpen(false)
+            }
+        },
+        {
+            id: 'settings-workspace',
+            label: 'Settings → Workspace',
+            icon: Building2,
+            category: 'settings',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the workspace section
+                setIsOpen(false)
+            }
+        },
+        {
+            id: 'settings-data',
+            label: 'Settings → Data Management',
+            icon: Database,
+            category: 'settings',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the data section
+                setIsOpen(false)
+            }
+        },
+        
+        // Quick Actions
+        {
+            id: 'add-member',
+            label: 'Add New Member',
+            icon: UserPlus,
+            category: 'actions',
+            shortcut: 'N',
+            action: () => {
+                if (onAddMember) onAddMember()
+                setIsOpen(false)
+            }
+        },
+        {
+            id: 'export-data',
+            label: 'Export Data',
+            icon: Download,
+            category: 'actions',
+            shortcut: 'E',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the data section
+                setIsOpen(false)
+            }
+        },
+        
+        // Theme Actions
+        {
+            id: 'theme',
+            label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+            icon: isDarkMode ? Sun : Moon,
+            category: 'theme',
+            shortcut: 'T',
+            action: () => {
+                toggleTheme()
+                setIsOpen(false)
+            }
+        },
+        
+        // Help Actions
+        {
+            id: 'help',
+            label: 'Help Center',
+            icon: HelpCircle,
+            category: 'help',
+            shortcut: 'H',
+            action: () => {
+                setCurrentView('settings')
+                // In a real app, you'd pass a parameter to open the help section
+                setIsOpen(false)
+            }
+        },
+        
+        // Account Actions
         {
             id: 'logout',
             label: 'Log Out',
             icon: LogOut,
-            action: () => signOut()
+            category: 'account',
+            shortcut: 'L',
+            action: () => {
+                signOut()
+                setIsOpen(false)
+            }
         }
     ]
 
     const filteredActions = actions.filter(action =>
         action.label.toLowerCase().includes(query.toLowerCase())
     )
+    
+    // Group actions by category
+    const groupedActions = filteredActions.reduce((groups, action) => {
+        if (!groups[action.category]) {
+            groups[action.category] = []
+        }
+        groups[action.category].push(action)
+        return groups
+    }, {})
+    
+    const categoryTitles = {
+        navigation: 'Navigation',
+        settings: 'Settings',
+        actions: 'Quick Actions',
+        theme: 'Theme',
+        help: 'Help',
+        account: 'Account'
+    }
 
     const handleSelect = (action) => {
         action.action()
@@ -154,41 +282,54 @@ const CommandPalette = ({ setCurrentView, onAddMember }) => {
                         </div>
                     ) : (
                         <div className="px-2">
-                            <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 py-2 mb-1">
-                                Suggestions
-                            </div>
-                            {filteredActions.map((action, index) => (
-                                <button
-                                    key={action.id}
-                                    onClick={() => handleSelect(action)}
-                                    onMouseEnter={() => setSelectedIndex(index)}
-                                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left
-                    ${index === selectedIndex
-                                            ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <action.icon className={`w-5 h-5 ${index === selectedIndex ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`} />
-                                        <span className="font-medium">{action.label}</span>
+                            {Object.entries(groupedActions).map(([category, categoryActions], categoryIndex) => {
+                                const categoryStartIndex = Object.values(groupedActions)
+                                    .slice(0, categoryIndex)
+                                    .reduce((sum, actions) => sum + actions.length, 0)
+                                
+                                return (
+                                    <div key={category} className="mb-4">
+                                        <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 py-2">
+                                            {categoryTitles[category] || category}
+                                        </div>
+                                        {categoryActions.map((action, index) => {
+                                            const globalIndex = categoryStartIndex + index
+                                            return (
+                                                <button
+                                                    key={action.id}
+                                                    onClick={() => handleSelect(action)}
+                                                    onMouseEnter={() => setSelectedIndex(globalIndex)}
+                                                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-colors text-left
+                            ${globalIndex === selectedIndex
+                                                            ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                                                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <action.icon className={`w-5 h-5 ${globalIndex === selectedIndex ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`} />
+                                                        <span className="font-medium">{action.label}</span>
+                                                    </div>
+                                                    {action.shortcut && (
+                                                        <span className={`text-xs px-1.5 py-0.5 rounded border
+                              ${globalIndex === selectedIndex
+                                                            ? 'bg-white dark:bg-gray-800 border-primary-200 dark:border-primary-800 text-primary-600 dark:text-primary-400'
+                                                            : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500'
+                                                        }`}>
+                                                            {action.shortcut}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            )
+                                        })}
                                     </div>
-                                    {action.shortcut && (
-                                        <span className={`text-xs px-1.5 py-0.5 rounded border
-                      ${index === selectedIndex
-                                                ? 'bg-white dark:bg-gray-800 border-primary-200 dark:border-primary-800 text-primary-600 dark:text-primary-400'
-                                                : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500'
-                                            }`}>
-                                            {action.shortcut}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
 
                 <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 flex justify-between">
-                    <span>Pro tip: Use arrow keys to navigate</span>
+                    <span>Use arrow keys to navigate • Type letters to jump to actions</span>
                     <span>DatSer v1.2</span>
                 </div>
             </div>

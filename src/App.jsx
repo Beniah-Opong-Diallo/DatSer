@@ -131,7 +131,8 @@ function AppContent({ isMobile }) {
             <SettingsPage onBack={() => setCurrentView('dashboard')} />
           </Suspense>
         )}
-      </main>
+
+              </main>
 
       {/* Lazy-loaded modals - only render when open */}
       {showMemberModal && (
