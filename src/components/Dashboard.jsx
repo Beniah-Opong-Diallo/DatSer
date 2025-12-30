@@ -90,6 +90,16 @@ const Dashboard = ({ isAdmin = false }) => {
   const [ministryFilter, setMinistryFilter] = useState(null)
   const [visitorFilter, setVisitorFilter] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [isClosingFilters, setIsClosingFilters] = useState(false)
+
+  // Handle filter closing with animation
+  const closeFilters = () => {
+    setIsClosingFilters(true)
+    setTimeout(() => {
+      setShowFilters(false)
+      setIsClosingFilters(false)
+    }, 300)
+  }
 
   // Available filter options
   const levels = ['SHS1', 'SHS2', 'SHS3', 'JHS1', 'JHS2', 'JHS3', 'COMPLETED', 'UNIVERSITY']
@@ -2377,18 +2387,20 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Filter Modal */}
-      {showFilters && (
+      {(showFilters || isClosingFilters) && (
         <div 
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-          onKeyDown={(e) => e.key === 'Escape' && setShowFilters(false)}
+          onKeyDown={(e) => e.key === 'Escape' && closeFilters()}
         >
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowFilters(false)}
+            onClick={closeFilters}
           />
           {/* Filter Panel */}
-          <div className="relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden animate-slide-up">
+          <div className={`relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden ${
+            isClosingFilters ? 'filter-exit' : 'filter-enter'
+          }`}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -2396,7 +2408,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 Filter Members
               </h3>
               <button
-                onClick={() => setShowFilters(false)}
+                onClick={closeFilters}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -2508,7 +2520,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 Clear All
               </button>
               <button
-                onClick={() => setShowFilters(false)}
+                onClick={closeFilters}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 shadow-md transition-colors"
               >
                 Apply Filters

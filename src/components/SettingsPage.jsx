@@ -25,7 +25,8 @@ import {
     HelpCircle,
     ChevronDown,
     X,
-    Loader2
+    Loader2,
+    Search
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -61,6 +62,7 @@ const SettingsPage = ({ onBack }) => {
     const removeTimerRef = useRef(null)
     const removeCountdownRef = useRef(null)
     const [removeCountdownMs, setRemoveCountdownMs] = useState(0)
+    const [searchQuery, setSearchQuery] = useState('')
 
     // Fetch collaborators for Team section display
     useEffect(() => {
@@ -444,13 +446,12 @@ const SettingsPage = ({ onBack }) => {
                                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                                         {collaborator.email}
                                     </p>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                        collaborator.status === 'accepted'
-                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                            : collaborator.status === 'rejected'
-                                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                    }`}>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${collaborator.status === 'accepted'
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                        : collaborator.status === 'rejected'
+                                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                            : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                        }`}>
                                         {collaborator.status === 'accepted' ? 'Accepted' : collaborator.status === 'rejected' ? 'Rejected' : 'Pending'}
                                     </span>
                                 </div>
@@ -576,60 +577,48 @@ const SettingsPage = ({ onBack }) => {
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
-                    <button
-                        onClick={() => setThemeMode('light')}
-                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'light'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                            }`}
-                    >
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                <Sun className="w-6 h-6 text-yellow-500" />
-                            </div>
-                            <span className="font-medium text-gray-900 dark:text-white">Light</span>
-                            {themeMode === 'light' && (
-                                <CheckCircle className="w-5 h-5 text-blue-600" />
-                            )}
-                        </div>
-                    </button>
-
-                    <button
-                        onClick={() => setThemeMode('dark')}
-                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'dark'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                            }`}
-                    >
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="p-3 bg-gray-800 border border-gray-700 rounded-lg shadow-sm">
-                                <Moon className="w-6 h-6 text-blue-400" />
-                            </div>
-                            <span className="font-medium text-gray-900 dark:text-white">Dark</span>
-                            {themeMode === 'dark' && (
-                                <CheckCircle className="w-5 h-5 text-blue-400" />
-                            )}
-                        </div>
-                    </button>
-
+                <div className="grid grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
+                    {/* System Mode (Custom Slash) */}
                     <button
                         onClick={() => setThemeMode('system')}
-                        className={`p-4 rounded-xl border-2 transition-all ${themeMode === 'system'
+                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${themeMode === 'system'
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
                             }`}
                     >
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="p-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm">
-                                <Laptop className="w-6 h-6 text-purple-500" />
-                            </div>
-                            <span className="font-medium text-gray-900 dark:text-white">Auto</span>
-                            {themeMode === 'system' && (
-                                <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            )}
-                        </div>
+                        <div
+                            className="w-16 h-16 rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+                            style={{
+                                background: 'linear-gradient(135deg, #ffffff 50%, #111827 50%)'
+                            }}
+                        />
+                        <span className={`text-sm font-medium ${themeMode === 'system' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>System mode</span>
                     </button>
+
+                    {/* Dark Mode (Black) */}
+                    <button
+                        onClick={() => setThemeMode('dark')}
+                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${themeMode === 'dark'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
+                            }`}
+                    >
+                        <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-700 shadow-sm" />
+                        <span className={`text-sm font-medium ${themeMode === 'dark' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>Dark mode</span>
+                    </button>
+
+                    {/* Light Mode (White) */}
+                    <button
+                        onClick={() => setThemeMode('light')}
+                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${themeMode === 'light'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
+                            }`}
+                    >
+                        <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm" />
+                        <span className={`text-sm font-medium ${themeMode === 'light' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>Light mode</span>
+                    </button>
+
                 </div>
             </div>
 
@@ -637,25 +626,62 @@ const SettingsPage = ({ onBack }) => {
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Font Size</h4>
                 <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[40px]">Small</span>
-                        <input
-                            type="range"
-                            min="14"
-                            max="20"
-                            value={fontSize}
-                            onChange={(e) => setFontSize(e.target.value)}
-                            className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                            style={{
-                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((fontSize - 14) / 6) * 100}%, #e5e7eb ${((fontSize - 14) / 6) * 100}%, #e5e7eb 100%)`
-                            }}
-                        />
-                        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[40px] text-right">Large</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>14px</span>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{fontSize}px</span>
-                        <span>20px</span>
+                    <div className="pt-2 pb-6"> {/* Added padding for ticks/labels */}
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">A</span>
+                            <div className="relative flex-1 h-8 flex items-center">
+                                {/* Track and Ticks Container */}
+                                <div className="absolute left-0 right-0 h-0.5 bg-gray-300 dark:bg-gray-600 rounded flex justify-between items-center mx-[10px]">
+                                    {[14, 16, 18, 20, 22, 24].map((mark) => (
+                                        <div
+                                            key={mark}
+                                            className={`w-0.5 h-2 ${mark === 16 ? 'h-3 bg-gray-400 dark:bg-gray-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                        />
+                                    ))}
+                                </div>
+
+                                <input
+                                    type="range"
+                                    min="14"
+                                    max="24"
+                                    step="1" // Step 1 to allow selecting intermediate values too, though ticks are every 2
+                                    value={fontSize}
+                                    onChange={(e) => setFontSize(e.target.value)}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" // Invisible input on top
+                                    aria-label="Font Size"
+                                />
+
+                                {/* Custom Thumb (Visual Only - tracks input value) */}
+                                {/* Note: We are using the native slider styled in CSS with 'slider' class instead of a fully custom thumb div to ensure accessible interaction. 
+                                However, to match the "ticks behind line" look perfectly, we might need the input to be transparent and render our own thumb. 
+                                Let's try standard styling first with the new CSS. 
+                                Actually, the user wants the Reference Look: Line with ticks. 
+                                The CSS I updated targets .slider. Let's use that but we need to remove the inline style background.
+                            */}
+                                <input
+                                    type="range"
+                                    min="14"
+                                    max="24"
+                                    step="1"
+                                    value={fontSize}
+                                    onChange={(e) => setFontSize(e.target.value)}
+                                    className="w-full h-full absolute z-20 opacity-100 bg-transparent slider appearance-none" // bg-transparent is key
+                                />
+                            </div>
+                            <span className="text-lg font-medium text-gray-500 dark:text-gray-400">A</span>
+                        </div>
+
+                        {/* "Default" Label */}
+                        <div className="relative h-6 mt-1">
+                            {parseInt(fontSize) === 16 && (
+                                <div className="absolute left-1/2 transform -translate-x-1/2 text-xs text-gray-500 dark:text-gray-400 font-medium transition-opacity">
+                                    Default
+                                </div>
+                            )}
+                            <div className="absolute left-1/2 transform -translate-x-1/2 top-0 -mt-8 pointer-events-none">
+                                {/* Center tick alignment helper if needed */}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -669,16 +695,16 @@ const SettingsPage = ({ onBack }) => {
                         { value: 'system-ui', label: 'System', description: 'OS default' },
                         { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'SF Pro', description: 'Apple-style' },
                         { value: 'Roboto, "Helvetica Neue", Arial, sans-serif', label: 'Roboto', description: 'Material Design' },
-                        { value: '"Merriweather", Georgia, serif', label: 'Merriweather', description: 'Serif, readable' }
+                        { value: '"Merriweather", Georgia, serif', label: 'Merriweather', description: 'Serif, readable' },
+                        { value: 'OpenDyslexicRegular, sans-serif', label: 'Dyslexic', description: 'Dyslexia friendly' }
                     ].map((font) => (
                         <button
                             key={font.value}
                             onClick={() => setFontFamily(font.value)}
-                            className={`p-3 rounded-lg border-2 transition-all text-left ${
-                                fontFamily === font.value
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                            }`}
+                            className={`p-3 rounded-lg border-2 transition-all text-left ${fontFamily === font.value
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <div className="font-medium text-gray-900 dark:text-white text-sm" style={{ fontFamily: font.value }}>
                                 {font.label}
@@ -738,16 +764,282 @@ const SettingsPage = ({ onBack }) => {
         }
     }
 
-    // Section definitions with icons and metadata
+
+
+    // Section definitions with enhanced content for search
     const sections = [
-        { id: 'account', label: 'Account', icon: User, color: 'blue' },
-        { id: 'workspace', label: 'Workspace', icon: Building2, color: 'purple' },
-        { id: 'team', label: 'Team & Sharing', icon: Users, color: 'green' },
-        { id: 'data', label: 'Data Management', icon: Database, color: 'orange' },
-        { id: 'appearance', label: 'Appearance', icon: Palette, color: 'pink' },
-        { id: 'help', label: 'Help Center', icon: HelpCircle, color: 'cyan', highlight: true },
-        { id: 'danger', label: 'Danger Zone', icon: AlertTriangle, color: 'red', danger: true }
+        {
+            id: 'account',
+            label: 'Account',
+            icon: User,
+            color: 'blue',
+            content: 'Manage your profile picture, email address, full name, password, and personal account settings. Update your avatar, change your email, modify your display name, and secure your account with password changes.',
+            keywords: 'profile email avatar name personal information password security login sign in'
+        },
+        {
+            id: 'workspace',
+            label: 'Workspace',
+            icon: Building2,
+            color: 'purple',
+            content: 'Configure your workspace name, organization settings, and ministry information. Set up your church or organization name and manage workspace preferences.',
+            keywords: 'organization company ministry name settings workspace configuration'
+        },
+        {
+            id: 'team',
+            label: 'Team & Sharing',
+            icon: Users,
+            color: 'green',
+            content: 'Add team members, invite collaborators, manage permissions, and control access to your workspace. Share your data with trusted team members and manage user roles.',
+            keywords: 'collaborators sharing access members users permissions invitations team management'
+        },
+        {
+            id: 'data',
+            label: 'Data Management',
+            icon: Database,
+            color: 'orange',
+            content: 'Export member data, import CSV files, backup your information, and manage member databases. Download attendance records, member lists, and save your data securely.',
+            keywords: 'export import backup members data storage csv download upload database'
+        },
+        {
+            id: 'appearance',
+            label: 'Appearance',
+            icon: Palette,
+            color: 'pink',
+            content: 'Customize theme, font size, font family, colors, and display settings. Switch between dark and light modes, adjust text size for better readability, and choose your preferred font style.',
+            keywords: 'theme dark light font size style colors display visual text readability'
+        },
+        {
+            id: 'help',
+            label: 'Help Center',
+            icon: HelpCircle,
+            color: 'cyan',
+            highlight: true,
+            content: 'Get help and support, read documentation, view tutorials, and find answers to frequently asked questions. Learn how to use all features and troubleshoot issues.',
+            keywords: 'support documentation tutorial guide FAQ help instructions getting started'
+        },
+        {
+            id: 'danger',
+            label: 'Danger Zone',
+            icon: AlertTriangle,
+            color: 'red',
+            danger: true,
+            content: 'Delete your account, remove all data, and perform destructive actions. Permanently erase your account and all associated information.',
+            keywords: 'delete remove account danger destructive reset erase data clean slate'
+        }
     ]
+
+    // define all granular searchable items
+    const allSearchableItems = useMemo(() => [
+        // --- Account Section ---
+        {
+            id: 'profile_photo',
+            section: 'account',
+            label: 'Profile Photo',
+            description: 'Change your profile picture',
+            keywords: 'avatar image photo picture upload face',
+            icon: User,
+            action: () => { setActiveSection('account'); setIsPhotoEditorOpen(true) }
+        },
+        {
+            id: 'account_name',
+            section: 'account',
+            label: 'Account Name',
+            description: `Display name: ${user?.user_metadata?.full_name || 'User'}`,
+            keywords: 'name full username display personal info',
+            icon: User,
+            action: () => setActiveSection('account')
+        },
+        {
+            id: 'account_email',
+            section: 'account',
+            label: 'Email Address',
+            description: `Current email: ${user?.email}`,
+            keywords: 'email address mail contact',
+            icon: Mail,
+            action: () => setActiveSection('account')
+        },
+        {
+            id: 'password',
+            section: 'account',
+            label: 'Password',
+            description: 'Change or reset your password',
+            keywords: 'password security reset change login',
+            icon: Lock,
+            action: () => setActiveSection('account')
+        },
+        {
+            id: 'sign_out',
+            section: 'account',
+            label: 'Sign Out',
+            description: 'Log out of your account',
+            keywords: 'logout signout exit leave disconnect',
+            icon: null, // special case, uses red styling
+            isDestructive: true,
+            action: handleSignOut
+        },
+
+        // --- Workspace Section ---
+        {
+            id: 'edit_workspace',
+            section: 'workspace',
+            label: 'Edit Workspace',
+            description: 'Change workspace name and preferences',
+            keywords: 'workspace name organization ministry rename',
+            icon: Building2,
+            action: () => { setActiveSection('workspace'); setIsWorkspaceModalOpen(true) }
+        },
+        {
+            id: 'current_month',
+            section: 'workspace',
+            label: 'Current Month Database',
+            description: `Active: ${currentTable?.replace('_', ' ') || 'None'}`,
+            keywords: 'month database table select switch change',
+            icon: Calendar,
+            action: () => setActiveSection('workspace')
+        },
+        {
+            id: 'workspace_stats',
+            section: 'workspace',
+            label: 'Workspace Stats',
+            description: 'View total members and databases',
+            keywords: 'stats statistics count numbers total',
+            icon: Building2,
+            action: () => setActiveSection('workspace')
+        },
+
+        // --- Team Section ---
+        {
+            id: 'invite_team',
+            section: 'team',
+            label: 'Invite Team Members',
+            description: 'Share access with new collaborators',
+            keywords: 'invite add share team member collaborator friend access',
+            icon: UserPlus,
+            action: () => { setActiveSection('team'); setIsShareModalOpen(true) }
+        },
+        {
+            id: 'manage_team',
+            section: 'team',
+            label: 'Manage Team',
+            description: 'View, manage, and remove collaborators',
+            keywords: 'team list collaborators remove delete permissions roles',
+            icon: Users,
+            action: () => setActiveSection('team')
+        },
+
+        // --- Data Section ---
+        {
+            id: 'export_data',
+            section: 'data',
+            label: 'Export Data',
+            description: 'Download your data as CSV',
+            keywords: 'export download save backup csv excel',
+            icon: Download,
+            action: () => { setActiveSection('data'); setIsExportModalOpen(true) }
+        },
+        {
+            id: 'import_data',
+            section: 'data',
+            label: 'Import Data',
+            description: 'Import members from CSV (Coming Soon)',
+            keywords: 'import upload restore csv add bulk',
+            icon: Upload,
+            action: () => { setActiveSection('data'); toast.info('Import feature coming soon!') }
+        },
+        {
+            id: 'clean_duplicates',
+            section: 'data',
+            label: 'Clean Duplicates',
+            description: 'Find and merge duplicate members',
+            keywords: 'duplicates clean fix merge cleanup',
+            icon: RefreshCw,
+            action: () => { setActiveSection('data'); toast.info('Cleanup duplicates in Dashboard → Duplicates tab') }
+        },
+
+        // --- Appearance Section ---
+        {
+            id: 'theme_light',
+            section: 'appearance',
+            label: 'Light Mode',
+            description: 'Switch to light theme',
+            keywords: 'light day white bright theme',
+            icon: Sun,
+            action: () => { setActiveSection('appearance'); setThemeMode('light') }
+        },
+        {
+            id: 'theme_dark',
+            section: 'appearance',
+            label: 'Dark Mode',
+            description: 'Switch to dark theme',
+            keywords: 'dark night black dim theme',
+            icon: Moon,
+            action: () => { setActiveSection('appearance'); setThemeMode('dark') }
+        },
+        {
+            id: 'theme_auto',
+            section: 'appearance',
+            label: 'Auto Theme',
+            description: 'Sync with system settings',
+            keywords: 'system auto default theme',
+            icon: Laptop,
+            action: () => { setActiveSection('appearance'); setThemeMode('system') }
+        },
+        {
+            id: 'font_size',
+            section: 'appearance',
+            label: 'Font Size',
+            description: `Current size: ${fontSize}px`,
+            keywords: 'font text size bigger smaller large small scale',
+            icon: null, // text icon?
+            action: () => setActiveSection('appearance')
+        },
+        {
+            id: 'font_family',
+            section: 'appearance',
+            label: 'Font Family',
+            description: 'Change text font style',
+            keywords: 'font family style type typography',
+            icon: null,
+            action: () => setActiveSection('appearance')
+        },
+
+        // --- Help & Danger ---
+        {
+            id: 'help_center',
+            section: 'help',
+            label: 'Help Center',
+            description: 'View documentation and support',
+            keywords: 'help support guide docs tutorial manual faq',
+            icon: HelpCircle,
+            action: () => setShowHelpCenter(true)
+        },
+        {
+            id: 'delete_account',
+            section: 'danger',
+            label: 'Delete Account',
+            description: 'Permanently remove your account',
+            keywords: 'delete remove destroy account danger kill',
+            icon: Trash2,
+            isDestructive: true,
+            action: () => setIsDeleteAccountOpen(true)
+        }
+    ], [user, currentTable, fontSize, handleSignOut, setActiveSection])
+
+    // Filter items based on search query
+    const searchResults = useMemo(() => {
+        if (!searchQuery.trim()) return []
+
+        const query = searchQuery.toLowerCase().trim()
+
+        return allSearchableItems.filter(item => {
+            // Check direct matches
+            const labelMatch = item.label.toLowerCase().includes(query)
+            const descMatch = item.description.toLowerCase().includes(query)
+            const keywordMatch = item.keywords.toLowerCase().includes(query)
+
+            return labelMatch || descMatch || keywordMatch
+        })
+    }, [searchQuery, allSearchableItems])
 
     const getIconBgColor = (color) => {
         const colors = {
@@ -807,8 +1099,30 @@ const SettingsPage = ({ onBack }) => {
             </div>
 
             <div className="max-w-4xl mx-auto px-4 space-y-3">
-                {/* Profile Card at top */}
+                {/* Search Bar */}
                 <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search settings... (e.g., 'change profile picture', 'make text bigger')"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Profile Card */}
+                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center gap-4">
                         <div className="relative flex-shrink-0">
                             {(() => {
@@ -863,58 +1177,113 @@ const SettingsPage = ({ onBack }) => {
                     <ChevronRight className="w-5 h-5 text-white/70" />
                 </button>
 
-                {/* Settings Sections */}
+                {/* Content Area: Either Search Results or Section List */}
                 <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
-                    {sections.filter(s => s.id !== 'danger').map((section) => {
-                        const Icon = section.icon
-                        return (
-                            <button
-                                key={section.id}
-                                onClick={() => {
-                                    if (section.id === 'help') {
-                                        setShowHelpCenter(true)
-                                    } else {
-                                        setActiveSection(section.id)
-                                    }
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                            >
-                                <div className={`p-2 rounded-lg ${getIconBgColor(section.color)}`}>
-                                    <Icon className={`w-5 h-5 ${getIconColor(section.color)}`} />
+                    {searchQuery ? (
+                        /* Search Results */
+                        searchResults.length > 0 ? (
+                            searchResults.map((item) => {
+                                const Icon = item.icon || Search
+                                const sectionColor = sections.find(s => s.id === item.section)?.color || 'blue'
+
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            item.action()
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left group"
+                                    >
+                                        <div className={`p-2 rounded-lg ${item.isDestructive ? 'bg-red-100 dark:bg-red-900/30' : getIconBgColor(sectionColor)}`}>
+                                            <Icon className={`w-5 h-5 ${item.isDestructive ? 'text-red-600 dark:text-red-400' : getIconColor(sectionColor)}`} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <p className={`font-medium ${item.isDestructive ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                                                    {item.label}
+                                                </p>
+                                                {/* Section Badge */}
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 truncate">
+                                                    {sections.find(s => s.id === item.section)?.label}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+                                                {item.description}
+                                            </p>
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                                    </button>
+                                )
+                            })
+                        ) : (
+                            /* No Results */
+                            <div className="p-8 text-center flex flex-col items-center justify-center">
+                                <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full mb-3">
+                                    <Search className="w-6 h-6 text-gray-400" />
                                 </div>
-                                <div className="flex-1 text-left min-w-0">
-                                    <p className="font-medium text-gray-900 dark:text-white">{section.label}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{getSectionPreview(section.id)}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {section.highlight && (
-                                        <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                                            New
-                                        </span>
-                                    )}
-                                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                                </div>
-                            </button>
+                                <p className="text-gray-900 dark:text-white font-medium mb-1">No settings found</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    No results for "{searchQuery}". Try different keywords.
+                                </p>
+                            </div>
                         )
-                    })}
+                    ) : (
+                        /* Default Section List */
+                        sections.filter(s => s.id !== 'danger').map((section) => {
+                            const Icon = section.icon
+                            return (
+                                <button
+                                    key={section.id}
+                                    onClick={() => {
+                                        if (section.id === 'help') {
+                                            setShowHelpCenter(true)
+                                        } else {
+                                            setActiveSection(section.id)
+                                        }
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
+                                >
+                                    <div className={`p-2 rounded-lg ${getIconBgColor(section.color)}`}>
+                                        <Icon className={`w-5 h-5 ${getIconColor(section.color)}`} />
+                                    </div>
+                                    <div className="flex-1 text-left min-w-0">
+                                        <p className="font-medium text-gray-900 dark:text-white">{section.label}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+                                            {getSectionPreview(section.id)}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {section.highlight && (
+                                            <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                                New
+                                            </span>
+                                        )}
+                                        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                                    </div>
+                                </button>
+                            )
+                        })
+                    )}
                 </div>
 
-                {/* Danger Zone - Separate Card */}
-                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 overflow-hidden mt-4">
-                    <button
-                        onClick={() => setActiveSection('danger')}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
-                    >
-                        <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                        </div>
-                        <div className="flex-1 text-left">
-                            <p className="font-medium text-red-600 dark:text-red-400">Danger Zone</p>
-                            <p className="text-sm text-red-500/70 dark:text-red-400/70">Delete account</p>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-red-400" />
-                    </button>
-                </div>
+                {/* Danger Zone - Separate Card (Only show if no search or if matching) */}
+                {!searchQuery && (
+                    <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 overflow-hidden mt-4">
+                        <button
+                            onClick={() => setActiveSection('danger')}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors group"
+                        >
+                            <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
+                                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="flex-1 text-left">
+                                <p className="font-medium text-red-600 dark:text-red-400">Danger Zone</p>
+                                <p className="text-sm text-red-500/70 dark:text-red-400/70 group-hover:text-red-600 dark:group-hover:text-red-300 transition-colors">Delete account</p>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-red-400 group-hover:text-red-600 transition-colors" />
+                        </button>
+                    </div>
+                )}
 
                 {/* Sign Out Button */}
                 <button
