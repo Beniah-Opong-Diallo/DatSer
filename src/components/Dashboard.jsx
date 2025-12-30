@@ -12,6 +12,7 @@ import MissingDataModal from './MissingDataModal'
 import SelectionToolbar from './SelectionToolbar'
 import { useLongPressSelection } from '../hooks/useLongPressSelection'
 import { toast } from 'react-toastify'
+import TableSkeleton from './TableSkeleton'
 
 // Helper function to get month display name from table name
 const getMonthDisplayName = (tableName) => {
@@ -41,6 +42,7 @@ const Dashboard = ({ isAdmin = false }) => {
     forceRefreshMembersSilent,
     searchMemberAcrossAllTables,
     deleteMember,
+    logActivity,
     markAttendance,
     bulkAttendance,
     fetchAttendanceForDate,
@@ -324,13 +326,13 @@ const Dashboard = ({ isAdmin = false }) => {
   // Auto-Sunday: Find and select current Sunday (if today is Sunday) or most recent past Sunday
   useEffect(() => {
     if (!autoSundayEnabled || sundayDates.length === 0) return
-    
+
     const today = new Date()
     const todayStr = getDateString(today)
     const isTodaySunday = today.getDay() === 0 // 0 = Sunday
-    
+
     let targetSunday = null
-    
+
     // If today is a Sunday and it's in our list, select it
     if (isTodaySunday && sundayDates.includes(todayStr)) {
       targetSunday = todayStr
@@ -342,12 +344,12 @@ const Dashboard = ({ isAdmin = false }) => {
         }
       }
     }
-    
+
     // If no past Sunday found, use the first upcoming Sunday
     if (!targetSunday && sundayDates.length > 0) {
       targetSunday = sundayDates[0]
     }
-    
+
     if (targetSunday && targetSunday !== selectedSundayDate) {
       setSelectedSundayDate(targetSunday)
     }
@@ -424,9 +426,19 @@ const Dashboard = ({ isAdmin = false }) => {
       })
     }
 
-    // When searching, ignore tab filters and show all matching results
+    // When searching, ignore ALL filters (tabs, badges, sidebar) and show all matching results from global members
     if (searchTerm && searchTerm.trim()) {
-      return filteredMembers
+      const lowerTerm = searchTerm.toLowerCase()
+      return members
+        .filter(member => {
+          const name = (member['full_name'] || member['Full Name'] || '').toLowerCase()
+          return name.includes(lowerTerm)
+        })
+        .sort((a, b) => {
+          const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
+          const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
+          return an.localeCompare(bn)
+        })
     }
 
     if (dashboardTab === 'edited') {
@@ -568,6 +580,35 @@ const Dashboard = ({ isAdmin = false }) => {
         } catch (error) {
           console.error('Bulk delete failed:', error)
           toast.error('Failed to delete selected duplicates. Please try again.')
+        }
+      }
+    })
+  }
+
+  // Bulk delete from selection toolbar (Long Press)
+  const handleBulkDelete = () => {
+    if (longPressSelectedIds.size === 0) return
+
+    showConfirmModal({
+      title: "Delete Selected Members",
+      message: `Are you sure you want to delete ${longPressSelectedIds.size} selected member${longPressSelectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`,
+      confirmText: "Delete",
+      confirmButtonClass: "bg-red-600 hover:bg-red-700 text-white",
+      onConfirm: async () => {
+        setIsBulkDeleting(true)
+        try {
+          const idsToDelete = Array.from(longPressSelectedIds)
+          // Sequentially delete members
+          for (const id of idsToDelete) {
+            await deleteMember(id)
+          }
+          toast.success(`Deleted ${idsToDelete.length} member${idsToDelete.length !== 1 ? 's' : ''}`)
+          clearSelection()
+        } catch (error) {
+          console.error('Bulk delete failed:', error)
+          toast.error('Failed to delete some members')
+        } finally {
+          setIsBulkDeleting(false)
         }
       }
     })
@@ -869,9 +910,9 @@ const Dashboard = ({ isAdmin = false }) => {
     }
 
     const sourceMap = attendanceData[selectedSundayDate] || {}
-    
+
     // Filter by selected members if any are selected
-    const idsToTransfer = selectedTransferIds.size > 0 
+    const idsToTransfer = selectedTransferIds.size > 0
       ? Array.from(selectedTransferIds)
       : Object.keys(sourceMap).filter(id => sourceMap[id] === true || sourceMap[id] === false)
 
@@ -911,7 +952,7 @@ const Dashboard = ({ isAdmin = false }) => {
       const sourceLabel = new Date(selectedSundayDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const targetLabel = new Date(transferTargetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       toast.success(`Transferred ${presentIds.length + absentIds.length} records from ${sourceLabel} to ${targetLabel}`)
-      
+
       // Close modal and reset selection
       setShowTransferModal(false)
       setTransferTargetDate(null)
@@ -1008,32 +1049,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
   }
 
-  // Bulk delete selected members
-  const handleBulkDelete = async () => {
-    const memberIds = Array.from(selectedMemberIds)
-    if (memberIds.length === 0) return
 
-    showConfirmModal({
-      title: "Delete Members",
-      message: `Delete ${memberIds.length} selected member${memberIds.length !== 1 ? 's' : ''}? This cannot be undone.`,
-      confirmText: "Delete",
-      onConfirm: async () => {
-        setIsBulkDeleting(true)
-        try {
-          for (const id of memberIds) {
-            await deleteMember(id)
-          }
-          setSelectedMemberIds(new Set())
-          toast.success(`Deleted ${memberIds.length} member${memberIds.length !== 1 ? 's' : ''}.`)
-        } catch (error) {
-          console.error('Bulk delete failed:', error)
-          toast.error('Failed to delete selected members. Please try again.')
-        } finally {
-          setIsBulkDeleting(false)
-        }
-      }
-    })
-  }
 
   const handleBulkBadgeAssignment = async (badgeType) => {
     if (!filteredMembers.length) return
@@ -1135,8 +1151,8 @@ const Dashboard = ({ isAdmin = false }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 mt-8">
+        <TableSkeleton />
       </div>
     )
   }
@@ -1160,11 +1176,10 @@ const Dashboard = ({ isAdmin = false }) => {
               {/* Auto-Sunday Toggle */}
               <button
                 onClick={toggleAutoSunday}
-                className={`text-[11px] sm:text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${
-                  autoSundayEnabled
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
-                }`}
+                className={`text-[11px] sm:text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${autoSundayEnabled
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
+                  }`}
                 title={autoSundayEnabled ? 'Auto-Sunday ON: Will auto-select current Sunday' : 'Auto-Sunday OFF: Manual date selection'}
               >
                 <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${autoSundayEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></span>
@@ -1298,10 +1313,10 @@ const Dashboard = ({ isAdmin = false }) => {
                               presentMembers.map((member, index) => {
                                 const name = member['full_name'] || member['Full Name'] || 'Unknown'
                                 const createdAt = member.created_at || member.inserted_at ? new Date(member.created_at || member.inserted_at) : null
-                                const dateStr = createdAt 
+                                const dateStr = createdAt
                                   ? createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                   : ''
-                                const timeStr = createdAt 
+                                const timeStr = createdAt
                                   ? createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
                                   : ''
                                 return (
@@ -1345,10 +1360,10 @@ const Dashboard = ({ isAdmin = false }) => {
                               absentMembers.map((member, index) => {
                                 const name = member['full_name'] || member['Full Name'] || 'Unknown'
                                 const createdAt = member.created_at || member.inserted_at ? new Date(member.created_at || member.inserted_at) : null
-                                const dateStr = createdAt 
+                                const dateStr = createdAt
                                   ? createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                   : ''
-                                const timeStr = createdAt 
+                                const timeStr = createdAt
                                   ? createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
                                   : ''
                                 return (
@@ -1490,28 +1505,30 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
 
-      {/* Long-Press Selection Toolbar - Outside grid, on its own row */}
+      {/* Fixed Bottom Selection Toolbar */}
       {longPressSelectedIds.size > 0 && (
-        <div className="mt-8 sm:mt-10 mb-4">
-          <SelectionToolbar
-            selectedCount={longPressSelectedIds.size}
-            onPresent={() => handleLongPressBulkAction(true)}
-            onAbsent={() => handleLongPressBulkAction(false)}
-            onCancel={clearSelection}
-            onDelete={handleBulkDelete}
-            onSelectAll={selectAllSundays}
-            onClearDays={clearSundayBulkSelection}
-            sundayDates={sundayDates}
-            selectedSundayDates={selectedBulkSundayDates}
-            onToggleSunday={toggleSundayBulkSelection}
-            isLoading={isBulkApplying || isBulkDeleting}
-            showSundaySelection={dashboardTab === 'edited' && longPressSelectedIds.size > 0}
-          />
+        <div className="fixed bottom-20 left-4 right-4 z-50 flex justify-center pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-full max-w-4xl pointer-events-auto">
+            <SelectionToolbar
+              selectedCount={longPressSelectedIds.size}
+              onPresent={() => handleLongPressBulkAction(true)}
+              onAbsent={() => handleLongPressBulkAction(false)}
+              onCancel={clearSelection}
+              onDelete={handleBulkDelete}
+              onSelectAll={selectAllSundays}
+              onClearDays={clearSundayBulkSelection}
+              sundayDates={sundayDates}
+              selectedSundayDates={selectedBulkSundayDates}
+              onToggleSunday={toggleSundayBulkSelection}
+              isLoading={isBulkApplying || isBulkDeleting}
+              showSundaySelection={dashboardTab === 'edited' && longPressSelectedIds.size > 0}
+            />
+          </div>
         </div>
       )}
 
       {/* Members List */}
-      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-8 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate`}>
+      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-8 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${searchTerm ? '' : 'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate'}`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -1539,7 +1556,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 const isSelected = longPressSelectedIds.has(member.id)
 
                 return (
-                  <div key={member.id} className="relative transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform">
+                  <div key={member.id} className={`relative will-change-transform ${searchTerm ? '' : 'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]'}`}>
                     {/* Selection checkmark */}
                     {isSelected && (
                       <div className="selection-checkmark">
@@ -1607,7 +1624,14 @@ const Dashboard = ({ isAdmin = false }) => {
                         {/* Row 1: Expand toggle row (chevron + name + hint) */}
                         <button
                           type="button"
-                          onClick={() => toggleMemberExpansion(member.id)}
+                          onClick={(e) => {
+                            if (selectionMode) {
+                              e.stopPropagation()
+                              toggleSelection(member.id)
+                            } else {
+                              toggleMemberExpansion(member.id)
+                            }
+                          }}
                           className="w-full flex items-center gap-2 mb-2 text-left hover:bg-primary-50 dark:hover:bg-primary-900/40 rounded px-1 py-1 transition-colors"
                         >
                           <div className="p-1 text-gray-500 dark:text-gray-400 rounded flex-shrink-0 flex items-center justify-center">
@@ -1635,7 +1659,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               else if (diffDays === 1) label = 'Yesterday'
                               else if (diffDays < 7) label = `${diffDays}d ago`
                               else label = regDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                              
+
                               return (
                                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                                   Joined {label}
@@ -1718,9 +1742,9 @@ const Dashboard = ({ isAdmin = false }) => {
                                   <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
                                     <span className="text-gray-500 dark:text-gray-400">Gender</span>
                                     <span className="font-medium capitalize text-gray-900 dark:text-white truncate ml-2">
-                                      {member['Gender']?.toLowerCase() === 'm' || member['Gender']?.toLowerCase() === 'male' ? 'Male' : 
-                                       member['Gender']?.toLowerCase() === 'f' || member['Gender']?.toLowerCase() === 'female' ? 'Female' : 
-                                       member['Gender'] || 'N/A'}
+                                      {member['Gender']?.toLowerCase() === 'm' || member['Gender']?.toLowerCase() === 'male' ? 'Male' :
+                                        member['Gender']?.toLowerCase() === 'f' || member['Gender']?.toLowerCase() === 'female' ? 'Female' :
+                                          member['Gender'] || 'N/A'}
                                     </span>
                                   </div>
                                   <div className="flex justify-between items-center py-1 border-b border-gray-100 dark:border-gray-700/50 last:border-0">
@@ -1754,10 +1778,10 @@ const Dashboard = ({ isAdmin = false }) => {
                                     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
                                     const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
                                     const diffMins = Math.floor(diffMs / (1000 * 60))
-                                    
+
                                     let relativeTime = ''
                                     let badgeColor = 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                    
+
                                     if (diffDays === 0) {
                                       if (diffHours === 0) {
                                         relativeTime = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`
@@ -1796,16 +1820,16 @@ const Dashboard = ({ isAdmin = false }) => {
                                           </div>
                                           <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                              {regDate.toLocaleDateString('en-US', { 
+                                              {regDate.toLocaleDateString('en-US', {
                                                 weekday: 'short',
-                                                month: 'short', 
+                                                month: 'short',
                                                 day: 'numeric',
                                                 year: 'numeric'
                                               })}
                                             </p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                              {regDate.toLocaleTimeString('en-US', { 
-                                                hour: '2-digit', 
+                                              {regDate.toLocaleTimeString('en-US', {
+                                                hour: '2-digit',
                                                 minute: '2-digit'
                                               })}
                                             </p>
@@ -1874,7 +1898,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     <span>Edit Details</span>
                                   </button>
                                 </div>
-                                
+
                                 {/* Notes Section */}
                                 {member.notes && (
                                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -2088,12 +2112,12 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Delete Confirm Modal */}
       {isDeleteConfirmOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
           onClick={() => { setIsDeleteConfirmOpen(false); setMemberToDelete(null) }}
           onKeyDown={(e) => e.key === 'Escape' && (setIsDeleteConfirmOpen(false), setMemberToDelete(null))}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md mx-4 overflow-hidden shadow-2xl border border-gray-200 dark:border-gray-700"
             onClick={(e) => e.stopPropagation()}
           >
@@ -2180,12 +2204,12 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Bulk Transfer Modal */}
       {showTransferModal && selectedSundayDate && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
           onClick={() => { setShowTransferModal(false); setTransferTargetDate(null); setSelectedTransferIds(new Set()) }}
           onKeyDown={(e) => e.key === 'Escape' && (setShowTransferModal(false), setTransferTargetDate(null), setSelectedTransferIds(new Set()))}
         >
-          <div 
+          <div
             className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-lg mx-4 overflow-hidden shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -2284,7 +2308,7 @@ const Dashboard = ({ isAdmin = false }) => {
                       const name = member['full_name'] || member['Full Name'] || 'Unknown'
                       const isPresent = sourceMap[id] === true
                       const isSelected = selectedTransferIds.has(id)
-                      
+
                       // Check if registered today
                       const createdAt = member.created_at || member.inserted_at
                       const regDate = createdAt ? new Date(createdAt) : null
@@ -2303,11 +2327,10 @@ const Dashboard = ({ isAdmin = false }) => {
                           onClick={() => toggleTransferMember(id)}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors text-left ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                         >
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                            isSelected 
-                              ? 'bg-blue-600 border-blue-600' 
-                              : 'border-gray-300 dark:border-gray-500'
-                          }`}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${isSelected
+                            ? 'bg-blue-600 border-blue-600'
+                            : 'border-gray-300 dark:border-gray-500'
+                            }`}>
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -2388,19 +2411,18 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Filter Modal */}
       {(showFilters || isClosingFilters) && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
           onKeyDown={(e) => e.key === 'Escape' && closeFilters()}
         >
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeFilters}
           />
           {/* Filter Panel */}
-          <div className={`relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden ${
-            isClosingFilters ? 'filter-exit' : 'filter-enter'
-          }`}>
+          <div className={`relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden ${isClosingFilters ? 'filter-exit' : 'filter-enter'
+            }`}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -2414,7 +2436,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             {/* Filter Content */}
             <div className="px-5 py-4 space-y-5 overflow-y-auto max-h-[60vh]">
               {/* Gender Filter */}
@@ -2425,11 +2447,10 @@ const Dashboard = ({ isAdmin = false }) => {
                     <button
                       key={g}
                       onClick={() => setGenderFilter(genderFilter === g ? null : g)}
-                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                        genderFilter === g
-                          ? 'bg-primary-600 text-white shadow-md'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
+                      className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${genderFilter === g
+                        ? 'bg-primary-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
                     >
                       {g}
                     </button>
@@ -2445,11 +2466,10 @@ const Dashboard = ({ isAdmin = false }) => {
                     <button
                       key={l}
                       onClick={() => setLevelFilter(levelFilter === l ? null : l)}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                        levelFilter === l
-                          ? 'bg-primary-600 text-white shadow-md'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${levelFilter === l
+                        ? 'bg-primary-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
                     >
                       {l}
                     </button>
@@ -2465,11 +2485,10 @@ const Dashboard = ({ isAdmin = false }) => {
                     <button
                       key={m}
                       onClick={() => setMinistryFilter(ministryFilter === m ? null : m)}
-                      className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${
-                        ministryFilter === m
-                          ? 'bg-primary-600 text-white shadow-md'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
+                      className={`px-3 py-2 rounded-full text-xs font-medium transition-all ${ministryFilter === m
+                        ? 'bg-primary-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
                     >
                       {m}
                     </button>
@@ -2483,21 +2502,19 @@ const Dashboard = ({ isAdmin = false }) => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setVisitorFilter(visitorFilter === false ? null : false)}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      visitorFilter === false
-                        ? 'bg-primary-600 text-white shadow-md'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${visitorFilter === false
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
                   >
                     Members Only
                   </button>
                   <button
                     onClick={() => setVisitorFilter(visitorFilter === true ? null : true)}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      visitorFilter === true
-                        ? 'bg-amber-500 text-white shadow-md'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${visitorFilter === true
+                      ? 'bg-amber-500 text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
                   >
                     Visitors Only
                   </button>
@@ -2557,11 +2574,10 @@ const Dashboard = ({ isAdmin = false }) => {
             {/* Filter Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
-                showFilters || genderFilter || levelFilter || ministryFilter || visitorFilter !== null
-                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${showFilters || genderFilter || levelFilter || ministryFilter || visitorFilter !== null
+                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
               title="Filters"
             >
               <Filter className="w-4 h-4" />

@@ -1,36 +1,64 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { useAuth } from './AuthContext'
 
 const ThemeContext = createContext()
 
 export const useTheme = () => {
   const context = useContext(ThemeContext)
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider')
+  }
   return context
 }
 
 export const ThemeProvider = ({ children }) => {
-  const { user, updatePreference, preferences } = useAuth()
+  const { user, loading, updatePreference, preferences } = useAuth()
 
+  // 1. Theme Mode
   const [themeMode, setThemeMode] = useState(() => {
-    return preferences?.theme_mode || localStorage.getItem('themeMode') || 'system'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('themeMode')
+      if (saved) return saved
+    }
+    return preferences?.theme_mode || 'system'
   })
 
-  const [systemTheme, setSystemTheme] = useState(() =>
-    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  )
+  // 2. Command K (Device-specific)
+  const [commandKEnabled, setCommandKEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('datser_command_k')
+      return saved !== 'false'
+    }
+    return true
+  })
 
+  // 3. System Theme
+  const [systemTheme, setSystemTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+    return 'light'
+  })
+
+  // 4. Font Size
   const [fontSize, setFontSize] = useState(() => {
-    return preferences?.font_size || localStorage.getItem('fontSize') || '16'
+    return preferences?.font_size || (typeof window !== 'undefined' ? localStorage.getItem('fontSize') : null) || '16'
   })
 
+  // 5. Font Family
   const [fontFamily, setFontFamily] = useState(() => {
-    return preferences?.font_family || localStorage.getItem('fontFamily') || 'Inter'
+    return preferences?.font_family || (typeof window !== 'undefined' ? localStorage.getItem('fontFamily') : null) || 'Inter'
   })
 
-  // Track if we've loaded initial prefs to avoid overwriting local changes later
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
+  const isFirstRender = useRef(true)
 
-  // 1. One-way Sync: Only load preferences ONCE when they become available
+  // Track first render
+  useEffect(() => {
+    isFirstRender.current = false
+  }, [])
+
+  // Sync from Backend
   useEffect(() => {
     if (preferences && !preferencesLoaded && user) {
       if (preferences.theme_mode) setThemeMode(preferences.theme_mode)
@@ -40,23 +68,25 @@ export const ThemeProvider = ({ children }) => {
     }
   }, [preferences, preferencesLoaded, user])
 
-  // Reset to defaults when user logs out
+  // Reset on Logout
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       setThemeMode('system')
       setFontSize('16')
       setFontFamily('Inter')
       setPreferencesLoaded(false)
-
-      localStorage.removeItem('themeMode')
-      localStorage.removeItem('fontSize')
-      localStorage.removeItem('fontFamily')
-      localStorage.removeItem('theme')
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('themeMode')
+        localStorage.removeItem('fontSize')
+        localStorage.removeItem('fontFamily')
+        localStorage.removeItem('theme')
+      }
     }
-  }, [user])
+  }, [user, loading])
 
   // System Theme Listener
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const listener = (e) => setSystemTheme(e.matches ? 'dark' : 'light')
     media.addEventListener('change', listener)
@@ -66,65 +96,53 @@ export const ThemeProvider = ({ children }) => {
   const resolvedTheme = themeMode === 'system' ? systemTheme : themeMode
   const isDarkMode = resolvedTheme === 'dark'
 
-  // Ref to track first render to avoid saving defaults
-  const isFirstRender = React.useRef(true)
-  useEffect(() => { isFirstRender.current = false }, [])
-
-  // --- APPLICATION EFFECTS (DOM & LS) ---
-
-  // Apply Theme to DOM
+  // DOM Updates
   useEffect(() => {
+    if (typeof window === 'undefined') return
     localStorage.setItem('themeMode', themeMode)
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    if (isDarkMode) document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light')
   }, [themeMode, isDarkMode])
 
-  // Apply Font Size to DOM
   useEffect(() => {
+    if (typeof window === 'undefined') return
     localStorage.setItem('fontSize', fontSize)
     document.documentElement.style.setProperty('--font-size-base', `${fontSize}px`)
   }, [fontSize])
 
-  // Apply Font Family to DOM
   useEffect(() => {
+    if (typeof window === 'undefined') return
     localStorage.setItem('fontFamily', fontFamily)
     document.documentElement.style.setProperty('--font-family', fontFamily)
   }, [fontFamily])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem('datser_command_k', String(commandKEnabled))
+  }, [commandKEnabled])
 
-  // --- SAVE TO BACKEND EFFECTS (Debounced/Conditional) ---
-
-  // Save Theme Mode (Immediate but guarded)
+  // Backend Saves
   useEffect(() => {
     if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
     updatePreference('theme_mode', themeMode)
   }, [themeMode, updatePreference, user, preferencesLoaded])
 
-  // Save Font Size (Debounced 800ms)
   useEffect(() => {
     if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
-
-    const timer = setTimeout(() => {
-      updatePreference('font_size', fontSize)
-    }, 800)
-
+    const timer = setTimeout(() => updatePreference('font_size', fontSize), 800)
     return () => clearTimeout(timer)
   }, [fontSize, updatePreference, user, preferencesLoaded])
 
-  // Save Font Family (Immediate)
   useEffect(() => {
     if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
     updatePreference('font_family', fontFamily)
   }, [fontFamily, updatePreference, user, preferencesLoaded])
 
   const toggleTheme = () => {
-    // Simple toggle overrides system preference
     setThemeMode((prev) => {
-      // If currently dark (resolved), go to light. Else dark.
+      // Toggle logic relative to current resolved state
+      // If we are currently visually dark (system or manual), go light. Otherwise dark.
       return isDarkMode ? 'light' : 'dark'
     })
   }
@@ -138,7 +156,9 @@ export const ThemeProvider = ({ children }) => {
     fontSize,
     setFontSize,
     fontFamily,
-    setFontFamily
+    setFontFamily,
+    commandKEnabled,
+    setCommandKEnabled
   }
 
   return (
@@ -147,3 +167,5 @@ export const ThemeProvider = ({ children }) => {
     </ThemeContext.Provider>
   )
 }
+
+export default ThemeContext

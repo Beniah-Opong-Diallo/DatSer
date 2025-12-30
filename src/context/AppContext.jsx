@@ -173,7 +173,6 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-
       // Get owner's email for display
       const { data: ownerData } = await supabase
         .from('collaborators')
@@ -192,6 +191,34 @@ export const AppProvider = ({ children }) => {
       return user.id
     }
   }
+
+  // Activity Logging Helper
+  const logActivity = useCallback(async (action, details) => {
+    if (!isSupabaseConfigured() || !user) return
+
+    try {
+      // Determine the owner of the workspace being affected
+      // If I am a collaborator, I am affecting the 'dataOwnerId' workspace
+      // If I am the owner, I am affecting my own workspace (user.id)
+      const targetOwner = isCollaborator ? dataOwnerId : user.id
+
+      if (!targetOwner) {
+        console.warn('Cannot log activity: targetOwner is undefined')
+        return
+      }
+
+      await supabase.from('activity_logs').insert({
+        actor_id: user.id,
+        actor_email: user.email,
+        action,
+        details,
+        target_owner_id: targetOwner
+      })
+    } catch (error) {
+      console.error('Failed to log activity:', error)
+      // Do not throw; logging failure should not break the app
+    }
+  }, [user, isCollaborator, dataOwnerId])
 
   // Fetch members from current monthly table or use mock data
   const fetchMembers = async (tableName = currentTable) => {
@@ -340,6 +367,10 @@ export const AppProvider = ({ children }) => {
 
       setMembers(prev => [data[0], ...prev])
       toast.success(`Member added successfully to ${currentTable}!`)
+
+      // Log the action
+      logActivity('ADD_MEMBER', `Added new member: ${memberData.full_name || memberData.fullName || memberData['Full Name']}`)
+
       // Return the created member row directly
       return data[0]
     } catch (error) {
@@ -696,6 +727,12 @@ export const AppProvider = ({ children }) => {
           })
         }
       }
+
+      // Log the action
+      logActivity(
+        currentlyHasBadge ? 'REMOVE_BADGE' : 'ASSIGN_BADGE',
+        `${currentlyHasBadge ? 'Removed' : 'Assigned'} ${badgeType} badge for ${memberName}`
+      )
 
       return { success: true }
     } catch (error) {
@@ -1340,6 +1377,9 @@ export const AppProvider = ({ children }) => {
       refreshSearch() // Re-run search to update filtered list
       console.log(`Member with ID ${memberId} deleted successfully.`)
       toast.success('Member deleted')
+
+      // Log Activity
+      logActivity('DELETE_MEMBER', `Deleted member ID: ${memberId}`)
     } catch (error) {
       console.error('Error deleting member:', error.message)
       toast.error('Error deleting member: ' + error.message)
@@ -2187,6 +2227,8 @@ export const AppProvider = ({ children }) => {
   }
 
   const value = {
+    checkCollaboratorStatus,
+    logActivity, // Export logging
     updateWorkspaceForAllTables,
     members,
     filteredMembers,

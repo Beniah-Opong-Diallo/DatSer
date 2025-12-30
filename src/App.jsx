@@ -19,6 +19,7 @@ import SettingsPage from './components/SettingsPage'
 import OnboardingWizard from './components/OnboardingWizard'
 import MonthModal from './components/MonthModal'
 import AIChatAssistant from './components/AIChatAssistant'
+import CommandPalette from './components/CommandPalette'
 
 // Context
 import { AppProvider, useApp } from './context/AppContext'
@@ -156,10 +157,15 @@ function AppContent({ isMobile }) {
         onNavigate={handleOnboardingNavigate}
       />
 
-      {/* AI Chat Assistant */}
       <AIChatAssistant
         isOpen={showAIChat}
         onClose={() => setShowAIChat(false)}
+      />
+
+      {/* Global Command Palette */}
+      <CommandPalette
+        setCurrentView={setCurrentView}
+        onAddMember={() => setShowMemberModal(true)}
       />
 
       <ToastContainer

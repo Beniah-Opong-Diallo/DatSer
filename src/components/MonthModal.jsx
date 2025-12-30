@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { X, Calendar, Plus } from 'lucide-react'
@@ -34,18 +34,18 @@ const MonthModal = ({ isOpen, onClose }) => {
   const getSundaysInMonth = (month, year) => {
     const sundays = []
     const date = new Date(year, month - 1, 1)
-    
+
     // Find first Sunday
     while (date.getDay() !== 0) {
       date.setDate(date.getDate() + 1)
     }
-    
+
     // Collect all Sundays in the month
     while (date.getMonth() === month - 1) {
       sundays.push(new Date(date))
       date.setDate(date.getDate() + 7)
     }
-    
+
     return sundays
   }
 
@@ -57,26 +57,26 @@ const MonthModal = ({ isOpen, onClose }) => {
     try {
       const monthName = months.find(m => m.value === parseInt(selectedMonth))?.label
       const sundays = getSundaysInMonth(parseInt(selectedMonth), selectedYear)
-      
+
       await createNewMonth({
         month: parseInt(selectedMonth),
         year: selectedYear,
         monthName,
         sundays
       })
-      
+
       // Reset form and close modal
       setSelectedMonth('')
       setSelectedYear(new Date().getFullYear())
       onClose()
-      
+
       // Success toast handled by createNewMonth
     } catch (error) {
       console.error('Error creating month:', error)
-      
+
       // Show detailed error message
       let errorMessage = 'Error creating month. Please try again.'
-      
+
       if (error.message) {
         errorMessage = `Error creating month: ${error.message}`
       } else if (error.error) {
@@ -84,7 +84,7 @@ const MonthModal = ({ isOpen, onClose }) => {
       } else if (error.details) {
         errorMessage = `Error creating month: ${error.details}`
       }
-      
+
       // Log full error details to console for debugging
       console.error('Full error details:', {
         message: error.message,
@@ -94,21 +94,36 @@ const MonthModal = ({ isOpen, onClose }) => {
         hint: error.hint,
         fullError: error
       })
-      
+
       // Error toast handled by createNewMonth
     } finally {
       setLoading(false)
     }
   }
 
-  if (!isOpen) return null
+  /* Animation Logic */
+  const [isVisible, setIsVisible] = useState(false)
 
-  const previewSundays = selectedMonth && selectedYear ? getSundaysInMonth(parseInt(selectedMonth), selectedYear) : []
+  useEffect(() => {
+    let timeoutId
+    if (isOpen) {
+      setIsVisible(true)
+    } else {
+      timeoutId = setTimeout(() => setIsVisible(false), 200) // Match duration-200
+    }
+    return () => clearTimeout(timeoutId)
+  }, [isOpen])
+
+  if (!isOpen && !isVisible) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div
+      className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 duration-200 
+        ${isOpen ? 'animate-in fade-in' : 'animate-out fade-out'}`}
+    >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-sm sm:max-w-md mx-4 overflow-visible no-scrollbar transition-colors duration-200"
+        className={`bg-white dark:bg-gray-800 rounded-lg w-full max-w-sm sm:max-w-md mx-4 overflow-visible no-scrollbar transition-colors duration-200
+        ${isOpen ? 'animate-in zoom-in-95' : 'animate-out zoom-out-95'}`}
         style={{
           maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem)'
         }}
@@ -174,11 +189,10 @@ const MonthModal = ({ isOpen, onClose }) => {
                           setSelectedMonth(String(month.value))
                           setShowMonthDropdown(false)
                         }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                          isActive
-                            ? 'bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                            : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${isActive
+                          ? 'bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                          : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
                       >
                         {month.label}
                       </button>
@@ -233,11 +247,10 @@ const MonthModal = ({ isOpen, onClose }) => {
                           setSelectedYear(year)
                           setShowYearDropdown(false)
                         }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                          isActive
-                            ? 'bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                            : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
+                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${isActive
+                          ? 'bg-primary-50 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                          : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
                       >
                         {year}
                       </button>
@@ -248,15 +261,17 @@ const MonthModal = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Preview Sundays */}
-          {previewSundays.length > 0 && (
+
+
+          {/* Preview Sundays - Moved logic here to avoid early return issue */}
+          {(selectedMonth && selectedYear && getSundaysInMonth(parseInt(selectedMonth), selectedYear).length > 0) && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Sunday Dates Preview ({previewSundays.length} dates)
+                Sunday Dates Preview ({getSundaysInMonth(parseInt(selectedMonth), selectedYear).length} dates)
               </label>
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 max-h-32 overflow-y-auto transition-colors">
                 <div className="flex flex-wrap gap-2">
-                  {previewSundays.map((sunday, index) => (
+                  {getSundaysInMonth(parseInt(selectedMonth), selectedYear).map((sunday, index) => (
                     <span key={index} className="px-2 py-1 rounded-full text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600">{sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   ))}
                 </div>
@@ -289,8 +304,8 @@ const MonthModal = ({ isOpen, onClose }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </div >
+    </div >
   )
 }
 

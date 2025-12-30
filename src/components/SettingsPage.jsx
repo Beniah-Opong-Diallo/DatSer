@@ -26,7 +26,8 @@ import {
     ChevronDown,
     X,
     Loader2,
-    Search
+    Search,
+    ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -39,10 +40,11 @@ import DeleteAccountModal from './DeleteAccountModal'
 import ExportDataModal from './ExportDataModal'
 import ProfilePhotoEditor from './ProfilePhotoEditor'
 import HelpCenterPage from './HelpCenterPage'
+import ActivityLogViewer from './ActivityLogViewer'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
-    const { isDarkMode, toggleTheme, themeMode, setThemeMode, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme()
+    const { isDarkMode, toggleTheme, themeMode, setThemeMode, fontSize, setFontSize, fontFamily, setFontFamily, commandKEnabled, setCommandKEnabled } = useTheme()
     const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured } = useApp()
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
@@ -67,7 +69,7 @@ const SettingsPage = ({ onBack }) => {
     // Fetch collaborators for Team section display
     useEffect(() => {
         const fetchCollaborators = async () => {
-            if (!user || !isSupabaseConfigured) return
+            if (!user?.id || !isSupabaseConfigured) return
             setFetchingCollaborators(true)
             try {
                 const { data, error } = await supabase
@@ -85,7 +87,7 @@ const SettingsPage = ({ onBack }) => {
             }
         }
         fetchCollaborators()
-    }, [user, isSupabaseConfigured])
+    }, [user?.id, isSupabaseConfigured])
 
     // Refresh collaborators when modal closes
     const handleShareModalClose = async () => {
@@ -574,6 +576,27 @@ const SettingsPage = ({ onBack }) => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datsar looks</p>
             </div>
 
+            {/* General Interface Settings */}
+            <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Interface</h4>
+                <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
+                    <div>
+                        <span className="block text-sm font-medium text-gray-900 dark:text-white">Command Menu</span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">
+                            Press {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'} + K to open quick menu
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => setCommandKEnabled(!commandKEnabled)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${commandKEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                    >
+                        <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${commandKEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                        />
+                    </button>
+                </div>
+            </div>
+
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
@@ -759,6 +782,7 @@ const SettingsPage = ({ onBack }) => {
             case 'team': return renderTeamSection()
             case 'data': return renderDataSection()
             case 'appearance': return renderAppearanceSection()
+            case 'activity': return <ActivityLogViewer />
             case 'danger': return renderDangerSection()
             default: return renderAccountSection()
         }
@@ -813,9 +837,16 @@ const SettingsPage = ({ onBack }) => {
             label: 'Help Center',
             icon: HelpCircle,
             color: 'cyan',
-            highlight: true,
             content: 'Get help and support, read documentation, view tutorials, and find answers to frequently asked questions. Learn how to use all features and troubleshoot issues.',
             keywords: 'support documentation tutorial guide FAQ help instructions getting started'
+        },
+        {
+            id: 'activity',
+            label: 'Activity Log',
+            icon: ClipboardList,
+            color: 'indigo',
+            content: 'View a history of actions taken in your workspace. Monitor member additions, deletions, updates, and other important events.',
+            keywords: 'audit logs history updates tracking activity actions events'
         },
         {
             id: 'danger',
