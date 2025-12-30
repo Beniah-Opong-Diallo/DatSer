@@ -585,32 +585,45 @@ const Dashboard = ({ isAdmin = false }) => {
     })
   }
 
-  // Bulk delete from selection toolbar (Long Press)
+  // Final execution of bulk delete (called from modal)
+  const finalizeBulkDelete = async () => {
+    setIsBulkDeleting(true)
+    try {
+      // Use the current state directly
+      const idsToDelete = Array.from(longPressSelectedIds)
+
+      if (idsToDelete.length === 0) {
+        setIsBulkDeleting(false)
+        return
+      }
+
+      // Sequentially delete members
+      for (const id of idsToDelete) {
+        await deleteMember(id)
+      }
+      toast.success(`Deleted ${idsToDelete.length} member${idsToDelete.length !== 1 ? 's' : ''}`)
+      clearSelection()
+    } catch (error) {
+      console.error('Bulk delete failed:', error)
+      toast.error('Failed to delete some members')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
+  // Bulk delete from selection toolbar (Open Modal)
   const handleBulkDelete = () => {
     if (longPressSelectedIds.size === 0) return
 
-    showConfirmModal({
+    setConfirmModalConfig({
+      isOpen: true,
+      type: 'bulk_delete', // Custom type to render list
       title: "Delete Selected Members",
-      message: `Are you sure you want to delete ${longPressSelectedIds.size} selected member${longPressSelectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`,
+      message: "", // Ignored in favor of custom children
       confirmText: "Delete",
       confirmButtonClass: "bg-red-600 hover:bg-red-700 text-white",
-      onConfirm: async () => {
-        setIsBulkDeleting(true)
-        try {
-          const idsToDelete = Array.from(longPressSelectedIds)
-          // Sequentially delete members
-          for (const id of idsToDelete) {
-            await deleteMember(id)
-          }
-          toast.success(`Deleted ${idsToDelete.length} member${idsToDelete.length !== 1 ? 's' : ''}`)
-          clearSelection()
-        } catch (error) {
-          console.error('Bulk delete failed:', error)
-          toast.error('Failed to delete some members')
-        } finally {
-          setIsBulkDeleting(false)
-        }
-      }
+      // onConfirm will be handled by the specialized handler in the render method
+      onConfirm: () => { }
     })
   }
 
@@ -2193,14 +2206,49 @@ const Dashboard = ({ isAdmin = false }) => {
       <ConfirmModal
         isOpen={confirmModalConfig.isOpen}
         onClose={() => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmModalConfig.onConfirm}
-        title={confirmModalConfig.title}
+        onConfirm={confirmModalConfig.type === 'bulk_delete' ? finalizeBulkDelete : confirmModalConfig.onConfirm}
+        title={confirmModalConfig.type === 'bulk_delete' ? `Delete ${longPressSelectedIds.size} Member${longPressSelectedIds.size !== 1 ? 's' : ''}` : confirmModalConfig.title}
         message={confirmModalConfig.message}
         confirmText={confirmModalConfig.confirmText}
         cancelText={confirmModalConfig.cancelText}
         confirmButtonClass={confirmModalConfig.confirmButtonClass}
         cancelButtonClass={confirmModalConfig.cancelButtonClass}
-      />
+      >
+        {confirmModalConfig.type === 'bulk_delete' && (
+          <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 text-left">
+            <p className="mb-4 text-center text-sm text-gray-600 dark:text-gray-400">
+              Review the members selected for deletion. Click the <X className="inline w-3 h-3" /> to remove from selection.
+            </p>
+            <div className="space-y-2">
+              {Array.from(longPressSelectedIds).map(id => {
+                const m = members.find(x => x.id === id);
+                if (!m) return null;
+                return (
+                  <div key={id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded-lg border border-gray-100 dark:border-gray-600 group">
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{m['full_name'] || m['Full Name']}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Assuming toggleLongPressSelection logic handles removal correctly
+                        toggleLongPressSelection(id);
+                        // If selection becomes empty after this, the modal works empty? 
+                        // It will show title "Delete 0 Members". User can cancel.
+                      }}
+                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1.5 rounded-full transition-colors"
+                      title="Remove from selection"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+            {longPressSelectedIds.size === 0 && (
+              <p className="text-center text-red-500 text-sm mt-4 font-medium">No members selected for deletion.</p>
+            )}
+          </div>
+        )}
+      </ConfirmModal>
 
       {/* Bulk Transfer Modal */}
       {showTransferModal && selectedSundayDate && (

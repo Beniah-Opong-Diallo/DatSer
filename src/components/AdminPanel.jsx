@@ -31,7 +31,8 @@ import {
   LogOut,
   Shield,
   Lock,
-  LogIn
+  LogIn,
+  ArrowLeft
 } from 'lucide-react'
 
 const AdminPanel = ({ setCurrentView, onBack }) => {
@@ -77,7 +78,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     const checkInactivity = () => {
       const stayLoggedInEnabled = localStorage.getItem('adminStayLoggedIn') === 'true'
       if (stayLoggedInEnabled) return // Don't auto-lock if stay logged in is enabled
-      
+
       const inactiveTime = Date.now() - lastActivity
       if (inactiveTime > AUTO_LOCK_MINUTES * 60 * 1000) {
         handleAdminLogout()
@@ -125,7 +126,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       } else {
         setIsAuthenticated(true)
         setLastActivity(Date.now())
-        
+
         if (stayLoggedIn) {
           // Store for 7 days
           const expiry = new Date().getTime() + (7 * 24 * 60 * 60 * 1000)
@@ -396,14 +397,14 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
             </thead>
             <tbody>
               ${sortedMembers.map((member, idx) => {
-                let presentCount = 0
-                const cells = sundayDates.map(date => {
-                  const status = attendanceData[date]?.[member.id]
-                  if (status === true) { presentCount++; return '<td class="present">P</td>' }
-                  if (status === false) { return '<td class="absent">A</td>' }
-                  return '<td>-</td>'
-                }).join('')
-                return `<tr>
+      let presentCount = 0
+      const cells = sundayDates.map(date => {
+        const status = attendanceData[date]?.[member.id]
+        if (status === true) { presentCount++; return '<td class="present">P</td>' }
+        if (status === false) { return '<td class="absent">A</td>' }
+        return '<td>-</td>'
+      }).join('')
+      return `<tr>
                   <td>${idx + 1}</td>
                   <td class="member-name">${member['full_name'] || member['Full Name'] || 'N/A'}</td>
                   <td>${member['Gender'] || 'N/A'}</td>
@@ -411,7 +412,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   ${cells}
                   <td><strong>${presentCount}/${sundayDates.length}</strong></td>
                 </tr>`
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
           
@@ -645,7 +646,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
               <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
               <p className="text-slate-300 text-sm mt-1">Secure Access Required</p>
             </div>
-            
+
             {/* Form */}
             <form onSubmit={handlePasswordSubmit} className="p-6 space-y-5">
               <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
@@ -664,11 +665,10 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
                   placeholder="Enter your account password"
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    passwordError 
-                      ? 'border-red-400 focus:ring-red-400 bg-red-50 dark:bg-red-900/20' 
-                      : 'border-gray-200 dark:border-gray-600 focus:ring-slate-500 bg-gray-50 dark:bg-gray-700'
-                  } text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all`}
+                  className={`w-full px-4 py-3 rounded-xl border ${passwordError
+                    ? 'border-red-400 focus:ring-red-400 bg-red-50 dark:bg-red-900/20'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-slate-500 bg-gray-50 dark:bg-gray-700'
+                    } text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all`}
                   autoFocus
                   disabled={isVerifying}
                 />
@@ -698,7 +698,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Keep admin access for 7 days</p>
                 </div>
               </label>
-              
+
               <button
                 type="submit"
                 disabled={isVerifying || !passwordInput}
@@ -761,34 +761,43 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       {/* Header */}
       <div className="sticky top-0 z-20 w-full bg-gray-50 dark:bg-gray-900 py-3">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Shield className="w-6 h-6 text-slate-600 dark:text-slate-400" />
-                Admin Panel
-              </h1>
-
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {monthDisplayName}
-              </p>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              <div className="bg-slate-100 dark:bg-slate-700/50 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 flex-shrink-0">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" />
+              </div>
+              <div className="min-w-0 overflow-hidden">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight truncate">
+                  Admin Panel
+                </h1>
+                <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                  {monthDisplayName}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
               <button
                 onClick={() => {
                   handleAdminLogout()
                   toast.info('Admin session ended')
                 }}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-2.5 py-2 sm:px-3 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group"
                 title="Lock Admin Panel"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 <span className="hidden sm:inline">Lock</span>
               </button>
+
+              <div className="h-6 sm:h-8 w-px bg-gray-200 dark:bg-gray-700 mx-0.5 sm:mx-1"></div>
+
               <button
                 onClick={() => setCurrentView('dashboard')}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-3 py-2 sm:px-4 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Back to Dashboard"
               >
-                Back to Dashboard
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="sm:hidden">Back</span>
               </button>
             </div>
           </div>
@@ -875,7 +884,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
             </div>
             <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedFeatures ? 'rotate-180' : ''}`} />
           </button>
-          
+
           {showAdvancedFeatures && (
             <div className="p-4 pt-0 border-t border-gray-200 dark:border-gray-700">
               {/* Badge Processing Content */}
@@ -904,8 +913,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   onClick={processBadges}
                   disabled={isProcessingBadges || stats.sundaysCompleted < stats.totalSundays}
                   className={`w-full mt-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-sm ${stats.sundaysCompleted < stats.totalSundays
-                      ? 'bg-white/20 text-white/50 cursor-not-allowed'
-                      : 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg btn-press'
+                    ? 'bg-white/20 text-white/50 cursor-not-allowed'
+                    : 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg btn-press'
                     }`}
                 >
                   {isProcessingBadges ? (
@@ -968,8 +977,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                     <div key={member.id} className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                       <span className="text-sm text-gray-900 dark:text-white">{member.name}</span>
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${member.newBadge === 'regular'
-                          ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300'
-                          : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
+                        ? 'bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300'
+                        : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300'
                         }`}>
                         {member.newBadge === 'regular' ? '⭐ Regular' : '👤 Member'}
                       </span>
@@ -998,8 +1007,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   <div key={sunday.date} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${sunday.marked
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400'
                         }`}>
                         {sunday.marked ? <Check className="w-4 h-4" /> : index + 1}
                       </div>
@@ -1112,9 +1121,9 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   <div key={attendee.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${index === 0 ? 'bg-yellow-500' :
-                          index === 1 ? 'bg-gray-400' :
-                            index === 2 ? 'bg-amber-600' :
-                              'bg-blue-500'
+                        index === 1 ? 'bg-gray-400' :
+                          index === 2 ? 'bg-amber-600' :
+                            'bg-blue-500'
                         }`}>
                         {index + 1}
                       </div>
@@ -1124,8 +1133,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                       </div>
                     </div>
                     <div className={`text-lg font-bold ${attendee.rate >= 90 ? 'text-green-500' :
-                        attendee.rate >= 75 ? 'text-blue-500' :
-                          'text-yellow-500'
+                      attendee.rate >= 75 ? 'text-blue-500' :
+                        'text-yellow-500'
                       }`}>
                       {attendee.rate}%
                     </div>
