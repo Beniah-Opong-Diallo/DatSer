@@ -5,23 +5,37 @@ import { useAuth } from './AuthContext'
 
 const AppContext = createContext()
 
+const MONTHS_IN_YEAR = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+]
+
+const sortMonthTables = (tables = []) => {
+  return tables
+    .filter(Boolean)
+    .slice()
+    .sort((a, b) => {
+      const [monthA = '', yearA = '0'] = a.split('_')
+      const [monthB = '', yearB = '0'] = b.split('_')
+
+      if (yearA !== yearB) {
+        return parseInt(yearA, 10) - parseInt(yearB, 10)
+      }
+      return MONTHS_IN_YEAR.indexOf(monthA) - MONTHS_IN_YEAR.indexOf(monthB)
+    })
+}
+
 // Get current month table name
 const getCurrentMonthTable = () => {
   const now = new Date()
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ]
-  const currentMonth = monthNames[now.getMonth()]
+  const currentMonth = MONTHS_IN_YEAR[now.getMonth()]
   const currentYear = now.getFullYear()
   return `${currentMonth}_${currentYear}`
 }
 
 // Fallback monthly tables for when Supabase is not configured
-const FALLBACK_MONTHLY_TABLES = [
-  'January_2025', 'February_2025', 'March_2025', 'April_2025', 'May_2025',
-  'June_2025', 'July_2025', 'August_2025', 'September_2025', 'October_2025', 'November_2025', 'December_2025'
-]
+const FALLBACK_MONTHLY_TABLES = MONTHS_IN_YEAR.map(month => `${month}_2025`)
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const DEFAULT_ATTENDANCE_DATES = {
   'November_2025': '2025-11-23'
@@ -120,12 +134,33 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [] // Start with no badges selected
   })
 
+  const changeCurrentTable = useCallback((tableName) => {
+    setCurrentTable(tableName)
+    if (tableName) {
+      localStorage.setItem('selectedMonthTable', tableName)
+    } else {
+      localStorage.removeItem('selectedMonthTable')
+    }
+  }, [])
+
+  const pruneMissingTable = useCallback((tableName) => {
+    if (!tableName) return
+    setMonthlyTables(prev => {
+      const filtered = sortMonthTables(prev.filter(t => t !== tableName))
+      if (currentTable === tableName) {
+        const fallback = filtered[filtered.length - 1] || null
+        changeCurrentTable(fallback)
+      }
+      return filtered
+    })
+  }, [currentTable, changeCurrentTable])
+
   // Check if Supabase is properly configured
-  const isSupabaseConfigured = () => {
+  const isSupabaseConfigured = useCallback(() => {
     return supabase && import.meta.env.VITE_SUPABASE_URL &&
       import.meta.env.VITE_SUPABASE_URL !== 'your_supabase_url_here' &&
       import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co'
-  }
+  }, [])
 
   // Check if current user is a collaborator and get the owner's ID
   const checkCollaboratorStatus = async () => {
@@ -256,18 +291,21 @@ export const AppProvider = ({ children }) => {
       if (error) {
         console.error('Error fetching members:', error)
         console.log('Error details:', error.message, error.code)
-        toast.error(`Database error: ${error.message}`, { autoClose: 10000 })
 
-        // Only fallback to mock data when table clearly does not exist
-        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-          toast.error(`Table ${tableName} does not exist in database. Using mock data.`)
-          console.log(`Table ${tableName} not found, using mock data`)
-          setMembers(mockMembers)
-        } else {
-          // Keep existing members; surface the error without replacing with mock
-          toast.error(`Failed to fetch members from ${tableName}: ${error.message}`)
-          console.warn('Fetch members failed; preserving current member list.')
+        const missingTable =
+          error.code === 'PGRST205' ||
+          error.code === 'PGRST116' ||
+          error.message?.toLowerCase().includes('does not exist') ||
+          error.message?.toLowerCase().includes('schema cache')
+
+        if (missingTable) {
+          await handleMissingTable(tableName)
+          setMembers([])
+          return
         }
+
+        toast.error(`Database error: ${error.message}`, { autoClose: 10000 })
+        console.warn('Fetch members failed; preserving current member list.')
       } else {
         // Filter out records with null name, then normalize both name keys
         const validMembers = (data || []).filter(member => member['full_name'] || member['Full Name'])
@@ -1398,8 +1436,169 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  const ensureTableReady = useCallback(async (tableName, attempts = 5, delay = 800) => {
+    if (!isSupabaseConfigured()) return true
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const { error } = await supabase
+          .from(tableName)
+          .select('id')
+          .limit(1)
+        if (!error || error.code === 'PGRST116') {
+          return true
+        }
+        if (error.code !== 'PGRST205') {
+          console.error(`ensureTableReady unexpected error for ${tableName}:`, error)
+        }
+      } catch (err) {
+        console.error(`ensureTableReady threw for ${tableName}:`, err)
+      }
+      await sleep(delay)
+    }
+    throw new Error(`Table ${tableName} is not ready yet. Please try again in a moment.`)
+  }, [isSupabaseConfigured])
+
+  // Fetch available month tables from database
+  const fetchMonthlyTables = useCallback(async () => {
+    try {
+      if (!isSupabaseConfigured()) {
+        setMonthlyTables(FALLBACK_MONTHLY_TABLES)
+        return
+      }
+
+      const ownerId = dataOwnerId || user?.id
+      if (!ownerId) return
+
+      const { data, error } = await supabase
+        .from('user_month_tables')
+        .select('table_name')
+        .eq('user_id', ownerId)
+
+      if (error) {
+        console.error('Error fetching user month tables:', error)
+        return
+      }
+
+      const tableNames = (data || []).map(entry => entry.table_name).filter(Boolean)
+      setMonthlyTables(sortMonthTables(tableNames))
+    } catch (error) {
+      console.error('Error fetching monthly tables:', error)
+    }
+  }, [isSupabaseConfigured, dataOwnerId, user?.id])
+
+  const deleteMonthTable = useCallback(async (tableName) => {
+    if (!tableName) return
+    try {
+      if (!isSupabaseConfigured()) {
+        setMonthlyTables(prev => {
+          const nextTables = sortMonthTables(prev.filter(t => t !== tableName))
+          if (currentTable === tableName) {
+            const fallback = nextTables[nextTables.length - 1] || null
+            changeCurrentTable(fallback)
+          }
+          return nextTables
+        })
+        toast.info(`${tableName.replace('_', ' ')} removed (Demo Mode)`)
+        return { success: true }
+      }
+
+      const ownerId = dataOwnerId || user?.id
+      if (!ownerId) {
+        throw new Error('Unable to identify workspace owner for deletion.')
+      }
+
+      let dropWarning = null
+      const { error: dropError } = await supabase.rpc('drop_month_table', { table_to_drop: tableName })
+      if (dropError) {
+        const normalized = dropError.message?.toLowerCase() || ''
+        const missingRpc = normalized.includes('function drop_month_table')
+        const missingTable = dropError.code === 'PGRST205' || normalized.includes('does not exist')
+
+        if (missingRpc) {
+          dropWarning = 'drop_month_table RPC is missing in Supabase. Table will need to be removed manually.'
+          console.warn(dropWarning)
+        } else if (missingTable) {
+          console.warn(`Table ${tableName} was already removed in Supabase.`)
+        } else {
+          throw dropError
+        }
+      }
+
+      const { error: registryError } = await supabase
+        .from('user_month_tables')
+        .delete()
+        .eq('user_id', ownerId)
+        .eq('table_name', tableName)
+
+      if (registryError) {
+        throw registryError
+      }
+
+      setMonthlyTables(prev => {
+        const nextTables = sortMonthTables(prev.filter(t => t !== tableName))
+        if (currentTable === tableName) {
+          const fallback = nextTables[nextTables.length - 1] || null
+          changeCurrentTable(fallback)
+        }
+        return nextTables
+      })
+
+      await fetchMonthlyTables()
+      toast.success(`Deleted ${tableName.replace('_', ' ')}`)
+      if (dropWarning) {
+        toast.warn(dropWarning, { autoClose: 7000 })
+      }
+      return { success: true }
+    } catch (error) {
+      console.error('Error deleting month table:', error)
+      const normalized = error?.message?.toLowerCase?.() || ''
+      const missingTable =
+        error?.code === 'PGRST205' ||
+        error?.code === 'PGRST116' ||
+        normalized.includes('does not exist') ||
+        normalized.includes('schema cache')
+
+      if (missingTable) {
+        await handleMissingTable(tableName)
+        toast.info(`${tableName.replace('_', ' ')} already removed.`)
+        return { success: true }
+      }
+
+      toast.error(error?.message || 'Failed to delete month')
+      throw error
+    }
+  }, [isSupabaseConfigured, supabase, user?.id, dataOwnerId, currentTable, changeCurrentTable, fetchMonthlyTables])
+
+  const handleMissingTable = useCallback(async (tableName) => {
+    if (!tableName) return
+    console.warn(`Table ${tableName} missing in Supabase – syncing local state`)
+
+    if (isSupabaseConfigured() && user?.id) {
+      try {
+        await supabase
+          .from('user_month_tables')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('table_name', tableName)
+      } catch (error) {
+        console.warn('Could not prune user_month_tables entry:', error)
+      }
+    }
+
+    pruneMissingTable(tableName)
+    toast.warn(`${tableName.replace('_', ' ')} no longer exists in Supabase. Please recreate it if needed.`)
+    await fetchMonthlyTables()
+  }, [currentTable, changeCurrentTable, fetchMonthlyTables, isSupabaseConfigured, pruneMissingTable, supabase, user?.id])
+
   // Create new month by copying from the most recent month
-  const createNewMonth = async ({ month, year, monthName, sundays }) => {
+  const createNewMonth = async ({
+    month,
+    year,
+    monthName,
+    sundays,
+    copyMode = 'all',
+    selectedMemberIds = []
+  }) => {
     try {
       const monthIdentifier = `${monthName}_${year}`
 
@@ -1407,23 +1606,21 @@ export const AppProvider = ({ children }) => {
         // Demo mode - simulate table creation locally
         setMonthlyTables(prev => {
           if (prev.includes(monthIdentifier)) return prev
-
-          const monthsOrder = ['January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December']
-
-          const nextTables = [...prev, monthIdentifier]
-          nextTables.sort((a, b) => {
-            const [monthA, yearA] = a.split('_')
-            const [monthB, yearB] = b.split('_')
-
-            if (yearA !== yearB) return parseInt(yearA) - parseInt(yearB)
-            return monthsOrder.indexOf(monthA) - monthsOrder.indexOf(monthB)
-          })
-          return nextTables
+          return sortMonthTables([...prev, monthIdentifier])
         })
 
         changeCurrentTable(monthIdentifier)
-        toast.success(`${monthIdentifier} created successfully! (Demo Mode)`)
+        if (copyMode === 'empty') {
+          toast.success(`${monthIdentifier} created as a fresh month (Demo Mode)`)
+        } else if (copyMode === 'custom') {
+          if (selectedMemberIds.length === 0) {
+            toast.info(`${monthIdentifier} created empty (Demo Mode)`)
+          } else {
+            toast.info(`${monthIdentifier} created with selected members (Demo Mode only simulates this state)`)
+          }
+        } else {
+          toast.success(`${monthIdentifier} created successfully! (Demo Mode)`)
+        }
         return { success: true, tableName: monthIdentifier }
       }
 
@@ -1437,16 +1634,12 @@ export const AppProvider = ({ children }) => {
           const [monthA, yearA] = a.split('_')
           const [monthB, yearB] = b.split('_')
 
-          // Compare years first
           if (yearA !== yearB) {
             return parseInt(yearB) - parseInt(yearA) // Descending (most recent first)
           }
 
-          // Then compare months
-          const months = ['January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December']
-          const monthIndexA = months.indexOf(monthA)
-          const monthIndexB = months.indexOf(monthB)
+          const monthIndexA = MONTHS_IN_YEAR.indexOf(monthA)
+          const monthIndexB = MONTHS_IN_YEAR.indexOf(monthB)
           return monthIndexB - monthIndexA // Descending (most recent first)
         })
 
@@ -1481,6 +1674,45 @@ export const AppProvider = ({ children }) => {
 
       console.log('Month table creation result:', result)
 
+      await ensureTableReady(monthIdentifier)
+
+      // Handle custom/empty copy after table creation
+      if (copyMode === 'custom' || copyMode === 'empty') {
+        // Always clear the auto-copied rows first so we start from desired baseline
+        const { error: clearError } = await supabase
+          .from(monthIdentifier)
+          .delete()
+          .not('id', 'is', null)
+
+        if (clearError) {
+          console.error('Failed clearing auto-copied rows:', clearError)
+          throw new Error(`Failed to reset new month data: ${clearError.message}`)
+        }
+      }
+
+      if (copyMode === 'custom' && selectedMemberIds.length > 0) {
+        const { data: selectedMembers, error: fetchSelectedError } = await supabase
+          .from(sourceTable)
+          .select('*')
+          .in('id', selectedMemberIds)
+
+        if (fetchSelectedError) {
+          console.error('Failed fetching selected members:', fetchSelectedError)
+          throw new Error(`Failed to fetch selected members: ${fetchSelectedError.message}`)
+        }
+
+        if (selectedMembers?.length) {
+          const { error: insertError } = await supabase
+            .from(monthIdentifier)
+            .insert(selectedMembers)
+
+          if (insertError) {
+            console.error('Failed inserting selected members:', insertError)
+            throw new Error(`Failed to insert selected members: ${insertError.message}`)
+          }
+        }
+      }
+
       // Register this month table for the current user
       const { error: registerError } = await supabase
         .from('user_month_tables')
@@ -1494,7 +1726,20 @@ export const AppProvider = ({ children }) => {
         console.warn('Could not register month table for user:', registerError)
       }
 
-      toast.success(`Month ${monthName} ${year} created successfully! Copied ${result?.members_copied || 0} members from ${sourceTable}. RLS enabled with all policies.`)
+      if (copyMode === 'empty') {
+        toast.success(`Month ${monthName} ${year} created as a fresh workspace.`)
+      } else if (copyMode === 'custom') {
+        const copiedCount = selectedMemberIds.length
+        toast.success(`Month ${monthName} ${year} created with ${copiedCount} selected member${copiedCount === 1 ? '' : 's'}.`)
+      } else {
+        toast.success(`Month ${monthName} ${year} created successfully! Copied ${result?.members_copied || 0} members from ${sourceTable}. RLS enabled with all policies.`)
+      }
+
+      // Optimistically add new month locally so menus update immediately
+      setMonthlyTables(prev => {
+        if (prev.includes(monthIdentifier)) return prev
+        return sortMonthTables([...prev, monthIdentifier])
+      })
 
       // Refresh the monthly tables list from database
       await fetchMonthlyTables()
@@ -1517,59 +1762,6 @@ export const AppProvider = ({ children }) => {
 
       toast.error(errorMessage)
       throw error
-    }
-  }
-
-  // Fetch available month tables from database
-  const fetchMonthlyTables = async () => {
-    try {
-      if (!isSupabaseConfigured()) {
-        console.log('Using fallback monthly tables - Supabase not configured')
-        return
-      }
-
-      // Fallback: Check existing tables for this user's data
-      const months = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December']
-      const years = ['2025']
-      const availableTables = []
-
-      for (const year of years) {
-        for (const month of months) {
-          const tableName = `${month}_${year}`
-          try {
-            // Check if table exists and user has data (RLS filters automatically)
-            const { data, error } = await supabase
-              .from(tableName)
-              .select('id')
-              .limit(1)
-
-            if (!error) {
-              availableTables.push(tableName)
-            }
-          } catch (err) {
-            continue
-          }
-        }
-      }
-
-      if (availableTables.length > 0) {
-        availableTables.sort((a, b) => {
-          const [monthA, yearA] = a.split('_')
-          const [monthB, yearB] = b.split('_')
-          if (yearA !== yearB) return parseInt(yearA) - parseInt(yearB)
-          return months.indexOf(monthA) - months.indexOf(monthB)
-        })
-
-        setMonthlyTables(availableTables)
-        console.log('Found monthly tables with user data:', availableTables)
-      } else {
-        // New user - show empty state, they need to create their first month
-        setMonthlyTables([])
-        console.log('No monthly tables found for user - new user')
-      }
-    } catch (error) {
-      console.error('Error fetching monthly tables:', error)
     }
   }
 
@@ -1917,21 +2109,19 @@ export const AppProvider = ({ children }) => {
 
   // Check for badge processing after attendance data is loaded
   useEffect(() => {
-    if (Object.keys(attendanceData).length > 0 && currentTable && !processedEndOfMonthRef.current.has(currentTable)) {
-      setTimeout(() => {
-        if (isMonthAttendanceComplete()) {
-          console.log('Month has 40+ members marked, processing badges...')
-          processEndOfMonthBadges()
-        }
-      }, 1000)
-    }
-  }, [attendanceData, isMonthAttendanceComplete, processEndOfMonthBadges, currentTable])
+    if (!badgeProcessingEnabled) return
+    if (!currentTable || processedEndOfMonthRef.current.has(currentTable)) return
+    if (Object.keys(attendanceData).length === 0) return
 
-  // Wrapper function for setCurrentTable with localStorage persistence
-  const changeCurrentTable = (tableName) => {
-    setCurrentTable(tableName)
-    localStorage.setItem('selectedMonthTable', tableName)
-  }
+    const timeoutId = setTimeout(() => {
+      if (isMonthAttendanceComplete()) {
+        console.log('Month has 40+ members marked, processing badges...')
+        processEndOfMonthBadges()
+      }
+    }, 1000)
+
+    return () => clearTimeout(timeoutId)
+  }, [attendanceData, isMonthAttendanceComplete, processEndOfMonthBadges, currentTable, badgeProcessingEnabled])
 
   // Badge filter functions
   const toggleBadgeFilter = (badgeType) => {
@@ -2086,6 +2276,16 @@ export const AppProvider = ({ children }) => {
 
       if (error) {
         console.error('Error loading badge data:', error)
+
+        const missingTable =
+          error.code === 'PGRST205' ||
+          error.code === 'PGRST116' ||
+          error.message?.toLowerCase().includes('does not exist') ||
+          error.message?.toLowerCase().includes('schema cache')
+
+        if (missingTable) {
+          await handleMissingTable(currentTable)
+        }
         return
       }
 

@@ -32,7 +32,9 @@ import {
     Eye,
     Monitor,
     RotateCcw,
-    Sparkles
+    Sparkles,
+    Plus,
+    List
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -46,11 +48,12 @@ import ExportDataModal from './ExportDataModal'
 import ProfilePhotoEditor from './ProfilePhotoEditor'
 import HelpCenterPage from './HelpCenterPage'
 import ActivityLogViewer from './ActivityLogViewer'
+import ConfirmModal from './ConfirmModal'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, fontSize, setFontSize, fontFamily, setFontFamily, commandKEnabled, setCommandKEnabled } = useTheme()
-    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured } = useApp()
+    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable } = useApp()
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
     const [showHelpCenter, setShowHelpCenter] = useState(false)
@@ -104,6 +107,15 @@ const SettingsPage = ({ onBack }) => {
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
     const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
     const [pendingRemoval, setPendingRemoval] = useState(null)
+    const [monthViewMode, setMonthViewMode] = useState('list') // 'list' | 'calendar'
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+    const [showMonthDropdown, setShowMonthDropdown] = useState(false)
+    const [deletingTable, setDeletingTable] = useState(null)
+    const [deletePrompt, setDeletePrompt] = useState({
+        isOpen: false,
+        tableName: null,
+        label: ''
+    })
     
     // Apply accessibility settings
     useEffect(() => {
@@ -174,6 +186,29 @@ const SettingsPage = ({ onBack }) => {
             } catch (err) {
                 console.error('Error refreshing collaborators:', err)
             }
+        }
+    }
+
+    const requestDeleteTable = (tableName) => {
+        if (!tableName) return
+        setDeletePrompt({
+            isOpen: true,
+            tableName,
+            label: tableName.replace('_', ' ')
+        })
+    }
+
+    const handleDeleteTable = async () => {
+        const tableName = deletePrompt.tableName
+        if (!tableName) return
+        try {
+            setDeletingTable(tableName)
+            await deleteMonthTable(tableName)
+        } catch (error) {
+            console.error('Failed to delete month table:', error)
+        } finally {
+            setDeletingTable(null)
+            setDeletePrompt({ isOpen: false, tableName: null, label: '' })
         }
     }
 
@@ -280,6 +315,77 @@ const SettingsPage = ({ onBack }) => {
                 return 'Delete account'
             default:
                 return ''
+        }
+    }
+
+    // Helper function to get month display name from table name
+    const getMonthDisplayName = (tableName) => {
+        // Convert table name like "October_2025" to "October 2025"
+        return tableName.replace('_', ' ')
+    }
+
+    const calendarCurrentYear = new Date().getFullYear()
+
+    // Helper to group tables by year
+    const groupTablesByYear = useMemo(() => {
+        const grouped = {}
+        monthlyTables.forEach(table => {
+            const [month, year] = table.split('_')
+            if (!grouped[year]) grouped[year] = []
+            grouped[year].push({ month, table })
+        })
+        return grouped
+    }, [monthlyTables])
+
+    const availableYears = useMemo(() => {
+        const years = new Set(Object.keys(groupTablesByYear).map(year => parseInt(year, 10)))
+        years.add(calendarCurrentYear)
+        years.add(calendarCurrentYear + 1)
+        return Array.from(years).sort((a, b) => a - b)
+    }, [groupTablesByYear, calendarCurrentYear])
+
+    useEffect(() => {
+        if (availableYears.length === 0) return
+        if (!availableYears.includes(selectedYear)) {
+            setSelectedYear(availableYears[availableYears.length - 1])
+        }
+    }, [availableYears, selectedYear])
+
+    useEffect(() => {
+        setShowMonthDropdown(false)
+    }, [monthViewMode])
+
+    // Helper to get Sundays for a month
+    const getSundaysInMonth = (monthName, year) => {
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        const monthIdx = months.indexOf(monthName)
+        if (monthIdx === -1) return []
+        const sundays = []
+        const date = new Date(year, monthIdx, 1)
+        while (date.getDay() !== 0) date.setDate(date.getDate() + 1)
+        while (date.getMonth() === monthIdx) {
+            sundays.push(new Date(date))
+            date.setDate(date.getDate() + 7)
+        }
+        return sundays
+    }
+
+    // Quick create month helper
+    const handleQuickCreateMonth = async (monthName, year) => {
+        try {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+            const monthIdx = months.indexOf(monthName)
+            if (monthIdx === -1) return
+            const sundays = getSundaysInMonth(monthName, year)
+            await createNewMonth({
+                month: monthIdx + 1,
+                year,
+                monthName,
+                sundays,
+                copyMode: 'empty'
+            })
+        } catch (err) {
+            console.error('Quick create month failed:', err)
         }
     }
 
@@ -419,31 +525,216 @@ const SettingsPage = ({ onBack }) => {
                     </button>
 
                     <div className="p-4">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                                <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                    <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                </div>
+                                <div>
+                                    <p className="font-medium text-gray-900 dark:text-white">Current Month</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Select active month database</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-medium text-gray-900 dark:text-white">Current Month</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Select active month database</p>
-                            </div>
-                        </div>
-                        <div className="relative group">
-                            <select
-                                value={currentTable || ''}
-                                onChange={(e) => setCurrentTable(e.target.value)}
-                                className="w-full p-3 pl-4 pr-10 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all cursor-pointer shadow-sm"
+                            <button
+                                onClick={() => setMonthViewMode(monthViewMode === 'list' ? 'calendar' : 'list')}
+                                className="text-xs px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-1"
                             >
-                                {monthlyTables?.map(table => (
-                                    <option key={table} value={table} className="bg-white dark:bg-gray-800 py-2">
-                                        {table.replace('_', ' ')}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-500 dark:text-gray-400 group-hover:text-blue-500 transition-colors">
-                                <ChevronDown className="w-5 h-5" />
-                            </div>
+                                {monthViewMode === 'list' ? <Eye className="w-3 h-3" /> : <List className="w-3 h-3" />}
+                                {monthViewMode === 'list' ? 'Calendar' : 'List'}
+                            </button>
                         </div>
+
+                        {monthViewMode === 'list' ? (
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMonthDropdown(prev => !prev)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-500/30 transition-all"
+                                >
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <div className="p-2 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-300">
+                                            <Calendar className="w-4 h-4" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Active Month</p>
+                                            <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                                {currentTable ? currentTable.replace('_', ' ') : 'Select month'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <ChevronDown
+                                        className={`w-5 h-5 text-gray-500 dark:text-gray-300 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`}
+                                    />
+                                </button>
+                                {showMonthDropdown && (
+                                    <div className="absolute left-0 right-0 mt-2 z-30 max-h-72 overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl">
+                                        {monthlyTables && monthlyTables.length > 0 ? (
+                                            monthlyTables.map(table => {
+                                                const isActive = currentTable === table
+                                                return (
+                                                    <button
+                                                        key={table}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setCurrentTable(table)
+                                                            setShowMonthDropdown(false)
+                                                        }}
+                                                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
+                                                            isActive
+                                                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                                                                : 'text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                        }`}
+                                                    >
+                                                        <span>{table.replace('_', ' ')}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            {isActive && (
+                                                                <span className="text-xs font-semibold text-blue-600 dark:text-blue-200">Current</span>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    requestDeleteTable(table)
+                                                                }}
+                                                                className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                                                                disabled={deletingTable === table}
+                                                                title={`Delete ${table.replace('_', ' ')}`}
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </button>
+                                                )
+                                            })
+                                        ) : (
+                                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">No months available</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Year Tabs */}
+                                <div className="flex flex-wrap gap-2">
+                                    {availableYears.map(year => (
+                                        <button
+                                            key={year}
+                                            onClick={() => setSelectedYear(year)}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                selectedYear === year
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                            }`}
+                                        >
+                                            {year}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Calendar Grid for Selected Year */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(month => {
+                                        const table = groupTablesByYear[selectedYear]?.find(m => m.month === month)?.table
+                                        const exists = Boolean(table)
+                                        const sundays = getSundaysInMonth(month, selectedYear)
+                                        const isCurrent = table === currentTable
+                                        return (
+                                            <div
+                                                key={month}
+                                                onClick={() => {
+                                                    if (exists) {
+                                                        setCurrentTable(table)
+                                                    } else {
+                                                        handleQuickCreateMonth(month, selectedYear)
+                                                    }
+                                                }}
+                                                className={`relative p-4 rounded-2xl border transition-all cursor-pointer shadow-sm backdrop-blur-sm ${
+                                                    isCurrent
+                                                        ? 'border-blue-400 bg-gradient-to-br from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-700/20'
+                                                        : exists
+                                                            ? 'border-green-200/70 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20 hover:border-green-400'
+                                                            : 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/40 hover:border-gray-400 dark:hover:border-gray-500'
+                                                } hover:-translate-y-1 hover:shadow-lg`}
+                                            >
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div>
+                                                        <p className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">Month</p>
+                                                        <p className={`text-lg font-semibold ${
+                                                            isCurrent
+                                                                ? 'text-blue-700 dark:text-blue-200'
+                                                                : exists
+                                                                    ? 'text-emerald-800 dark:text-emerald-200'
+                                                                    : 'text-gray-600 dark:text-gray-300'
+                                                        }`}>
+                                                            {month}
+                                                        </p>
+                                                    </div>
+                                                    {exists ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${
+                                                                isCurrent
+                                                                    ? 'bg-blue-500/20 text-blue-700 dark:text-blue-200'
+                                                                    : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
+                                                            }`}>
+                                                                {isCurrent ? 'Active' : 'Saved'}
+                                                            </span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    requestDeleteTable(table)
+                                                                }}
+                                                                className={`p-1.5 rounded-full ${deletingTable === table
+                                                                    ? 'bg-red-200/80 text-red-700 cursor-wait'
+                                                                    : 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40'
+                                                                } transition-colors`}
+                                                                disabled={deletingTable === table}
+                                                                title={`Delete ${month} ${selectedYear}`}
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleQuickCreateMonth(month, selectedYear)
+                                                            }}
+                                                            className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                                            title={`Create ${month} ${selectedYear}`}
+                                                        >
+                                                            <Plus className="w-3 h-3" />
+                                                            Create
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {/* Sunday badges */}
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {sundays.slice(0, 12).map((sunday, i) => (
+                                                        <div
+                                                            key={`${month}-${i}`}
+                                                            className={`rounded-xl px-2 py-2 flex flex-col items-center text-center shadow-inner ${
+                                                                exists
+                                                                    ? isCurrent
+                                                                        ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-blue-200 border border-blue-200/60 dark:border-blue-400/30'
+                                                                        : 'bg-white/80 dark:bg-white/5 text-emerald-700 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-400/30'
+                                                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400 border border-dashed border-gray-300 dark:border-gray-600'
+                                                            }`}
+                                                            title={sunday.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        >
+                                                            <span className="text-[10px] uppercase tracking-wide opacity-70">Sun</span>
+                                                            <span className="text-sm font-semibold leading-tight">{sunday.getDate()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                                                    {exists ? 'Tap to switch to this month.' : 'Tap to create a fresh month with no data.'}
+                                                </p>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1641,6 +1932,24 @@ const SettingsPage = ({ onBack }) => {
                 onClose={() => setIsPhotoEditorOpen(false)}
                 user={user}
             />
+
+            <ConfirmModal
+                isOpen={deletePrompt.isOpen}
+                onClose={() => setDeletePrompt({ isOpen: false, tableName: null, label: '' })}
+                onConfirm={handleDeleteTable}
+                title="Delete Month"
+                confirmText={deletingTable ? 'Deleting...' : 'Delete'}
+                confirmButtonClass={`bg-red-600 hover:bg-red-700 text-white ${deletingTable ? 'opacity-70 cursor-not-allowed' : ''}`}
+                cancelText="Cancel"
+                cancelButtonClass="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+                <p className="text-base text-gray-700 dark:text-gray-300">
+                    Are you sure you want to delete <strong>{deletePrompt.label}</strong>? This will permanently remove the month’s table and its data.
+                </p>
+                <p className="text-sm text-red-500 mt-3">
+                    This action cannot be undone.
+                </p>
+            </ConfirmModal>
 
             {/* Remove Collaborator Modal */}
             {pendingRemoval && (

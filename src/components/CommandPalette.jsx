@@ -241,14 +241,21 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false }) =>
     const handleInputKeyDown = (e) => {
         if (e.key === 'ArrowDown') {
             e.preventDefault()
-            setSelectedIndex(prev => (prev + 1) % filteredActions.length)
+            if (filteredActions.length > 0) {
+                setSelectedIndex(prev => (prev + 1) % filteredActions.length)
+            }
         } else if (e.key === 'ArrowUp') {
             e.preventDefault()
-            setSelectedIndex(prev => (prev - 1 + filteredActions.length) % filteredActions.length)
+            if (filteredActions.length > 0) {
+                setSelectedIndex(prev => (prev - 1 + filteredActions.length) % filteredActions.length)
+            }
         } else if (e.key === 'Enter') {
             e.preventDefault()
             if (filteredActions[selectedIndex]) {
                 handleSelect(filteredActions[selectedIndex])
+            } else if (query.trim().toLowerCase().includes('setting')) {
+                setCurrentView('settings')
+                setIsOpen(false)
             }
         }
     }

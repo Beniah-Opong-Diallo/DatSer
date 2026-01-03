@@ -13,6 +13,11 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const { user, loading, updatePreference, preferences } = useAuth()
+  const updatePreferenceRef = useRef(updatePreference)
+
+  useEffect(() => {
+    updatePreferenceRef.current = updatePreference
+  }, [updatePreference])
 
   // 1. Theme Mode
   const [themeMode, setThemeMode] = useState(() => {
@@ -124,20 +129,20 @@ export const ThemeProvider = ({ children }) => {
 
   // Backend Saves
   useEffect(() => {
-    if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
-    updatePreference('theme_mode', themeMode)
-  }, [themeMode, updatePreference, user, preferencesLoaded])
+    if (isFirstRender.current || !updatePreferenceRef.current || !user || !preferencesLoaded) return
+    updatePreferenceRef.current('theme_mode', themeMode)
+  }, [themeMode, user, preferencesLoaded])
 
   useEffect(() => {
-    if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
-    const timer = setTimeout(() => updatePreference('font_size', fontSize), 800)
+    if (isFirstRender.current || !updatePreferenceRef.current || !user || !preferencesLoaded) return
+    const timer = setTimeout(() => updatePreferenceRef.current?.('font_size', fontSize), 800)
     return () => clearTimeout(timer)
-  }, [fontSize, updatePreference, user, preferencesLoaded])
+  }, [fontSize, user, preferencesLoaded])
 
   useEffect(() => {
-    if (isFirstRender.current || !updatePreference || !user || !preferencesLoaded) return
-    updatePreference('font_family', fontFamily)
-  }, [fontFamily, updatePreference, user, preferencesLoaded])
+    if (isFirstRender.current || !updatePreferenceRef.current || !user || !preferencesLoaded) return
+    updatePreferenceRef.current('font_family', fontFamily)
+  }, [fontFamily, user, preferencesLoaded])
 
   const toggleTheme = useCallback(() => {
     setThemeMode((prev) => {
