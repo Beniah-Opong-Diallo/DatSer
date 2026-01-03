@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react'
 import {
   Users,
   CheckSquare,
@@ -327,4 +327,4 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   )
 }
 
-export default Header
+export default memo(Header)

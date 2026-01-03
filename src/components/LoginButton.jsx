@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, memo, useCallback } from 'react'
 import {
   LogIn,
   LogOut,
@@ -68,7 +68,7 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSignIn = async () => {
+  const handleSignIn = useCallback(async () => {
     setIsSigningIn(true)
     try {
       await signInWithGoogle()
@@ -77,16 +77,16 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
     } finally {
       setIsSigningIn(false)
     }
-  }
+  }, [signInWithGoogle])
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     setShowDropdown(false)
     try {
       await signOut()
     } catch (error) {
       console.error('Sign out error:', error)
     }
-  }
+  }, [signOut])
 
   if (loading) {
     return (
@@ -317,4 +317,4 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
   )
 }
 
-export default LoginButton
+export default memo(LoginButton)

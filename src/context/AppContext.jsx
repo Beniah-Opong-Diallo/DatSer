@@ -894,8 +894,10 @@ export const AppProvider = ({ children }) => {
         }
       }))
 
-      // Check if month is complete and process badges
-      setTimeout(() => processEndOfMonthBadges(), 500)
+      // Check if month is complete and process badges (guarded)
+      if (badgeProcessingEnabled) {
+        setTimeout(() => processEndOfMonthBadges(), 500)
+      }
 
       return { success: true }
     } catch (error) {
@@ -954,9 +956,14 @@ export const AppProvider = ({ children }) => {
     return false
   }
 
+  // Toggleable guard to prevent runaway badge processing loops
+  const badgeProcessingEnabled = false
+
   // Process all members at end of month and assign badges
+  const processedEndOfMonthRef = useRef(new Set())
   const processEndOfMonthBadges = async () => {
     try {
+      if (!badgeProcessingEnabled) return
       if (!isSupabaseConfigured()) return
       if (!isMonthAttendanceComplete()) {
         console.log('Month attendance not complete yet, skipping badge assignment')
@@ -987,6 +994,7 @@ export const AppProvider = ({ children }) => {
       if (badgesAssigned > 0) {
         toast.success(`🎉 End of month: ${badgesAssigned} member${badgesAssigned > 1 ? 's' : ''} earned Regular Member badge!`)
       }
+      processedEndOfMonthRef.current.add(currentTable)
     } catch (error) {
       console.error('Error processing end-of-month badges:', error)
     }
@@ -1060,7 +1068,9 @@ export const AppProvider = ({ children }) => {
       }))
 
       // Check if month is complete and process badges
-      setTimeout(() => processEndOfMonthBadges(), 500)
+      if (badgeProcessingEnabled) {
+        setTimeout(() => processEndOfMonthBadges(), 500)
+      }
 
       toast.success(`Bulk attendance marked successfully for ${memberIds.length} members!`)
       return { success: true }
@@ -1799,15 +1809,15 @@ export const AppProvider = ({ children }) => {
   const getPastSundays = useCallback(() => {
     try {
       // Parse table name to get month and year (e.g., "December_2025" -> "December", 2025)
-      const [monthName, yearStr] = currentTable.split('_')
-      const year = parseInt(yearStr)
+      const [monthName, year] = currentTable.split('_')
+      const yearNum = parseInt(year)
 
-      if (!monthName || isNaN(year)) {
+      if (!monthName || isNaN(yearNum)) {
         console.error('Invalid table format:', currentTable)
         return []
       }
 
-      const allSundays = getSundaysInMonth(monthName, year)
+      const allSundays = getSundaysInMonth(monthName, yearNum)
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -1889,7 +1899,7 @@ export const AppProvider = ({ children }) => {
 
   // Check for badge processing after attendance data is loaded
   useEffect(() => {
-    if (Object.keys(attendanceData).length > 0) {
+    if (Object.keys(attendanceData).length > 0 && currentTable && !processedEndOfMonthRef.current.has(currentTable)) {
       setTimeout(() => {
         if (isMonthAttendanceComplete()) {
           console.log('Month has 40+ members marked, processing badges...')
@@ -1897,7 +1907,7 @@ export const AppProvider = ({ children }) => {
         }
       }, 1000)
     }
-  }, [attendanceData])
+  }, [attendanceData, isMonthAttendanceComplete, processEndOfMonthBadges, currentTable])
 
   // Wrapper function for setCurrentTable with localStorage persistence
   const changeCurrentTable = (tableName) => {

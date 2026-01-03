@@ -20,6 +20,7 @@ const OnboardingWizard = lazy(() => import('./components/OnboardingWizard'))
 const MonthModal = lazy(() => import('./components/MonthModal'))
 const AIChatAssistant = lazy(() => import('./components/AIChatAssistant'))
 const CommandPalette = lazy(() => import('./components/CommandPalette'))
+const ExecAttendancePage = lazy(() => import('./components/ExecAttendancePage'))
 
 // Minimal loading fallback for lazy components
 const LazyFallback = memo(() => (
@@ -63,21 +64,32 @@ function AppContent({ isMobile }) {
     }
   }
 
+  const isExecutive = preferences?.role === 'executive' || preferences?.is_executive === true
+
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
     window.openWorkspaceSettings = () => setShowWorkspaceSettings(true)
     window.openDeleteAccount = () => setShowDeleteAccount(true)
     window.openExportData = () => setShowExportData(true)
     window.openSettings = () => setCurrentView('settings')
+    window.openExecutive = () => setCurrentView('exec')
     window.openOnboarding = () => setShowOnboarding(true)
     return () => {
       delete window.openWorkspaceSettings
       delete window.openDeleteAccount
       delete window.openExportData
       delete window.openSettings
+      delete window.openExecutive
       delete window.openOnboarding
     }
   }, [])
+
+  // Guard executive view if role revoked or non-exec
+  useEffect(() => {
+    if (currentView === 'exec' && !isExecutive) {
+      setCurrentView('dashboard')
+    }
+  }, [currentView, isExecutive])
 
   // Auto-show onboarding only for new users without data/workspace
   useEffect(() => {
@@ -129,6 +141,12 @@ function AppContent({ isMobile }) {
         {currentView === 'settings' && (
           <Suspense fallback={<LazyFallback />}>
             <SettingsPage onBack={() => setCurrentView('dashboard')} />
+          </Suspense>
+        )}
+
+        {currentView === 'exec' && (
+          <Suspense fallback={<LazyFallback />}>
+            <ExecAttendancePage onBack={() => setCurrentView('dashboard')} />
           </Suspense>
         )}
 
@@ -206,6 +224,7 @@ function AppContent({ isMobile }) {
         <CommandPalette
           setCurrentView={setCurrentView}
           onAddMember={() => setShowMemberModal(true)}
+          isExecutive={isExecutive}
         />
       </Suspense>
 

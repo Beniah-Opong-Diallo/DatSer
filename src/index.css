@@ -434,8 +434,22 @@
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
-  scroll-behavior: auto !important;
-  transform: translateZ(0); /* Still keep GPU acceleration */
+  transition-delay: 0ms !important;
+  transition-property: none !important;
+}
+
+/* Prevent expensive effects */
+.performance-mode .glass,
+.performance-mode .backdrop-blur,
+.performance-mode .blur,
+.performance-mode .shadow,
+.performance-mode .shadow-lg,
+.performance-mode .shadow-xl,
+.performance-mode .shadow-2xl,
+.performance-mode .drop-shadow {
+  backdrop-filter: none !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 
 /* Performance mode specific optimizations */
@@ -460,6 +474,20 @@
 .performance-mode .spin-slow,
 .performance-mode .pulse-dot {
   animation: none !important;
+}
+
+/* Prefer lightweight rendering when performance mode is on */
+.performance-mode img,
+.performance-mode video,
+.performance-mode canvas,
+.performance-mode iframe {
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+.performance-mode {
+  image-rendering: optimizeSpeed;
+  scroll-behavior: auto !important;
 }
 
 /* Force toasts to render at the top on mobile when root has .mobile-toast-top */

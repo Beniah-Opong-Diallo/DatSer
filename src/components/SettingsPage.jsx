@@ -907,9 +907,6 @@ const SettingsPage = ({ onBack }) => {
                         <div className="space-y-2">
                             {[
                                 { value: 'OpenDyslexic', label: 'OpenDyslexic (Default)', description: 'Dyslexia-friendly' },
-                                { value: 'Comic Sans MS, cursive', label: 'Comic Sans', description: 'Dyslexia-friendly' },
-                                { value: 'Verdana, sans-serif', label: 'Verdana', description: 'High readability' },
-                                { value: 'Arial, sans-serif', label: 'Arial', description: 'Clean sans-serif' },
                                 { value: 'system-ui', label: 'System', description: 'OS default' },
                                 { value: 'Georgia, serif', label: 'Georgia', description: 'Serif, readable' },
                                 { value: 'Courier New, monospace', label: 'Courier New', description: 'Monospace' }

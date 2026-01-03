@@ -69,7 +69,6 @@ const AccessibilityPage = ({ onBack }) => {
   const fontFamilies = [
     { label: 'Inter (Default)', value: 'Inter' },
     { label: 'System', value: 'system-ui' },
-    { label: 'Arial', value: 'Arial, sans-serif' },
     { label: 'Georgia', value: 'Georgia, serif' },
     { label: 'Courier New', value: 'Courier New, monospace' }
   ]

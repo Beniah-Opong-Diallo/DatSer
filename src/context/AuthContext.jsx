@@ -365,41 +365,30 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // Sign out
-  const signOut = async () => {
+  // Sign out - memoized to prevent stale references
+  const signOut = useCallback(async () => {
     // Supabase can throw AuthSessionMissingError if the session is already gone.
     // We still want the UI to reliably log out in that case.
     try {
-      if (supabase) {
-        // Save current preferences before signing out
-        if (user && preferences) {
-          const currentPrefs = {
-            selected_month_table: localStorage.getItem('selectedMonthTable'),
-            badge_filter: JSON.parse(localStorage.getItem('badgeFilter') || '[]'),
-            dashboard_tab: 'all'
-          }
-          await saveUserPreferences(currentPrefs)
-        }
-
-        const { error } = await supabase.auth.signOut()
-        if (error) throw error
-      }
-    } catch (error) {
-      console.error('Error signing out:', error)
-      const msg = (error?.message || '').toLowerCase()
-      if (msg.includes('auth session missing') || msg.includes('session not found') || msg.includes('session_missing')) {
-        // Treat as already signed out
-      } else {
-        toast.error('Failed to sign out')
-        throw error
-      }
-    } finally {
-      // Always clear local UI state to avoid getting stuck "logged in"
+      // Always clear local UI state FIRST to ensure immediate logout
       setUser(null)
       setPreferences(null)
       welcomeToastShownRef.current = false
+
+      if (supabase) {
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+          const msg = (error?.message || '').toLowerCase()
+          if (!msg.includes('auth session missing') && !msg.includes('session not found') && !msg.includes('session_missing')) {
+            console.error('Error signing out:', error)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error signing out:', error)
+      // Don't throw - we already cleared local state so user is logged out
     }
-  }
+  }, [])
 
   // Memoize bypassAuth to prevent recreation on every render
   const bypassAuth = useCallback(async () => {

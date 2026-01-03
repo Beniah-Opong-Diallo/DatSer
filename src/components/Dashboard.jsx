@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, X, Feather, StickyNote, History, Eye } from 'lucide-react'
-import EditMemberModal from './EditMemberModal'
-import MemberModal from './MemberModal'
-
-import MonthModal from './MonthModal'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
-import MissingDataModal from './MissingDataModal'
+import TableSkeleton from './TableSkeleton'
 import SelectionToolbar from './SelectionToolbar'
 import { useLongPressSelection } from '../hooks/useLongPressSelection'
 import { toast } from 'react-toastify'
-import TableSkeleton from './TableSkeleton'
+
+// Lazy load heavy modals for better initial load performance
+const EditMemberModal = lazy(() => import('./EditMemberModal'))
+const MemberModal = lazy(() => import('./MemberModal'))
+const MonthModal = lazy(() => import('./MonthModal'))
+const MissingDataModal = lazy(() => import('./MissingDataModal'))
 
 // Helper function to get month display name from table name
 const getMonthDisplayName = (tableName) => {
@@ -2110,18 +2111,24 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Edit Member Modal */}
       {editingMember && (
-        <EditMemberModal
-          isOpen={!!editingMember}
-          onClose={() => setEditingMember(null)}
-          member={editingMember}
-        />
+        <Suspense fallback={null}>
+          <EditMemberModal
+            isOpen={!!editingMember}
+            onClose={() => setEditingMember(null)}
+            member={editingMember}
+          />
+        </Suspense>
       )}
 
       {/* Add Member Modal */}
-      <MemberModal
-        isOpen={showMemberModal}
-        onClose={() => setShowMemberModal(false)}
-      />
+      {showMemberModal && (
+        <Suspense fallback={null}>
+          <MemberModal
+            isOpen={showMemberModal}
+            onClose={() => setShowMemberModal(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Delete Confirm Modal */}
       {isDeleteConfirmOpen && (
@@ -2197,10 +2204,14 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Create Month Modal */}
-      <MonthModal
-        isOpen={showMonthModal}
-        onClose={() => setShowMonthModal(false)}
-      />
+      {showMonthModal && (
+        <Suspense fallback={null}>
+          <MonthModal
+            isOpen={showMonthModal}
+            onClose={() => setShowMonthModal(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Custom Confirmation Modal */}
       <ConfirmModal
@@ -2434,27 +2445,25 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Missing Data Modal */}
       {showMissingDataModal && missingDataMember && (
-        <MissingDataModal
-          member={missingDataMember}
-          missingFields={missingFields}
-          missingDates={missingDates}
-          pendingAttendanceAction={pendingAttendanceAction}
-          selectedAttendanceDate={selectedAttendanceDate ? new Date(selectedAttendanceDate) : new Date()}
-          onClose={() => {
-            setShowMissingDataModal(false)
-            setMissingDataMember(null)
-            setMissingFields([])
-            setMissingDates([])
-            setPendingAttendanceAction(null)
-          }}
-          onSave={async () => {
-            // The modal handles the attendance marking internally using the correct date
-            // Just show a success toast here if needed, or rely on the modal's toast
-            // The modal shows "Attendance saved (Override)" or "Missing data saved successfully!"
-
-            setPendingAttendanceAction(null)
-          }}
-        />
+        <Suspense fallback={null}>
+          <MissingDataModal
+            member={missingDataMember}
+            missingFields={missingFields}
+            missingDates={missingDates}
+            pendingAttendanceAction={pendingAttendanceAction}
+            selectedAttendanceDate={selectedAttendanceDate ? new Date(selectedAttendanceDate) : new Date()}
+            onClose={() => {
+              setShowMissingDataModal(false)
+              setMissingDataMember(null)
+              setMissingFields([])
+              setMissingDates([])
+              setPendingAttendanceAction(null)
+            }}
+            onSave={async () => {
+              setPendingAttendanceAction(null)
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Filter Modal */}

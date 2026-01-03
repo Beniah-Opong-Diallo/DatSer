@@ -3,7 +3,7 @@ import { Search, UserPlus, Settings, Moon, Sun, Download, Home, X, Users, LogOut
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 
-const CommandPalette = ({ setCurrentView, onAddMember }) => {
+const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [query, setQuery] = useState('')
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -52,6 +52,17 @@ const CommandPalette = ({ setCurrentView, onAddMember }) => {
                 setIsOpen(false)
             }
         },
+        ...(isExecutive ? [{
+            id: 'exec',
+            label: 'Executive Attendance',
+            icon: Monitor,
+            category: 'navigation',
+            shortcut: 'X',
+            action: () => {
+                setCurrentView('exec')
+                setIsOpen(false)
+            }
+        }] : []),
         {
             id: 'analytics',
             label: 'View Analytics',
