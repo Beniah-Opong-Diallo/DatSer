@@ -2102,10 +2102,10 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem(savedDateKey, date.toISOString())
   }, [currentTable])
 
-  // Fetch monthly tables on component mount
+  // Fetch monthly tables when dependencies change (e.g., collaborator status)
   useEffect(() => {
     fetchMonthlyTables()
-  }, [])
+  }, [fetchMonthlyTables])
 
   // Validate saved table exists in available tables after fetching (run only once)
   const hasValidatedTable = useRef(false)
