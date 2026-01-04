@@ -36,6 +36,7 @@ const getCurrentMonthTable = () => {
 // Fallback monthly tables for when Supabase is not configured
 const FALLBACK_MONTHLY_TABLES = MONTHS_IN_YEAR.map(month => `${month}_2025`)
 const DEFAULT_COLLAB_TABLE = 'January_2026'
+const COLLAB_FALLBACK_TABLES = [DEFAULT_COLLAB_TABLE, ...FALLBACK_MONTHLY_TABLES]
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const DEFAULT_ATTENDANCE_DATES = {
