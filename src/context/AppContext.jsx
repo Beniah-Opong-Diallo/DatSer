@@ -36,7 +36,7 @@ const getCurrentMonthTable = () => {
 // Fallback monthly tables for when Supabase is not configured
 const FALLBACK_MONTHLY_TABLES = MONTHS_IN_YEAR.map(month => `${month}_2025`)
 const DEFAULT_COLLAB_TABLE = 'January_2026'
-const COLLAB_FALLBACK_TABLES = [DEFAULT_COLLAB_TABLE, ...FALLBACK_MONTHLY_TABLES]
+const COLLAB_FALLBACK_TABLES = [...new Set([DEFAULT_COLLAB_TABLE, ...FALLBACK_MONTHLY_TABLES])]
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const DEFAULT_ATTENDANCE_DATES = {
@@ -238,6 +238,12 @@ export const AppProvider = ({ children }) => {
       return user.id
     }
   }
+
+  // Determine collaborator status whenever auth state settles
+  useEffect(() => {
+    if (authLoading) return
+    checkCollaboratorStatus()
+  }, [authLoading, user?.email])
 
   // Activity Logging Helper
   const logActivity = useCallback(async (action, details) => {
