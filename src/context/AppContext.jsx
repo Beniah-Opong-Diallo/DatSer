@@ -2210,12 +2210,15 @@ export const AppProvider = ({ children }) => {
       if (monthlyTables.includes(DEFAULT_TABLE)) {
         if (currentTable !== DEFAULT_TABLE) {
           console.log('Forcing default table to January_2026 for all users')
+          // Clear cache for fresh fetch
+          membersCacheRef.current.delete(DEFAULT_TABLE)
           setCurrentTable(DEFAULT_TABLE)
           localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
         }
       } else if (!currentTable || !monthlyTables.includes(currentTable)) {
         // Fallback only if January_2026 doesn't exist and current is invalid
         const latest = monthlyTables[monthlyTables.length - 1]
+        membersCacheRef.current.delete(latest)
         setCurrentTable(latest)
         localStorage.setItem('selectedMonthTable', latest)
       }

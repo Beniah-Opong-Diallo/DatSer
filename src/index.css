@@ -22,6 +22,19 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
   }
+  
+  /* Prevent iOS zoom on input focus - must be 16px minimum */
+  input, select, textarea {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+  
+  /* Ensure buttons and interactive elements don't trigger zoom */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
 }
 
 /* Smooth grid layout animations - GPU accelerated, disabled on mobile */
