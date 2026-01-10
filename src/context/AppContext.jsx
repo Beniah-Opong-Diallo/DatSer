@@ -100,6 +100,11 @@ export const useApp = () => {
 }
 
 export const AppProvider = ({ children }) => {
+  // Force January_2026 as default on every app load - clear any saved selection
+  useEffect(() => {
+    localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
+  }, [])
+  
   // Get user from auth context - may be null during initial load
   const authContext = useAuth()
   const user = authContext?.user
@@ -2198,48 +2203,24 @@ export const AppProvider = ({ children }) => {
     fetchMonthlyTables()
   }, [fetchMonthlyTables])
 
-  // Safety check: specific fix for "stuck" deleted tables
-  // If the current table (from localStorage) is not in the fetched monthlyTables list, switch to a valid one.
+  // ALWAYS set January_2026 as default for all users on load
   useEffect(() => {
-    // Skip this check during initial load or if Supabase isn't configured
-    if (!isSupabaseConfigured()) return
-
-    // If we have tables but current one isn't in the list
-    if (monthlyTables.length > 0 && currentTable && !monthlyTables.includes(currentTable)) {
-      console.warn(`Current table ${currentTable} is invalid/deleted. Switching to latest available.`)
-      // Switch to the most recent table
-      changeCurrentTable(monthlyTables[monthlyTables.length - 1])
-    }
-    // If we have NO tables but a current table is set (and it's not the default fallback which might be invalid)
-    else if (monthlyTables.length === 0 && currentTable) {
-      // Only clear if we are sure we fetched successfully (which logic in fetchMonthlyTables handles)
-      // But strictly, if monthlyTables is empty, we shouldn't be pointing to a table
-      console.warn(`No tables available. Clearing current table ${currentTable}`)
-      changeCurrentTable(null)
-    }
-  }, [monthlyTables, currentTable, changeCurrentTable, isSupabaseConfigured])
-
-  // Validate and set default table - always use January_2026 for all users
-  const hasValidatedTable = useRef(false)
-  useEffect(() => {
-    if (monthlyTables.length > 0 && !hasValidatedTable.current) {
-      hasValidatedTable.current = true
-      
-      // Always default to January_2026 for all users (admin and collaborators)
+    if (monthlyTables.length > 0) {
+      // Always force January_2026 if it exists
       if (monthlyTables.includes(DEFAULT_TABLE)) {
         if (currentTable !== DEFAULT_TABLE) {
-          console.log('Setting default table to January_2026 for all users')
-          changeCurrentTable(DEFAULT_TABLE)
+          console.log('Forcing default table to January_2026 for all users')
+          setCurrentTable(DEFAULT_TABLE)
+          localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
         }
-      } else {
-        // Fallback to most recent table if January_2026 doesn't exist
+      } else if (!currentTable || !monthlyTables.includes(currentTable)) {
+        // Fallback only if January_2026 doesn't exist and current is invalid
         const latest = monthlyTables[monthlyTables.length - 1]
-        if (currentTable !== latest) {
-          changeCurrentTable(latest)
-        }
+        setCurrentTable(latest)
+        localStorage.setItem('selectedMonthTable', latest)
       }
     }
-  }, [monthlyTables, changeCurrentTable, currentTable])
+  }, [monthlyTables])
 
   // Fetch members on component mount and when current table changes
   // Wait for auth to finish loading before fetching to avoid race condition
