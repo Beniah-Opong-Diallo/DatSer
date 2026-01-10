@@ -1876,8 +1876,18 @@ export const AppProvider = ({ children }) => {
       // Refresh the monthly tables list from database
       await fetchMonthlyTables()
 
+      // Clear cache for the new month to ensure fresh data fetch
+      membersCacheRef.current.delete(monthIdentifier)
+      
       // Switch to the new month
       changeCurrentTable(monthIdentifier)
+      
+      // Force refresh members after a short delay to ensure table is ready
+      setTimeout(async () => {
+        membersCacheRef.current.delete(monthIdentifier)
+        await fetchMembers(monthIdentifier)
+        await initializeAttendanceDates()
+      }, 500)
 
       console.log(`Successfully created month: ${monthIdentifier}`)
       return { success: true, tableName: monthIdentifier, result }
