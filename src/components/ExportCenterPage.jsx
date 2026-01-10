@@ -1,0 +1,424 @@
+import React, { useState, useMemo, useCallback } from 'react'
+import {
+    ChevronLeft,
+    Download,
+    Calendar,
+    CheckCircle,
+    FileSpreadsheet,
+    GripVertical,
+    Eye,
+    Users,
+    Loader2,
+    ChevronDown,
+    ChevronUp,
+    X
+} from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
+import { toast } from 'react-toastify'
+
+const ExportCenterPage = ({ onBack }) => {
+    const { monthlyTables, members, attendanceData, currentTable, isSupabaseConfigured, dataOwnerId } = useApp()
+    const { user } = useApp()
+
+    // Month selection
+    const [selectedMonths, setSelectedMonths] = useState([])
+    const [selectAll, setSelectAll] = useState(false)
+
+    // Column order (drag-and-drop)
+    const defaultColumns = [
+        'Full Name',
+        'Gender',
+        'Phone Number',
+        'Age',
+        'Current Level',
+        'Parent Name',
+        'Parent Phone Number'
+    ]
+    const [columns, setColumns] = useState(defaultColumns)
+    const [draggedIdx, setDraggedIdx] = useState(null)
+
+    // Preview
+    const [showPreview, setShowPreview] = useState(false)
+    const [previewData, setPreviewData] = useState([])
+    const [loadingPreview, setLoadingPreview] = useState(false)
+
+    // Exporting
+    const [isExporting, setIsExporting] = useState(false)
+
+    // Group months by year
+    const monthsByYear = useMemo(() => {
+        const grouped = {}
+        ;(monthlyTables || []).forEach(t => {
+            const [month, year] = t.split('_')
+            if (!grouped[year]) grouped[year] = []
+            grouped[year].push(t)
+        })
+        return grouped
+    }, [monthlyTables])
+
+    const years = useMemo(() => Object.keys(monthsByYear).sort((a, b) => parseInt(b) - parseInt(a)), [monthsByYear])
+
+    // Toggle month selection
+    const toggleMonth = (table) => {
+        setSelectedMonths(prev =>
+            prev.includes(table) ? prev.filter(t => t !== table) : [...prev, table]
+        )
+    }
+
+    // Select/deselect all
+    const handleSelectAll = () => {
+        if (selectAll) {
+            setSelectedMonths([])
+        } else {
+            setSelectedMonths([...(monthlyTables || [])])
+        }
+        setSelectAll(!selectAll)
+    }
+
+    // Drag-and-drop column reorder
+    const handleDragStart = (idx) => setDraggedIdx(idx)
+    const handleDragOver = (e) => e.preventDefault()
+    const handleDrop = (idx) => {
+        if (draggedIdx === null || draggedIdx === idx) return
+        const newCols = [...columns]
+        const [removed] = newCols.splice(draggedIdx, 1)
+        newCols.splice(idx, 0, removed)
+        setColumns(newCols)
+        setDraggedIdx(null)
+    }
+
+    // Fetch preview data for selected months
+    const fetchPreview = useCallback(async () => {
+        if (selectedMonths.length === 0) {
+            toast.info('Select at least one month to preview')
+            return
+        }
+        setLoadingPreview(true)
+        setShowPreview(true)
+        try {
+            let allRows = []
+            for (const table of selectedMonths) {
+                if (!isSupabaseConfigured()) {
+                    // Demo mode: use current members
+                    allRows = allRows.concat(members.map(m => ({ ...m, _month: table })))
+                } else {
+                    const { data, error } = await supabase.from(table).select('*')
+                    if (!error && data) {
+                        allRows = allRows.concat(data.map(m => ({ ...m, _month: table })))
+                    }
+                }
+            }
+            setPreviewData(allRows)
+        } catch (err) {
+            console.error('Preview fetch error:', err)
+            toast.error('Failed to load preview')
+        } finally {
+            setLoadingPreview(false)
+        }
+    }, [selectedMonths, isSupabaseConfigured, members])
+
+    // Compute summary stats
+    const summary = useMemo(() => {
+        const total = previewData.length
+        const boys = previewData.filter(m => (m.Gender || m.gender || '').toLowerCase() === 'male').length
+        const girls = previewData.filter(m => (m.Gender || m.gender || '').toLowerCase() === 'female').length
+        const monthsCount = selectedMonths.length
+        return { total, boys, girls, monthsCount }
+    }, [previewData, selectedMonths])
+
+    // Export to CSV
+    const handleExport = useCallback(() => {
+        if (previewData.length === 0) {
+            toast.info('No data to export. Load preview first.')
+            return
+        }
+        setIsExporting(true)
+        try {
+            // Build summary header
+            const summaryLines = [
+                `# Export Summary`,
+                `# Months: ${selectedMonths.map(m => m.replace('_', ' ')).join(', ')}`,
+                `# Total Members: ${summary.total}`,
+                `# Boys: ${summary.boys}`,
+                `# Girls: ${summary.girls}`,
+                `# Generated: ${new Date().toLocaleString()}`,
+                ``
+            ]
+
+            // Build CSV header
+            const header = [...columns, 'Month']
+            const csvHeader = header.map(h => `"${h}"`).join(',')
+
+            // Helper to format phone numbers with leading 0
+            const formatPhone = (val) => {
+                if (!val) return ''
+                const str = String(val).trim()
+                if (!str) return ''
+                // Remove any non-digit characters
+                const digits = str.replace(/\D/g, '')
+                if (!digits) return str // Return original if no digits
+                // Always ensure it starts with 0
+                if (!digits.startsWith('0')) {
+                    return '0' + digits
+                }
+                return digits
+            }
+
+            // Helper to normalize gender values
+            const normalizeGender = (val) => {
+                if (!val) return ''
+                const str = String(val).trim().toLowerCase()
+                if (str === 'm' || str === 'male') return 'Male'
+                if (str === 'f' || str === 'female') return 'Female'
+                return val // Return original if not recognized
+            }
+
+            // Build rows
+            const csvRows = previewData.map(row => {
+                const vals = columns.map(col => {
+                    let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
+                    
+                    // Format phone numbers with leading 0
+                    if (col === 'Phone Number' || col === 'Parent Phone Number') {
+                        v = formatPhone(v)
+                    }
+                    
+                    // Normalize gender values
+                    if (col === 'Gender') {
+                        v = normalizeGender(v)
+                    }
+                    
+                    if (typeof v === 'string') v = v.replace(/"/g, '""')
+                    return `"${v}"`
+                })
+                vals.push(`"${(row._month || '').replace('_', ' ')}"`)
+                return vals.join(',')
+            })
+
+            const csvContent = summaryLines.join('\n') + csvHeader + '\n' + csvRows.join('\n')
+
+            // Download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `export_${selectedMonths.length > 1 ? 'multiple_months' : selectedMonths[0] || 'data'}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+
+            toast.success(`Exported ${previewData.length} records`)
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Export failed')
+        } finally {
+            setIsExporting(false)
+        }
+    }, [previewData, columns, selectedMonths, summary])
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
+            {/* Header */}
+            <div className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+                <button
+                    onClick={onBack}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                    <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                </button>
+                <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Export Center</h1>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+                {/* Month Selection */}
+                <section className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 lg:p-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-500" /> Select Months
+                        </h2>
+                        <button
+                            onClick={handleSelectAll}
+                            className="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors"
+                        >
+                            {selectAll ? 'Deselect All' : 'Select All'}
+                        </button>
+                    </div>
+                    <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                        {years.map(year => (
+                            <div key={year}>
+                                <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">{year}</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {(monthsByYear[year] || []).map(table => {
+                                        const selected = selectedMonths.includes(table)
+                                        return (
+                                            <button
+                                                key={table}
+                                                onClick={() => toggleMonth(table)}
+                                                className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${selected
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                                                    }`}
+                                            >
+                                                {table.replace('_', ' ')}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                        {years.length === 0 && (
+                            <p className="text-gray-400 text-sm">No months available</p>
+                        )}
+                    </div>
+                </section>
+
+                {/* Column Order */}
+                <section className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 lg:p-6">
+                    <h2 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                        <GripVertical className="w-4 h-4 text-gray-400" /> Column Order
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Drag to reorder • Click X to remove</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {columns.map((col, idx) => (
+                            <div
+                                key={col}
+                                draggable
+                                onDragStart={() => handleDragStart(idx)}
+                                onDragOver={handleDragOver}
+                                onDrop={() => handleDrop(idx)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 cursor-grab select-none ${draggedIdx === idx ? 'opacity-50' : ''
+                                    }`}
+                            >
+                                <GripVertical className="w-4 h-4 text-gray-400" />
+                                <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">{col}</span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setColumns(prev => prev.filter((_, i) => i !== idx))
+                                    }}
+                                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                    title="Remove column"
+                                >
+                                    <X className="w-4 h-4 text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* Preview Button */}
+                <button
+                    onClick={fetchPreview}
+                    disabled={selectedMonths.length === 0 || loadingPreview}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {loadingPreview ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                    {loadingPreview ? 'Loading Preview...' : 'Preview Data'}
+                </button>
+
+                {/* Preview Section */}
+                {showPreview && (
+                    <section className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 lg:p-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <Users className="w-4 h-4 text-green-500" /> Preview
+                            </h2>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{previewData.length} records</span>
+                        </div>
+
+                        {/* Summary Stats */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 lg:p-6 mb-6 border border-blue-200 dark:border-blue-800">
+                            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                                <FileSpreadsheet className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                Export Summary
+                            </h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 lg:p-4 shadow-sm border border-blue-100 dark:border-blue-800">
+                                    <div className="text-2xl lg:text-3xl font-bold text-blue-600 dark:text-blue-400">{summary.monthsCount}</div>
+                                    <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-medium">Month{summary.monthsCount !== 1 ? 's' : ''} Selected</div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 lg:p-4 shadow-sm border border-green-100 dark:border-green-800">
+                                    <div className="text-2xl lg:text-3xl font-bold text-green-600 dark:text-green-400">{summary.total}</div>
+                                    <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-medium">Total Members</div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 lg:p-4 shadow-sm border border-indigo-100 dark:border-indigo-800">
+                                    <div className="text-2xl lg:text-3xl font-bold text-indigo-600 dark:text-indigo-400">{summary.boys}</div>
+                                    <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-medium">Male Members</div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 lg:p-4 shadow-sm border border-pink-100 dark:border-pink-800">
+                                    <div className="text-2xl lg:text-3xl font-bold text-pink-600 dark:text-pink-400">{summary.girls}</div>
+                                    <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-medium">Female Members</div>
+                                </div>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
+                                <p className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Ready to export:</strong> {summary.total} member{summary.total !== 1 ? 's' : ''} from {summary.monthsCount} month{summary.monthsCount !== 1 ? 's' : ''} 
+                                    ({summary.boys} male, {summary.girls} female). All phone numbers will be formatted with leading zero. Gender values normalized to "Male"/"Female".
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Table Preview */}
+                        <div className="overflow-x-auto max-h-96 lg:max-h-[600px] border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <table className="min-w-full text-xs lg:text-sm">
+                                <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+                                    <tr>
+                                        {columns.map(col => (
+                                            <th key={col} className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
+                                        ))}
+                                        <th className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Month</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {previewData.slice(0, 100).map((row, i) => (
+                                        <tr key={i} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                            {columns.map(col => (
+                                                <td key={col} className="px-3 lg:px-4 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                                    {row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? '-'}
+                                                </td>
+                                            ))}
+                                            <td className="px-3 lg:px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{(row._month || '').replace('_', ' ')}</td>
+                                        </tr>
+                                    ))}
+                                    {previewData.length > 100 && (
+                                        <tr>
+                                            <td colSpan={columns.length + 1} className="px-3 py-3 text-center text-gray-400 text-xs lg:text-sm bg-gray-50 dark:bg-gray-700/50">
+                                                ...and {previewData.length - 100} more rows (all will be included in export)
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {previewData.length === 0 && (
+                                        <tr>
+                                            <td colSpan={columns.length + 1} className="px-2 py-4 text-center text-gray-400">No data</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
+
+                {/* Export Button */}
+                <button
+                    onClick={handleExport}
+                    disabled={previewData.length === 0 || isExporting}
+                    className="w-full flex items-center justify-center gap-2 py-4 lg:py-5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-base lg:text-lg font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isExporting ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+                    {isExporting ? 'Exporting...' : 'Export to CSV for Google Sheets'}
+                </button>
+
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                    The exported CSV includes a summary header and can be imported directly into Google Sheets.
+                </p>
+            </div>
+        </div>
+    )
+}
+
+export default ExportCenterPage

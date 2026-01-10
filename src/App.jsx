@@ -150,7 +150,7 @@ function AppContent({ isMobile }) {
           </Suspense>
         )}
 
-              </main>
+      </main>
 
       {/* Lazy-loaded modals - only render when open */}
       {showMemberModal && (

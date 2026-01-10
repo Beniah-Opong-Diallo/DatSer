@@ -18,6 +18,7 @@ const MissingDataModal = lazy(() => import('./MissingDataModal'))
 // Helper function to get month display name from table name
 const getMonthDisplayName = (tableName) => {
   // Convert table name like "October_2025" to "October 2025"
+  if (!tableName) return 'Select Month'
   return tableName.replace('_', ' ')
 }
 

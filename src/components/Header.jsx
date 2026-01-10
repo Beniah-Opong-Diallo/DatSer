@@ -27,7 +27,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     toggleBadgeFilter,
     selectedAttendanceDate,
     setAndSaveAttendanceDate,
-    focusDateSelector
+    focusDateSelector,
+    isCollaborator
   } = useApp()
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const monthButtonRef = useRef(null)
@@ -297,20 +298,34 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
                   <span className="text-gray-400">•</span>
                 </>
               )}
-              <span>{compactFoundCount} found</span>
-              <span className="text-gray-400">•</span>
+
+              {/* Only show count for admins/owners, hide for collaborators if requested */}
+              {!isCollaborator && (
+                <>
+                  <span>{compactFoundCount} found</span>
+                  <span className="text-gray-400">•</span>
+                </>
+              )}
+
               <button
                 ref={monthButtonRef}
                 onClick={() => setShowMonthPicker(true)}
                 className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+                title={isCollaborator ? "Click to switch month" : "Select Month"}
               >
                 {currentTable ? currentTable.replace('_', ' ') : 'Select Month'}
                 <ChevronDown className="w-3 h-3" />
               </button>
-              <span className="text-gray-400">•</span>
-              <span className={isSupabaseConfigured() ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
-                {isSupabaseConfigured() ? 'Live' : 'Demo'}
-              </span>
+
+              {/* Hide technical status for collaborators */}
+              {!isCollaborator && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span className={isSupabaseConfigured() ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
+                    {isSupabaseConfigured() ? 'Live' : 'Demo'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

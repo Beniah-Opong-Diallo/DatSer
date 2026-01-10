@@ -48,7 +48,9 @@ import ExportDataModal from './ExportDataModal'
 import ProfilePhotoEditor from './ProfilePhotoEditor'
 import HelpCenterPage from './HelpCenterPage'
 import ActivityLogViewer from './ActivityLogViewer'
+import ExportCenterPage from './ExportCenterPage'
 import ConfirmModal from './ConfirmModal'
+import AdminControlsModal from './AdminControlsModal'
 
 const SettingsPage = ({ onBack }) => {
     const { user, signOut, preferences } = useAuth()
@@ -80,28 +82,28 @@ const SettingsPage = ({ onBack }) => {
         })
         return () => cancelAnimationFrame(raf1)
     }, [activeSection, showHelpCenter])
-    
+
     // Accessibility settings state
     const [animationsEnabled, setAnimationsEnabled] = useState(() => {
         const saved = localStorage.getItem('animationsEnabled')
         return saved !== 'false' // Default to true
     })
-    
+
     const [reducedMotion, setReducedMotion] = useState(() => {
         const saved = localStorage.getItem('reducedMotion')
         return saved === 'true'
     })
-    
+
     const [highContrast, setHighContrast] = useState(() => {
         const saved = localStorage.getItem('highContrast')
         return saved === 'true'
     })
-    
+
     const [focusVisible, setFocusVisible] = useState(() => {
         const saved = localStorage.getItem('focusVisible')
         return saved !== 'false' // Default to true
     })
-    
+
     const [performanceMode, setPerformanceMode] = useState(() => {
         const saved = localStorage.getItem('performanceMode')
         return saved === 'true'
@@ -135,7 +137,9 @@ const SettingsPage = ({ onBack }) => {
     const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
     const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false)
     const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+    const [showExportCenter, setShowExportCenter] = useState(false)
     const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false)
+    const [isAdminControlsOpen, setIsAdminControlsOpen] = useState(false)
     const [deletingCollaboratorId, setDeletingCollaboratorId] = useState(null)
     const [pendingRemoval, setPendingRemoval] = useState(null)
     const [monthViewMode, setMonthViewMode] = useState('list') // 'list' | 'calendar'
@@ -147,7 +151,19 @@ const SettingsPage = ({ onBack }) => {
         tableName: null,
         label: ''
     })
-    
+
+    // Lightweight usage snapshot (static/mock-friendly for free-plan awareness)
+    const usageMetrics = useMemo(() => ([
+        { label: 'Egress', used: 5.177, limit: 5, unit: 'GB' },
+        { label: 'Database Size', used: 0.037, limit: 0.5, unit: 'GB' },
+        { label: 'Realtime Connections', used: 12, limit: 200, unit: 'conns' },
+    ]), [])
+
+    const usagePercent = (used, limit) => {
+        if (!limit || limit <= 0) return 0
+        return Math.min(100, Math.round((used / limit) * 100))
+    }
+
     // Apply accessibility settings
     useEffect(() => {
         localStorage.setItem('animationsEnabled', String(animationsEnabled))
@@ -155,14 +171,14 @@ const SettingsPage = ({ onBack }) => {
         localStorage.setItem('highContrast', String(highContrast))
         localStorage.setItem('focusVisible', String(focusVisible))
         localStorage.setItem('performanceMode', String(performanceMode))
-        
+
         // Apply to document
         document.documentElement.classList.toggle('animations-disabled', !animationsEnabled)
         document.documentElement.classList.toggle('reduced-motion', reducedMotion)
         document.documentElement.classList.toggle('high-contrast', highContrast)
         document.documentElement.classList.toggle('focus-visible', focusVisible)
         document.documentElement.classList.toggle('performance-mode', performanceMode)
-        
+
         // Add custom CSS for performance mode
         if (performanceMode) {
             document.documentElement.style.setProperty('--transition-duration', '0ms')
@@ -183,21 +199,41 @@ const SettingsPage = ({ onBack }) => {
     // Fetch collaborators for Team section display
     useEffect(() => {
         const fetchCollaborators = async () => {
-            if (!user?.id || !isSupabaseConfigured) return
+            console.log('🔍 SettingsPage: fetchCollaborators STARTED')
+            console.log('User ID:', user?.id)
+            console.log('isSupabaseConfigured:', isSupabaseConfigured)
+
+            if (!user?.id || !isSupabaseConfigured) {
+                console.log('⚠️ Skipping fetch - no user ID or Supabase not configured')
+                return
+            }
+
             setFetchingCollaborators(true)
             try {
+                console.log('📡 Querying collaborators table with owner_id:', user.id)
                 const { data, error } = await supabase
                     .from('collaborators')
                     .select('*')
                     .eq('owner_id', user.id)
                     .order('created_at', { ascending: false })
+
+                console.log('📊 Query result:', {
+                    dataCount: data?.length || 0,
+                    error: error?.message,
+                    data: data
+                })
+
                 if (!error && data) {
+                    console.log(`✅ Found ${data.length} collaborators`)
                     setCollaborators(data)
+                } else if (error) {
+                    console.error('❌ Error fetching collaborators:', error)
                 }
             } catch (err) {
-                console.error('Error fetching collaborators:', err)
+                console.error('❌ Exception in fetchCollaborators:', err)
             } finally {
                 setFetchingCollaborators(false)
+                console.log('🔍 fetchCollaborators COMPLETE')
             }
         }
         fetchCollaborators()
@@ -567,19 +603,17 @@ const SettingsPage = ({ onBack }) => {
                             <button
                                 onClick={toggleAutoSunday}
                                 disabled={isCollaborator && !autoSundayEnabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                    isCollaborator && !autoSundayEnabled
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !autoSundayEnabled
                                         ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
                                         : autoSundayEnabled
-                                        ? 'bg-primary-600'
-                                        : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
+                                            ? 'bg-primary-600'
+                                            : 'bg-gray-200 dark:bg-gray-600'
+                                    }`}
                                 title={isCollaborator && !autoSundayEnabled ? 'Auto-Sunday is managed by workspace admin' : 'Toggle Auto-Sunday'}
                             >
                                 <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                        autoSundayEnabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoSundayEnabled ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
                                 />
                             </button>
                         </div>
@@ -600,19 +634,17 @@ const SettingsPage = ({ onBack }) => {
                             <button
                                 onClick={toggleAutoAllDates}
                                 disabled={isCollaborator && !autoAllDatesEnabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                    isCollaborator && !autoAllDatesEnabled
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !autoAllDatesEnabled
                                         ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
                                         : autoAllDatesEnabled
-                                        ? 'bg-primary-600'
-                                        : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
+                                            ? 'bg-primary-600'
+                                            : 'bg-gray-200 dark:bg-gray-600'
+                                    }`}
                                 title={isCollaborator && !autoAllDatesEnabled ? 'Auto-All-Dates is managed by workspace admin' : 'Toggle Auto-All-Dates'}
                             >
                                 <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                        autoAllDatesEnabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoAllDatesEnabled ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
                                 />
                             </button>
                         </div>
@@ -702,11 +734,10 @@ const SettingsPage = ({ onBack }) => {
                                                             setCurrentTable(table)
                                                             setShowMonthDropdown(false)
                                                         }}
-                                                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
-                                                            isActive
+                                                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${isActive
                                                                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
                                                                 : 'text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <span>{table.replace('_', ' ')}</span>
                                                         <div className="flex items-center gap-2">
@@ -743,11 +774,10 @@ const SettingsPage = ({ onBack }) => {
                                         <button
                                             key={year}
                                             onClick={() => setSelectedYear(year)}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                selectedYear === year
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedYear === year
                                                     ? 'bg-blue-600 text-white'
                                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                            }`}
+                                                }`}
                                         >
                                             {year}
                                         </button>
@@ -771,34 +801,31 @@ const SettingsPage = ({ onBack }) => {
                                                         handleQuickCreateMonth(month, selectedYear)
                                                     }
                                                 }}
-                                                className={`relative p-4 rounded-2xl border transition-all cursor-pointer shadow-sm backdrop-blur-sm ${
-                                                    isCurrent
+                                                className={`relative p-4 rounded-2xl border transition-all cursor-pointer shadow-sm backdrop-blur-sm ${isCurrent
                                                         ? 'border-blue-400 bg-gradient-to-br from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-700/20'
                                                         : exists
                                                             ? 'border-green-200/70 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20 hover:border-green-400'
                                                             : 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/40 hover:border-gray-400 dark:hover:border-gray-500'
-                                                } hover:-translate-y-1 hover:shadow-lg`}
+                                                    } hover:-translate-y-1 hover:shadow-lg`}
                                             >
                                                 <div className="flex items-start justify-between mb-4">
                                                     <div>
                                                         <p className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">Month</p>
-                                                        <p className={`text-lg font-semibold ${
-                                                            isCurrent
+                                                        <p className={`text-lg font-semibold ${isCurrent
                                                                 ? 'text-blue-700 dark:text-blue-200'
                                                                 : exists
                                                                     ? 'text-emerald-800 dark:text-emerald-200'
                                                                     : 'text-gray-600 dark:text-gray-300'
-                                                        }`}>
+                                                            }`}>
                                                             {month}
                                                         </p>
                                                     </div>
                                                     {exists ? (
                                                         <div className="flex items-center gap-2">
-                                                            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${
-                                                                isCurrent
+                                                            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full ${isCurrent
                                                                     ? 'bg-blue-500/20 text-blue-700 dark:text-blue-200'
                                                                     : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
-                                                            }`}>
+                                                                }`}>
                                                                 {isCurrent ? 'Active' : 'Saved'}
                                                             </span>
                                                             <button
@@ -809,7 +836,7 @@ const SettingsPage = ({ onBack }) => {
                                                                 className={`p-1.5 rounded-full ${deletingTable === table
                                                                     ? 'bg-red-200/80 text-red-700 cursor-wait'
                                                                     : 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40'
-                                                                } transition-colors`}
+                                                                    } transition-colors`}
                                                                 disabled={deletingTable === table}
                                                                 title={`Delete ${month} ${selectedYear}`}
                                                             >
@@ -835,13 +862,12 @@ const SettingsPage = ({ onBack }) => {
                                                     {sundays.slice(0, 12).map((sunday, i) => (
                                                         <div
                                                             key={`${month}-${i}`}
-                                                            className={`rounded-xl px-2 py-2 flex flex-col items-center text-center shadow-inner ${
-                                                                exists
+                                                            className={`rounded-xl px-2 py-2 flex flex-col items-center text-center shadow-inner ${exists
                                                                     ? isCurrent
                                                                         ? 'bg-white/80 dark:bg-white/10 text-blue-700 dark:text-blue-200 border border-blue-200/60 dark:border-blue-400/30'
                                                                         : 'bg-white/80 dark:bg-white/5 text-emerald-700 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-400/30'
                                                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-400 border border-dashed border-gray-300 dark:border-gray-600'
-                                                            }`}
+                                                                }`}
                                                             title={sunday.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                                                         >
                                                             <span className="text-[10px] uppercase tracking-wide opacity-70">Sun</span>
@@ -882,6 +908,28 @@ const SettingsPage = ({ onBack }) => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Team & Sharing</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Manage who has access to your workspace</p>
             </div>
+
+            {/* Admin Controls Card - Only for owners */}
+            {!isCollaborator && (
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                            <Lock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">Admin Controls</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Set sticky month and Sunday dates for all collaborators</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setIsAdminControlsOpen(true)}
+                        className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Lock className="w-4 h-4" />
+                        Admin Controls
+                    </button>
+                </div>
+            )}
 
             {/* Share Access Card */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -991,7 +1039,7 @@ const SettingsPage = ({ onBack }) => {
             {/* Export/Import */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
                 <button
-                    onClick={() => setIsExportModalOpen(true)}
+                    onClick={() => setActiveSection('export')}
                     className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
                     <div className="flex items-center gap-3">
@@ -999,8 +1047,8 @@ const SettingsPage = ({ onBack }) => {
                             <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
                         </div>
                         <div className="text-left">
-                            <p className="font-medium text-gray-900 dark:text-white">Export Data</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Download your data as CSV</p>
+                            <p className="font-medium text-gray-900 dark:text-white">Export Center</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Select months, preview, reorder columns, export CSV</p>
                         </div>
                     </div>
                     <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
@@ -1063,7 +1111,7 @@ const SettingsPage = ({ onBack }) => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datsar looks</p>
             </div>
 
-            
+
             {/* Theme Selection */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
@@ -1127,7 +1175,7 @@ const SettingsPage = ({ onBack }) => {
                     <Zap className="w-5 h-5 text-yellow-500" />
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Performance</h4>
                 </div>
-                
+
                 <div className="space-y-4">
                     {/* Performance Mode */}
                     <div className="flex items-center justify-between">
@@ -1137,18 +1185,16 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setPerformanceMode(!performanceMode)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                performanceMode ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${performanceMode ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    performanceMode ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${performanceMode ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
-                    
+
                     {/* Animations Toggle */}
                     <div className="flex items-center justify-between">
                         <div>
@@ -1157,18 +1203,16 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setAnimationsEnabled(!animationsEnabled)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                animationsEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${animationsEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    animationsEnabled ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${animationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
-                    
+
                     {/* Reduced Motion */}
                     <div className="flex items-center justify-between">
                         <div>
@@ -1177,27 +1221,25 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setReducedMotion(!reducedMotion)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                reducedMotion ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reducedMotion ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    reducedMotion ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reducedMotion ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
                 </div>
             </div>
-            
+
             {/* Visual Settings */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <div className="flex items-center gap-3 mb-4">
                     <Eye className="w-5 h-5 text-blue-500" />
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Visual</h4>
                 </div>
-                
+
                 <div className="space-y-4">
                     {/* High Contrast */}
                     <div className="flex items-center justify-between">
@@ -1207,18 +1249,16 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setHighContrast(!highContrast)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                highContrast ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${highContrast ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    highContrast ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${highContrast ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
-                    
+
                     {/* Focus Visible */}
                     <div className="flex items-center justify-between">
                         <div>
@@ -1227,27 +1267,25 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setFocusVisible(!focusVisible)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                focusVisible ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${focusVisible ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    focusVisible ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${focusVisible ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
                 </div>
             </div>
-            
+
             {/* Command Menu Settings */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <div className="flex items-center gap-3 mb-4">
                     <Zap className="w-5 h-5 text-green-500" />
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Command Menu</h4>
                 </div>
-                
+
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
@@ -1258,18 +1296,16 @@ const SettingsPage = ({ onBack }) => {
                         </div>
                         <button
                             onClick={() => setCommandKEnabled(!commandKEnabled)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                commandKEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                            }`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${commandKEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
+                                }`}
                         >
                             <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    commandKEnabled ? 'translate-x-6' : 'translate-x-1'
-                                }`}
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${commandKEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`}
                             />
                         </button>
                     </div>
-                    
+
                     {commandKEnabled && (
                         <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                             <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-1">💡 Pro Tip</p>
@@ -1280,14 +1316,14 @@ const SettingsPage = ({ onBack }) => {
                     )}
                 </div>
             </div>
-            
+
             {/* Typography Settings */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <div className="flex items-center gap-3 mb-4">
                     <Monitor className="w-5 h-5 text-purple-500" />
                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Typography</h4>
                 </div>
-                
+
                 <div className="space-y-4">
                     {/* Font Size */}
                     <div>
@@ -1303,18 +1339,17 @@ const SettingsPage = ({ onBack }) => {
                                 <button
                                     key={size.value}
                                     onClick={() => setFontSize(size.value)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        fontSize === size.value
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${fontSize === size.value
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
+                                        }`}
                                 >
                                     {size.label}
                                 </button>
                             ))}
                         </div>
                     </div>
-                    
+
                     {/* Font Family */}
                     <div>
                         <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Family</label>
@@ -1328,11 +1363,10 @@ const SettingsPage = ({ onBack }) => {
                                 <button
                                     key={font.value}
                                     onClick={() => setFontFamily(font.value)}
-                                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
-                                        fontFamily === font.value
+                                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${fontFamily === font.value
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
+                                        }`}
                                     style={{ fontFamily: font.value }}
                                 >
                                     {font.label}
@@ -1342,7 +1376,7 @@ const SettingsPage = ({ onBack }) => {
                     </div>
                 </div>
             </div>
-            
+
             {/* Quick Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h4>
@@ -1438,6 +1472,7 @@ const SettingsPage = ({ onBack }) => {
             case 'workspace': return renderWorkspaceSection()
             case 'team': return renderTeamSection()
             case 'data': return renderDataSection()
+            case 'export': return <ExportCenterPage onBack={() => setActiveSection(null)} />
             case 'appearance': return renderAppearanceSection()
             case 'accessibility': return renderAccessibilitySection()
             case 'activity': return <ActivityLogViewer />
@@ -1818,6 +1853,47 @@ const SettingsPage = ({ onBack }) => {
                     </div>
                 </div>
 
+                {/* Usage / Free plan awareness */}
+                <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-blue-200/70 dark:border-blue-900/50 p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-blue-500" />
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Usage (stay under free limits)</p>
+                        </div>
+                        <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">Target: 0.5 cap</span>
+                    </div>
+                    <div className="space-y-3">
+                        {usageMetrics.map((m) => {
+                            const pct = usagePercent(m.used, m.limit)
+                            const over = pct >= 100
+                            return (
+                                <div key={m.label} className="space-y-1.5">
+                                    <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                                        <span className="font-semibold text-gray-800 dark:text-gray-200">{m.label}</span>
+                                        <span className={`${over ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-700 dark:text-gray-200'}`}>
+                                            {m.used} / {m.limit} {m.unit} ({pct}%)
+                                        </span>
+                                    </div>
+                                    <div className="h-2.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-200 dark:border-gray-600">
+                                        <div
+                                            className={`h-full transition-all ${over ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}
+                                            style={{ width: `${Math.min(pct, 100)}%` }}
+                                        />
+                                    </div>
+                                    {over && (
+                                        <p className="text-[11px] text-red-600 dark:text-red-400">
+                                            Tip: trim large downloads and disable extra polling to reduce egress.
+                                        </p>
+                                    )}
+                                </div>
+                            )
+                        })}
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            Reduce egress by caching on the client, avoiding large exports, and serving files via CDN/Storage with caching.
+                        </p>
+                    </div>
+                </div>
+
                 {/* Profile Card */}
                 <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex items-center gap-4">
@@ -2056,6 +2132,13 @@ const SettingsPage = ({ onBack }) => {
                 user={user}
             />
 
+            {isAdminControlsOpen && (
+                <AdminControlsModal
+                    isOpen={isAdminControlsOpen}
+                    onClose={() => setIsAdminControlsOpen(false)}
+                />
+            )}
+
             <ConfirmModal
                 isOpen={deletePrompt.isOpen}
                 onClose={() => setDeletePrompt({ isOpen: false, tableName: null, label: '' })}
@@ -2067,7 +2150,7 @@ const SettingsPage = ({ onBack }) => {
                 cancelButtonClass="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
             >
                 <p className="text-base text-gray-700 dark:text-gray-300">
-                    Are you sure you want to delete <strong>{deletePrompt.label}</strong>? This will permanently remove the month’s table and its data.
+                    Are you sure you want to delete <strong>{deletePrompt.label}</strong>? This will permanently remove the month's table and its data.
                 </p>
                 <p className="text-sm text-red-500 mt-3">
                     This action cannot be undone.

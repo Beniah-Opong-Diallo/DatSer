@@ -51,16 +51,13 @@ const getLocalDateString = (date) => {
   return `${year}-${month}-${day}`
 }
 
+// Default table for all users - January 2026
+const DEFAULT_TABLE = 'January_2026'
+
 // Get the latest available table (fallback only - does NOT modify localStorage)
 const getLatestTable = () => {
-  // Default to current month if available, otherwise use December_2025
-  const currentMonthTable = getCurrentMonthTable()
-  if (FALLBACK_MONTHLY_TABLES.includes(currentMonthTable)) {
-    return currentMonthTable
-  }
-
-  // Return most recent table from fallback list
-  return FALLBACK_MONTHLY_TABLES[FALLBACK_MONTHLY_TABLES.length - 1] || 'December_2025'
+  // Always default to January_2026 for all users
+  return DEFAULT_TABLE
 }
 
 // Mock data for development when Supabase is not configured
@@ -118,6 +115,7 @@ export const AppProvider = ({ children }) => {
   const [serverSearchResults, setServerSearchResults] = useState(null)
   const searchCacheRef = useRef(new Map())
   const nameColumnCacheRef = useRef(new Map())
+  const membersCacheRef = useRef(new Map()) // tableName -> { data, ts }
   const [attendanceData, setAttendanceData] = useState({})
   const [currentTable, setCurrentTable] = useState(getLatestTable())
   const [monthlyTables, setMonthlyTables] = useState(FALLBACK_MONTHLY_TABLES)
@@ -180,7 +178,13 @@ export const AppProvider = ({ children }) => {
 
   // Check if current user is a collaborator and get the owner's ID
   const checkCollaboratorStatus = async () => {
+    console.log('=== checkCollaboratorStatus STARTED ===')
+    console.log('User email:', user?.email)
+    console.log('User ID:', user?.id)
+    console.log('Supabase configured?', isSupabaseConfigured())
+
     if (!user?.email || !isSupabaseConfigured()) {
+      console.log('Skipping collaborator check - no email or Supabase not configured')
       setIsCollaborator(false)
       setDataOwnerId(null)
       setOwnerEmail(null)
@@ -189,6 +193,7 @@ export const AppProvider = ({ children }) => {
 
     try {
       // Check if this user's email exists in the collaborators table
+      console.log('Querying collaborators table for email:', user.email.toLowerCase())
       const { data, error } = await supabase
         .from('collaborators')
         .select('owner_id, status')
@@ -196,8 +201,11 @@ export const AppProvider = ({ children }) => {
         .in('status', ['pending', 'accepted', 'active'])
         .single()
 
+      console.log('Collaborators query result:', { data, error })
+
       if (error || !data) {
         // Not a collaborator - user views their own data
+        console.log('User is NOT a collaborator. Error:', error?.message || 'No data found')
         setIsCollaborator(false)
         setDataOwnerId(user.id)
         setOwnerEmail(null)
@@ -205,7 +213,9 @@ export const AppProvider = ({ children }) => {
       }
 
       // User is a collaborator - they should see the owner's data
-      console.log('User is a collaborator, owner_id:', data.owner_id)
+      console.log('✅ User IS a collaborator!')
+      console.log('Owner ID:', data.owner_id)
+      console.log('Status:', data.status)
       setIsCollaborator(true)
       setDataOwnerId(data.owner_id)
 
@@ -234,9 +244,10 @@ export const AppProvider = ({ children }) => {
       // Get owner email from auth.users via a different method
       setOwnerEmail(null) // We'll show owner_id for now
 
+      console.log('=== checkCollaboratorStatus COMPLETE - User is COLLABORATOR ===')
       return data.owner_id
     } catch (err) {
-      console.error('Error checking collaborator status:', err)
+      console.error('ERROR in checkCollaboratorStatus:', err)
       setIsCollaborator(false)
       setDataOwnerId(user.id)
       return user.id
@@ -301,6 +312,18 @@ export const AppProvider = ({ children }) => {
         return
       }
 
+      // Serve from cache when fresh (reduces egress)
+      const cacheKey = tableName || 'default'
+      const cached = membersCacheRef.current.get(cacheKey)
+      const now = Date.now()
+      const TTL_MS = 5 * 60 * 1000 // 5 minutes
+      if (cached && (now - cached.ts) < TTL_MS) {
+        console.log('Using cached members for', cacheKey)
+        setMembers(cached.data)
+        setLoading(false)
+        return
+      }
+
       // Fetch data - RLS policies handle user filtering
       console.log(`Querying ${tableName} with session user: ${session.user?.id}`)
 
@@ -338,6 +361,7 @@ export const AppProvider = ({ children }) => {
           return { ...member, full_name: name, 'Full Name': name }
         })
         setMembers(normalizedMembers)
+        membersCacheRef.current.set(cacheKey, { data: normalizedMembers, ts: now })
         console.log(`Successfully loaded ${normalizedMembers.length} members from ${tableName}`)
         console.log('First few members:', normalizedMembers.slice(0, 3))
         console.log('Sample member structure:', normalizedMembers[0])
@@ -1410,11 +1434,11 @@ export const AppProvider = ({ children }) => {
       refreshSearch()
 
       if (!silent) toast.success(`Member updated successfully in ${currentTable}!`)
-      
+
       // Log the action
       const memberName = members.find(m => m.id === id)?.['full_name'] || members.find(m => m.id === id)?.['Full Name'] || 'Unknown'
       logActivity('UPDATE_MEMBER', `Updated member: ${memberName}`)
-      
+
       return data[0]
     } catch (error) {
       console.error('Error updating member:', error)
@@ -1492,52 +1516,77 @@ export const AppProvider = ({ children }) => {
 
   // Fetch available month tables from database
   const fetchMonthlyTables = useCallback(async () => {
-    const applyCollaboratorFallback = () => {
-      setMonthlyTables(COLLAB_FALLBACK_TABLES)
-      changeCurrentTable(DEFAULT_COLLAB_TABLE)
+    // Helper to clear invalid table selection
+    const clearInvalidTable = () => {
+      console.log('Clearing invalid/empty table selection')
+      if (currentTable && currentTable === DEFAULT_COLLAB_TABLE) {
+        changeCurrentTable(null)
+      }
     }
 
     try {
+      // 1. Check configuration
       if (!isSupabaseConfigured()) {
         setMonthlyTables(FALLBACK_MONTHLY_TABLES)
         return
       }
 
+      // 2. Identify whose data we are fetching
       const ownerId = dataOwnerId || user?.id
       if (!ownerId) {
-        setMonthlyTables(COLLAB_FALLBACK_TABLES)
-        changeCurrentTable(DEFAULT_COLLAB_TABLE)
+        // No user/owner identified yet
+        setMonthlyTables([])
+        clearInvalidTable()
         return
       }
 
-      const { data, error } = await supabase
-        .from('user_month_tables')
-        .select('table_name')
-        .eq('user_id', ownerId)
+      console.log(`Fetching monthly tables for owner: ${ownerId} (Am I collaborator? ${isCollaborator})`)
+
+      // 3. Fetch tables using RPC to bypass RLS for collaborators
+      // We use 'get_available_month_tables' which checks 'collaborators' table for permission
+      const { data, error } = await supabase.rpc('get_available_month_tables', {
+        target_user_id: ownerId
+      })
 
       if (error) {
-        console.error('Error fetching user month tables:', error)
-        // For collaborators, if there's an error fetching owner's tables, show fallback
-        if (isCollaborator) {
-          console.log('Collaborator: Using fallback months due to error')
-          applyCollaboratorFallback()
+        // If RPC is missing (legacy), try fallback to direct select if we are the owner
+        // For collaborators, direct select will fail RLS, so we rely on RPC.
+        console.error('Error fetching monthly tables via RPC:', error)
+
+        if (!isCollaborator) {
+          const { data: directData, error: directError } = await supabase
+            .from('user_month_tables')
+            .select('table_name')
+            .eq('user_id', ownerId)
+
+          if (!directError && directData) {
+            const tableNames = directData.map(entry => entry.table_name).filter(Boolean)
+            setMonthlyTables(sortMonthTables(tableNames))
+            return
+          }
         }
+
+        // If everything fails
+        setMonthlyTables([])
         return
       }
 
+      // 4. Process results
       const tableNames = (data || []).map(entry => entry.table_name).filter(Boolean)
+
       if (tableNames.length === 0) {
-        applyCollaboratorFallback()
+        console.log('No tables found for this user/owner.')
+        setMonthlyTables([])
+        clearInvalidTable()
         return
       }
 
+      // 5. Update state
       setMonthlyTables(sortMonthTables(tableNames))
+
     } catch (error) {
-      console.error('Error fetching monthly tables:', error)
-      // For collaborators, provide fallback on error
-      if (isCollaborator) {
-        applyCollaboratorFallback()
-      }
+      console.error('Unexpected error in fetchMonthlyTables:', error)
+      // Do not force fallback tables on error to avoid "ghost" months
     }
   }, [isSupabaseConfigured, dataOwnerId, user?.id, isCollaborator, changeCurrentTable])
 
@@ -1768,7 +1817,8 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      // Register this month table for the current user
+
+      // Register this month table for the current user (owner)
       const { error: registerError } = await supabase
         .from('user_month_tables')
         .insert({
@@ -1780,6 +1830,28 @@ export const AppProvider = ({ children }) => {
       if (registerError) {
         console.warn('Could not register month table for user:', registerError)
       }
+
+      // Auto-register all invited collaborators for this new month
+      try {
+        const { data: registeredCount, error: collabRegError } = await supabase.rpc(
+          'register_collaborators_for_month',
+          {
+            p_owner_id: user?.id,
+            p_table_name: monthIdentifier,
+            p_month_year: `${monthName} ${year}`
+          }
+        )
+
+        if (collabRegError) {
+          console.warn('Error calling register_collaborators_for_month:', collabRegError)
+          // Don't throw - collaborators can still use RLS, they just won't see it in the list immediately
+        } else if (registeredCount > 0) {
+          console.log(`Successfully registered ${registeredCount} collaborators for ${monthIdentifier}`)
+        }
+      } catch (collabRegError) {
+        console.warn('Could not register collaborators for new month:', collabRegError)
+      }
+
 
       if (copyMode === 'empty') {
         toast.success(`Month ${monthName} ${year} created as a fresh workspace.`)
@@ -2126,27 +2198,48 @@ export const AppProvider = ({ children }) => {
     fetchMonthlyTables()
   }, [fetchMonthlyTables])
 
-  // Validate saved table exists in available tables after fetching (run only once)
+  // Safety check: specific fix for "stuck" deleted tables
+  // If the current table (from localStorage) is not in the fetched monthlyTables list, switch to a valid one.
+  useEffect(() => {
+    // Skip this check during initial load or if Supabase isn't configured
+    if (!isSupabaseConfigured()) return
+
+    // If we have tables but current one isn't in the list
+    if (monthlyTables.length > 0 && currentTable && !monthlyTables.includes(currentTable)) {
+      console.warn(`Current table ${currentTable} is invalid/deleted. Switching to latest available.`)
+      // Switch to the most recent table
+      changeCurrentTable(monthlyTables[monthlyTables.length - 1])
+    }
+    // If we have NO tables but a current table is set (and it's not the default fallback which might be invalid)
+    else if (monthlyTables.length === 0 && currentTable) {
+      // Only clear if we are sure we fetched successfully (which logic in fetchMonthlyTables handles)
+      // But strictly, if monthlyTables is empty, we shouldn't be pointing to a table
+      console.warn(`No tables available. Clearing current table ${currentTable}`)
+      changeCurrentTable(null)
+    }
+  }, [monthlyTables, currentTable, changeCurrentTable, isSupabaseConfigured])
+
+  // Validate and set default table - always use January_2026 for all users
   const hasValidatedTable = useRef(false)
   useEffect(() => {
     if (monthlyTables.length > 0 && !hasValidatedTable.current) {
       hasValidatedTable.current = true
-      const savedTable = localStorage.getItem('selectedMonthTable')
-      if (savedTable && monthlyTables.includes(savedTable)) {
-        // Saved table is valid, ensure it's set
-        if (currentTable !== savedTable) {
-          setCurrentTable(savedTable)
+      
+      // Always default to January_2026 for all users (admin and collaborators)
+      if (monthlyTables.includes(DEFAULT_TABLE)) {
+        if (currentTable !== DEFAULT_TABLE) {
+          console.log('Setting default table to January_2026 for all users')
+          changeCurrentTable(DEFAULT_TABLE)
         }
-      } else if (!savedTable && monthlyTables.length > 0) {
-        // No saved table, use the latest available
+      } else {
+        // Fallback to most recent table if January_2026 doesn't exist
         const latest = monthlyTables[monthlyTables.length - 1]
-        setCurrentTable(latest)
-        localStorage.setItem('selectedMonthTable', latest)
+        if (currentTable !== latest) {
+          changeCurrentTable(latest)
+        }
       }
-      // If savedTable exists but not in monthlyTables, keep it anyway
-      // The user's preference is preserved - they can switch if needed
     }
-  }, [monthlyTables])
+  }, [monthlyTables, changeCurrentTable, currentTable])
 
   // Fetch members on component mount and when current table changes
   // Wait for auth to finish loading before fetching to avoid race condition
@@ -2325,21 +2418,24 @@ export const AppProvider = ({ children }) => {
 
       console.log('Loading badge data from Supabase...')
 
+      // Select all columns to be safe, then process locally
+      // This avoids errors if specific badge columns don't exist
       const { data, error } = await supabase
         .from(currentTable)
-        .select('id, "Member", "Regular", "Newcomer", "Manual Badge", "Badge Type"')
+        .select('*')
 
       if (error) {
         console.error('Error loading badge data:', error)
 
+        // Only treat as missing table if it's actually a missing TABLE error
         const missingTable =
+          error.code === '42P01' || // undefined_table
           error.code === 'PGRST205' ||
-          error.code === 'PGRST116' ||
-          error.message?.toLowerCase().includes('does not exist') ||
-          error.message?.toLowerCase().includes('schema cache')
+          (error.message?.includes('relation') && error.message?.includes('does not exist'))
 
         if (missingTable) {
-          await handleMissingTable(currentTable)
+          console.warn('Table appears to be missing during badge load:', currentTable)
+          // Don't trigger full table deletion here to be safe
         }
         return
       }
@@ -2539,6 +2635,7 @@ export const AppProvider = ({ children }) => {
     monthlyTables,
     setCurrentTable: changeCurrentTable,
     createNewMonth,
+    deleteMonthTable,
     fetchMonthlyTables,
     getAttendanceColumns,
     getAvailableAttendanceDates,
@@ -2580,7 +2677,7 @@ export const AppProvider = ({ children }) => {
     searchMemberAcrossAllTables, addMember, updateMember, deleteMember,
     fetchMembers, markAttendance, bulkAttendance, fetchAttendanceForDate,
     loadAllAttendanceData, loadAllBadgeData, changeCurrentTable, createNewMonth,
-    fetchMonthlyTables, getAttendanceColumns, getAvailableAttendanceDates,
+    deleteMonthTable, fetchMonthlyTables, getAttendanceColumns, getAvailableAttendanceDates,
     findAttendanceColumnForDate, calculateAttendanceRate, calculateMemberBadge,
     updateMemberBadges, processEndOfMonthBadges, isMonthAttendanceComplete,
     toggleMemberBadge, memberHasBadge, setAndSaveAttendanceDate,

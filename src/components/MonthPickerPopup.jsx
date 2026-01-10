@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Calendar, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 
@@ -57,18 +58,19 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
 
     if (!isOpen) return null
 
-    return (
+    return createPortal(
         <>
-            {/* Backdrop with blur */}
+            {/* Backdrop with blur - very high z-index to cover everything */}
             <div
-                className="fixed inset-0 bg-black/30 z-[60] backdrop-animate"
+                className="fixed inset-0 bg-black/50 z-[9998] backdrop-blur-sm"
                 onClick={onClose}
             />
 
             {/* Popup */}
             <div
                 ref={popupRef}
-                className="fixed left-1/2 top-1/2 z-[60] w-[300px] max-w-[90vw] max-h-[70vh] bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden animate-scale-in-centered"
+                className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] w-[300px] max-w-[90vw] max-h-[70vh] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+                style={{ transform: 'translate(-50%, -50%)' }}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/80 dark:bg-gray-900/50">
@@ -125,8 +127,8 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400 animate-fade-in">
                             <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
                             <p className="text-sm">
-                                {isCollaborator 
-                                    ? "No months created by owner yet" 
+                                {isCollaborator
+                                    ? "No months created by owner yet"
                                     : "No months available"
                                 }
                             </p>
@@ -139,7 +141,8 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
                     )}
                 </div>
             </div>
-        </>
+        </>,
+        document.body
     )
 }
 
