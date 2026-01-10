@@ -40,7 +40,8 @@ const COLLAB_FALLBACK_TABLES = [...new Set([DEFAULT_COLLAB_TABLE, ...FALLBACK_MO
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const DEFAULT_ATTENDANCE_DATES = {
-  'November_2025': '2025-11-23'
+  'November_2025': '2025-11-23',
+  'January_2026': '2026-01-11'
 }
 
 // Helper function for timezone-safe date string formatting (YYYY-MM-DD)
@@ -605,6 +606,21 @@ export const AppProvider = ({ children }) => {
     setAvailableSundayDates(sundays)
 
     if (sundays.length > 0) {
+      // Check if there's a configured default date for this month - this takes priority
+      const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
+      if (configured) {
+        const cfgDate = new Date(configured)
+        const defaultDate = sundays.find(sunday => (
+          sunday.getFullYear() === cfgDate.getFullYear() &&
+          sunday.getMonth() === cfgDate.getMonth() &&
+          sunday.getDate() === cfgDate.getDate()
+        ))
+        if (defaultDate) {
+          setAndSaveAttendanceDate(defaultDate)
+          return
+        }
+      }
+
       // Try to restore user's last selected date from localStorage
       const savedDateKey = `selectedAttendanceDate_${currentTable}`
       const savedDate = localStorage.getItem(savedDateKey)
@@ -628,20 +644,8 @@ export const AppProvider = ({ children }) => {
       const twentyThird = sundays.find(sunday => sunday.getDate() === 23) || null
       const thirtieth = sundays.find(sunday => sunday.getDate() === 30) || null
 
-      const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
-      let defaultDate = null
-      if (configured) {
-        const cfgDate = new Date(configured)
-        defaultDate = sundays.find(sunday => (
-          sunday.getFullYear() === cfgDate.getFullYear() &&
-          sunday.getMonth() === cfgDate.getMonth() &&
-          sunday.getDate() === cfgDate.getDate()
-        )) || null
-      }
-      if (!defaultDate) {
-        // Prefer 30th if available, then 23rd, then other Sundays
-        defaultDate = thirtieth || twentyThird || (sundays.length >= 2 ? sundays[1] : sundays[0])
-      }
+      // Prefer 30th if available, then 23rd, then second Sunday, then first
+      const defaultDate = thirtieth || twentyThird || (sundays.length >= 2 ? sundays[1] : sundays[0])
       setAndSaveAttendanceDate(defaultDate)
     }
   }
