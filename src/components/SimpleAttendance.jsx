@@ -34,6 +34,7 @@ export default function SimpleAttendance({ onBack }) {
   const [activeSunday, setActiveSunday] = useState(SUNDAYS[1].key)
   const [expandedId, setExpandedId] = useState(null)
   const [filterMode, setFilterMode] = useState('all')
+  const [visibleCount, setVisibleCount] = useState(20)
   const [editingMember, setEditingMember] = useState(null)
   const [editName, setEditName] = useState('')
   const [editAge, setEditAge] = useState('')
@@ -199,6 +200,9 @@ export default function SimpleAttendance({ onBack }) {
   if (filterMode === 'present') filtered = filtered.filter(m => m[activeSunday] === 'Present')
   else if (filterMode === 'absent') filtered = filtered.filter(m => m[activeSunday] === 'Absent')
 
+  const hasMore = filtered.length > visibleCount
+  const visible = filtered.slice(0, visibleCount)
+
   return (
     <div className="min-h-screen text-gray-800" style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', overflowY: 'auto', overscrollBehavior: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch', backgroundColor: '#f8f7f4', colorScheme: 'light' }}>
       {/* Toast Notification */}
@@ -235,7 +239,7 @@ export default function SimpleAttendance({ onBack }) {
             return (
               <button
                 key={s.key}
-                onClick={() => { setActiveSunday(s.key); setFilterMode('all') }}
+                onClick={() => { setActiveSunday(s.key); setFilterMode('all'); setVisibleCount(20) }}
                 className={`flex-shrink-0 px-3 sm:px-4 lg:px-6 py-2 lg:py-2.5 rounded-xl text-xs sm:text-sm lg:text-base font-medium transition-all cursor-pointer active:scale-95 ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-md'
@@ -257,13 +261,13 @@ export default function SimpleAttendance({ onBack }) {
         {/* Summary */}
         <div className="max-w-6xl mx-auto px-4 lg:px-8 pb-1.5 sm:pb-2 flex gap-3 sm:gap-4 text-[11px] sm:text-xs lg:text-sm">
           <button
-            onClick={() => setFilterMode(filterMode === 'present' ? 'all' : 'present')}
+            onClick={() => { setFilterMode(filterMode === 'present' ? 'all' : 'present'); setVisibleCount(20) }}
             className={`font-medium cursor-pointer transition-all px-2 py-0.5 rounded-lg ${filterMode === 'present' ? 'bg-green-100 ring-1 ring-green-400 text-green-700' : 'text-green-600'}`}
           >
             ✓ {presentCount} Present
           </button>
           <button
-            onClick={() => setFilterMode(filterMode === 'absent' ? 'all' : 'absent')}
+            onClick={() => { setFilterMode(filterMode === 'absent' ? 'all' : 'absent'); setVisibleCount(20) }}
             className={`font-medium cursor-pointer transition-all px-2 py-0.5 rounded-lg ${filterMode === 'absent' ? 'bg-red-100 ring-1 ring-red-400 text-red-700' : 'text-red-500'}`}
           >
             ✗ {absentCount} Absent
@@ -288,7 +292,7 @@ export default function SimpleAttendance({ onBack }) {
             </p>
           </div>
         ) : (
-          filtered.map(member => {
+          visible.map(member => {
             const status = member[activeSunday]
             const isPresent = status === 'Present'
             const isAbsent = status === 'Absent'
@@ -405,6 +409,15 @@ export default function SimpleAttendance({ onBack }) {
           })
         )}
        </div>
+       {hasMore && (
+         <button
+           onClick={() => setVisibleCount(prev => prev + 20)}
+           className="w-full mt-3 py-3 rounded-xl text-sm font-medium text-blue-600 transition-all active:scale-[0.98] cursor-pointer"
+           style={{ backgroundColor: '#eef0ff' }}
+         >
+           Show More ({filtered.length - visibleCount} remaining)
+         </button>
+       )}
       </div>
 
       {/* Sticky Search Bar + Add Button at Bottom */}
@@ -416,7 +429,7 @@ export default function SimpleAttendance({ onBack }) {
               type="text"
               placeholder="Search members..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setVisibleCount(20) }}
               className="w-full pl-10 pr-4 py-2.5 border-0 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ backgroundColor: '#f0eeea' }}
             />
@@ -496,15 +509,15 @@ export default function SimpleAttendance({ onBack }) {
 
       {/* Add Member Modal */}
       {showAdd && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowAdd(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50" onClick={() => setShowAdd(false)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
               <h2 className="text-lg font-bold">Add Member</h2>
               <button onClick={() => setShowAdd(false)} className="p-1 rounded-lg hover:bg-gray-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAdd} className="p-6 space-y-4">
+            <form onSubmit={handleAdd} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium mb-1">Full Name <span className="text-red-500">*</span></label>
                 <input
