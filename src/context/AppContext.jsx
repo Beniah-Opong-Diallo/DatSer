@@ -33,10 +33,13 @@ const getCurrentMonthTable = () => {
   return `${currentMonth}_${currentYear}`
 }
 
-// Fallback monthly tables for when Supabase is not configured
-const FALLBACK_MONTHLY_TABLES = MONTHS_IN_YEAR.map(month => `${month}_2025`)
+// Default table for all users - January 2026
+const DEFAULT_TABLE = 'January_2026'
+
+// Fallback monthly tables for when Supabase is not configured (demo mode only)
+const FALLBACK_MONTHLY_TABLES = [DEFAULT_TABLE]
 const DEFAULT_COLLAB_TABLE = 'January_2026'
-const COLLAB_FALLBACK_TABLES = [...new Set([DEFAULT_COLLAB_TABLE, ...FALLBACK_MONTHLY_TABLES])]
+const COLLAB_FALLBACK_TABLES = [DEFAULT_COLLAB_TABLE]
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const DEFAULT_ATTENDANCE_DATES = {
@@ -52,12 +55,12 @@ const getLocalDateString = (date) => {
   return `${year}-${month}-${day}`
 }
 
-// Default table for all users - January 2026
-const DEFAULT_TABLE = 'January_2026'
-
-// Get the latest available table (fallback only - does NOT modify localStorage)
+// Get the latest available table from localStorage, falling back to DEFAULT_TABLE
 const getLatestTable = () => {
-  // Always default to January_2026 for all users
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('selectedMonthTable')
+    if (saved) return saved
+  }
   return DEFAULT_TABLE
 }
 
@@ -101,9 +104,12 @@ export const useApp = () => {
 }
 
 export const AppProvider = ({ children }) => {
-  // Force January_2026 as default on every app load - clear any saved selection
+  // Restore the user's last selected month table from localStorage (no forced override)
   useEffect(() => {
-    localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
+    const saved = localStorage.getItem('selectedMonthTable')
+    if (!saved) {
+      localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
+    }
   }, [])
   
   // Get user from auth context - may be null during initial load
@@ -161,7 +167,11 @@ export const AppProvider = ({ children }) => {
     } else {
       localStorage.removeItem(storageKey)
     }
-  }, [getMonthStorageKey])
+    // Also persist to Supabase so the selection survives across devices/sessions
+    if (tableName && authContext?.updatePreference) {
+      authContext.updatePreference('current_month_table', tableName)
+    }
+  }, [getMonthStorageKey, authContext])
 
   const pruneMissingTable = useCallback((tableName) => {
     if (!tableName) return
@@ -2206,22 +2216,22 @@ export const AppProvider = ({ children }) => {
     fetchMonthlyTables()
   }, [fetchMonthlyTables])
 
-  // ALWAYS set January_2026 as default for all users on load
+  // Restore saved month or fall back to a valid table on load
   useEffect(() => {
     if (monthlyTables.length > 0) {
-      // Always force January_2026 if it exists
-      if (monthlyTables.includes(DEFAULT_TABLE)) {
-        if (currentTable !== DEFAULT_TABLE) {
-          console.log('Forcing default table to January_2026 for all users')
-          // Clear cache for fresh fetch
-          membersCacheRef.current.delete(DEFAULT_TABLE)
-          setCurrentTable(DEFAULT_TABLE)
-          localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
-        }
-      } else if (!currentTable || !monthlyTables.includes(currentTable)) {
-        // Fallback only if January_2026 doesn't exist and current is invalid
+      // If the current table is valid, keep it
+      if (currentTable && monthlyTables.includes(currentTable)) {
+        return
+      }
+      // Current table is invalid — try localStorage, then DEFAULT_TABLE, then latest
+      const saved = localStorage.getItem('selectedMonthTable')
+      if (saved && monthlyTables.includes(saved)) {
+        setCurrentTable(saved)
+      } else if (monthlyTables.includes(DEFAULT_TABLE)) {
+        setCurrentTable(DEFAULT_TABLE)
+        localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
+      } else {
         const latest = monthlyTables[monthlyTables.length - 1]
-        membersCacheRef.current.delete(latest)
         setCurrentTable(latest)
         localStorage.setItem('selectedMonthTable', latest)
       }

@@ -75,10 +75,21 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   const sundayDates = generateSundayDates(currentTable)
 
   const isEditedMember = (member) => {
+    // Check attendanceData map
     for (const dk of sundayDates) {
       const map = attendanceData[dk] || {}
       const val = map[member.id]
       if (val === true || val === false) return true
+    }
+    // Fallback: check member record columns directly
+    for (const key in member) {
+      const keyLower = key.toLowerCase()
+      const isOldFormat = key.startsWith('Attendance ')
+      const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)
+      if (isOldFormat || isNewFormat) {
+        const val = member[key]
+        if (val === 'Present' || val === 'Absent' || val === true || val === false) return true
+      }
     }
     return false
   }
@@ -108,46 +119,22 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
         return filteredMembers.length
       }
 
-      // Edited tab: member has any attendance entry (present/absent) for current month dates
-      const dateKeys = Object.keys(attendanceData || {})
-      if (dateKeys.length === 0) return 0
-
-      const isEditedMember = (member) => {
-        for (const dk of dateKeys) {
-          const map = attendanceData[dk] || {}
-          const val = map[member.id]
-          if (val === true || val === false) return true
-        }
-        return false
-      }
-
+      // Edited tab: member has any attendance entry (present/absent)
       return filteredMembers.filter(isEditedMember).length
     } catch {
       return filteredMembers?.length ?? 0
     }
-  }, [filteredMembers, dashboardTab, attendanceData, searchTerm])
+  }, [filteredMembers, dashboardTab, attendanceData, searchTerm, sundayDates])
 
   // Count of edited members (has attendance marked true/false for any date)
   const editedCount = useMemo(() => {
     try {
       if (!filteredMembers || filteredMembers.length === 0) return 0
-      const dateKeys = Object.keys(attendanceData || {})
-      if (dateKeys.length === 0) return 0
-      let count = 0
-      for (const member of filteredMembers) {
-        let isEdited = false
-        for (const dk of dateKeys) {
-          const map = attendanceData[dk] || {}
-          const val = map[member.id]
-          if (val === true || val === false) { isEdited = true; break }
-        }
-        if (isEdited) count += 1
-      }
-      return count
+      return filteredMembers.filter(isEditedMember).length
     } catch {
       return 0
     }
-  }, [filteredMembers, attendanceData])
+  }, [filteredMembers, attendanceData, sundayDates])
 
   // Menu items moved to LoginButton profile dropdown
 

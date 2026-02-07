@@ -21,6 +21,7 @@ const MonthModal = lazy(() => import('./components/MonthModal'))
 const AIChatAssistant = lazy(() => import('./components/AIChatAssistant'))
 const CommandPalette = lazy(() => import('./components/CommandPalette'))
 const ExecAttendancePage = lazy(() => import('./components/ExecAttendancePage'))
+const SimpleAttendance = lazy(() => import('./components/SimpleAttendance'))
 
 // Minimal loading fallback for lazy components
 const LazyFallback = memo(() => (
@@ -35,7 +36,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Main app content - only shown when authenticated
-function AppContent({ isMobile }) {
+function AppContent({ isMobile, onOpenSimple }) {
 
   const { preferences } = useAuth()
   const { members, loading: appLoading } = useApp()
@@ -219,6 +220,17 @@ function AppContent({ isMobile }) {
         </Suspense>
       )}
 
+      {/* Quick Access: Simple February Attendance */}
+      {onOpenSimple && (
+        <button
+          onClick={onOpenSimple}
+          className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all text-sm font-semibold"
+          title="Open Simple February Attendance"
+        >
+          📋 Feb Attendance
+        </button>
+      )}
+
       {/* Global Command Palette - lazy loaded */}
       <Suspense fallback={null}>
         <CommandPalette
@@ -249,10 +261,29 @@ function AppContent({ isMobile }) {
 // Auth wrapper - shows login or app based on auth state
 function AuthenticatedApp({ isMobile }) {
   const { isAuthenticated, loading } = useAuth()
+  const [showSimple, setShowSimple] = useState(() => localStorage.getItem('openSimpleAttendance') === 'true')
+
+  // Persist showSimple flag
+  useEffect(() => {
+    if (showSimple) localStorage.setItem('openSimpleAttendance', 'true')
+    else localStorage.removeItem('openSimpleAttendance')
+  }, [showSimple])
+
+  // Simple attendance mode - works WITHOUT sign-in, anyone can access
+  if (showSimple) {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        <SimpleAttendance onBack={() => setShowSimple(false)} />
+      </Suspense>
+    )
+  }
 
   // Show loading spinner while checking auth
   if (loading) {
-
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -263,14 +294,14 @@ function AuthenticatedApp({ isMobile }) {
     )
   }
 
-  // Not authenticated -> show login page
+  // Not authenticated -> show login page with button to open simple attendance
   if (!isAuthenticated) {
-    return <LoginPage />
+    return <LoginPage onRequestSimple={() => setShowSimple(true)} />
   }
 
   return (
     <AppProvider>
-      <AppContent isMobile={isMobile} />
+      <AppContent isMobile={isMobile} onOpenSimple={() => setShowSimple(true)} />
     </AppProvider>
   )
 }

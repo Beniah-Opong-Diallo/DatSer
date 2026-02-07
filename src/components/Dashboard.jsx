@@ -35,7 +35,7 @@ const getDateString = (date) => {
 
 const Dashboard = ({ isAdmin = false }) => {
   const {
-    filteredMembers,
+    filteredMembers: contextFilteredMembers,
     loading,
     searchTerm,
     setSearchTerm,
@@ -428,8 +428,18 @@ const Dashboard = ({ isAdmin = false }) => {
       })
     }
 
-    // When searching, ignore ALL filters (tabs, badges, sidebar) and show all matching results from global members
+    // When searching, use contextFilteredMembers from AppContext which includes serverSearchResults
+    // (cross-table search results). Fall back to searching local members array.
     if (searchTerm && searchTerm.trim()) {
+      // contextFilteredMembers from AppContext already includes serverSearchResults when available
+      if (contextFilteredMembers && contextFilteredMembers.length > 0) {
+        return [...contextFilteredMembers].sort((a, b) => {
+          const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
+          const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
+          return an.localeCompare(bn)
+        })
+      }
+      // Fallback: search local members array
       const lowerTerm = searchTerm.toLowerCase()
       return members
         .filter(member => {
@@ -453,13 +463,48 @@ const Dashboard = ({ isAdmin = false }) => {
           return an.localeCompare(bn)
         })
       }
+      // Check both attendanceData map AND member record columns for the selected date
       const map = attendanceData[dateKey] || {}
-      const filteredByDate = filteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
+      const filteredByDate = filteredMembers.filter(m => {
+        // Check attendanceData map first (real-time updates)
+        if (map[m.id] === true || map[m.id] === false) return true
+        // Fallback: check member record columns directly (persisted DB data)
+        for (const key in m) {
+          const keyLower = key.toLowerCase()
+          const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)
+          const isOldFormat = key.startsWith('Attendance ')
+          if (isNewFormat || isOldFormat) {
+            // Check if this column matches the selected date
+            const newMatch = keyLower.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
+            if (newMatch) {
+              const colDateKey = `${newMatch[1]}-${newMatch[2]}-${newMatch[3]}`
+              if (colDateKey === dateKey && (m[key] === 'Present' || m[key] === 'Absent')) return true
+            }
+          }
+        }
+        return false
+      })
       return filteredByDate.sort((a, b) => {
         const av = map[a.id]
         const bv = map[b.id]
+        // Also check member columns for sort ranking
+        const getVal = (member) => {
+          if (map[member.id] === true) return true
+          if (map[member.id] === false) return false
+          for (const key in member) {
+            const keyLower = key.toLowerCase()
+            const newMatch = keyLower.match(/^attendance_(\d{4})_(\d{2})_(\d{2})$/)
+            if (newMatch && `${newMatch[1]}-${newMatch[2]}-${newMatch[3]}` === dateKey) {
+              if (member[key] === 'Present') return true
+              if (member[key] === 'Absent') return false
+            }
+          }
+          return undefined
+        }
+        const avResolved = getVal(a)
+        const bvResolved = getVal(b)
         const rank = (v) => (v === true ? 0 : v === false ? 1 : 2)
-        const r = rank(av) - rank(bv)
+        const r = rank(avResolved) - rank(bvResolved)
         if (r !== 0) return r
         const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
         const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
@@ -857,7 +902,7 @@ const Dashboard = ({ isAdmin = false }) => {
       confirmButtonClass: present ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white",
       onConfirm: async () => {
         try {
-          const memberIds = filteredMembers.map(member => member.id)
+          const memberIds = contextFilteredMembers.map(member => member.id)
           await bulkAttendance(memberIds, dateToUse, present)
           toast.success(`All members marked as ${present ? 'present' : 'absent'} successfully!`, {
             style: { background: present ? '#10b981' : '#ef4444', color: '#ffffff' }
@@ -1067,7 +1112,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
 
   const handleBulkBadgeAssignment = async (badgeType) => {
-    if (!filteredMembers.length) return
+    if (!contextFilteredMembers.length) return
 
     const badgeNames = {
       'member': 'Member Badge',
@@ -1076,7 +1121,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
 
     const badgeName = badgeNames[badgeType]
-    const memberCount = filteredMembers.length
+    const memberCount = contextFilteredMembers.length
 
     showConfirmModal({
       title: "Assign Badge",
@@ -1086,7 +1131,7 @@ const Dashboard = ({ isAdmin = false }) => {
       onConfirm: async () => {
         setIsUpdatingBadges(true)
         try {
-          for (const member of filteredMembers) {
+          for (const member of contextFilteredMembers) {
             // Only add the badge if the member doesn't already have it
             if (!memberHasBadge(member, badgeType)) {
               await toggleMemberBadge(member.id, badgeType)
@@ -1110,14 +1155,14 @@ const Dashboard = ({ isAdmin = false }) => {
 
   const getFilteredMembersByBadge = () => {
     // When searching, ignore badge filters and search across all members
-    if (searchTerm.trim()) return filteredMembers
+    if (searchTerm.trim()) return contextFilteredMembers
 
     // If no filters selected, show all members
-    if (badgeFilter.length === 0) return filteredMembers
+    if (badgeFilter.length === 0) return contextFilteredMembers
 
     // Filter members by selected badge filters
     // Use explicit badge assignment if available; otherwise fall back to calculated badge
-    return filteredMembers.filter(member => {
+    return contextFilteredMembers.filter(member => {
       return badgeFilter.some((type) => {
         // Match if the member explicitly has the badge or their calculated badge equals the type
         return memberHasBadge(member, type) || calculateMemberBadge(member) === type
@@ -1547,13 +1592,9 @@ const Dashboard = ({ isAdmin = false }) => {
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
+          // getTabFilteredMembers() already handles edited-tab date filtering,
+          // so do NOT re-filter here to avoid double-filtering that hides members
           let tabFilteredMembers = getTabFilteredMembers()
-
-          if (dashboardTab === 'edited' && selectedSundayDate) {
-            const map = attendanceData[selectedSundayDate] || {}
-            // Show both Present (true) AND Absent (false) - not just Present
-            tabFilteredMembers = tabFilteredMembers.filter(m => map[m.id] === true || map[m.id] === false)
-          }
 
           const membersToShow = searchTerm
             ? tabFilteredMembers
@@ -1694,7 +1735,19 @@ const Dashboard = ({ isAdmin = false }) => {
                             {/* Present/Absent buttons - compact on mobile, full on desktop */}
                             {(() => {
                               const targetDate = getDateString(selectedAttendanceDate)
-                              const rowStatus = targetDate && attendanceData[targetDate] ? attendanceData[targetDate][member.id] : undefined
+                              let rowStatus = targetDate && attendanceData[targetDate] ? attendanceData[targetDate][member.id] : undefined
+                              // Fallback: check member record columns if attendanceData map hasn't loaded yet
+                              if (rowStatus === undefined && targetDate) {
+                                for (const key in member) {
+                                  const keyLower = key.toLowerCase()
+                                  const m = keyLower.match(/^attendance_(\d{4})_(\d{2})_(\d{2})$/)
+                                  if (m && `${m[1]}-${m[2]}-${m[3]}` === targetDate) {
+                                    if (member[key] === 'Present') rowStatus = true
+                                    else if (member[key] === 'Absent') rowStatus = false
+                                    break
+                                  }
+                                }
+                              }
                               const isPresentSelected = rowStatus === true
                               const isAbsentSelected = rowStatus === false
                               return (
@@ -1933,8 +1986,21 @@ const Dashboard = ({ isAdmin = false }) => {
                                 {sundayDates.map(date => {
                                   const dateKey = date
                                   const dateAttendance = attendanceData[dateKey] || {}
-                                  const isPresent = dateAttendance[member.id] === true
-                                  const isAbsent = dateAttendance[member.id] === false
+                                  let memberStatus = dateAttendance[member.id]
+                                  // Fallback: check member record columns if attendanceData map hasn't loaded
+                                  if (memberStatus === undefined) {
+                                    for (const k in member) {
+                                      const kl = k.toLowerCase()
+                                      const km = kl.match(/^attendance_(\d{4})_(\d{2})_(\d{2})$/)
+                                      if (km && `${km[1]}-${km[2]}-${km[3]}` === dateKey) {
+                                        if (member[k] === 'Present') memberStatus = true
+                                        else if (member[k] === 'Absent') memberStatus = false
+                                        break
+                                      }
+                                    }
+                                  }
+                                  const isPresent = memberStatus === true
+                                  const isAbsent = memberStatus === false
                                   const isLoading = attendanceLoading[`${member.id}_${dateKey}`]
 
                                   return (
@@ -2065,8 +2131,8 @@ const Dashboard = ({ isAdmin = false }) => {
         })()}
       </div>
 
-      {/* Empty State */}
-      {((dashboardTab === 'edited' && getTabFilteredMembers().length === 0) || (dashboardTab !== 'edited' && filteredMembers.length === 0)) && !loading && (
+      {/* Empty State - use the same getTabFilteredMembers() for consistency */}
+      {getTabFilteredMembers().length === 0 && !loading && (
         <div className="text-center py-12">
           <Users className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No members found</h3>
@@ -2085,7 +2151,7 @@ const Dashboard = ({ isAdmin = false }) => {
               <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
                 <p><strong>Search term:</strong> "{searchTerm}"</p>
                 <p><strong>Total members:</strong> {members.length}</p>
-                <p><strong>Filtered results:</strong> {filteredMembers.length}</p>
+                <p><strong>Filtered results:</strong> {contextFilteredMembers.length}</p>
                 <p><strong>Current table:</strong> {currentTable}</p>
                 <p><strong>Supabase status:</strong> {isSupabaseConfigured() ? 'Connected' : 'Not configured (showing mock data)'}</p>
               </div>
