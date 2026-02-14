@@ -1,8 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { Search, UserPlus, ArrowLeft, X, Users, Pencil } from 'lucide-react'
+import { Search, UserPlus, ArrowLeft, X, Users, Pencil, ChevronDown } from 'lucide-react'
 
 const TABLE = 'February_2026'
+const LEVELS = ['JHS1','JHS2','JHS3','SHS1','SHS2','SHS3','COMPLETED','UNIVERSITY']
+
+function ComboSelect({ value, onChange, options, placeholder = 'Type or select...' }) {
+  const [open, setOpen] = useState(false)
+  const [inputVal, setInputVal] = useState(value || '')
+  const ref = React.useRef(null)
+
+  React.useEffect(() => { setInputVal(value || '') }, [value])
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = options.filter(o => o.toLowerCase().includes((inputVal || '').toLowerCase()))
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center rounded-xl overflow-hidden" style={{ backgroundColor: '#f0eeea' }}>
+        <input
+          type="text"
+          value={inputVal}
+          onChange={e => { setInputVal(e.target.value); onChange(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="w-full px-4 py-2.5 text-sm bg-transparent focus:outline-none"
+        />
+        <button type="button" onClick={() => setOpen(!open)} className="px-2 py-2.5 text-gray-400">
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+      {open && filtered.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-1 rounded-xl shadow-lg border border-gray-200 bg-white z-50 max-h-48 overflow-y-auto">
+          {filtered.map(o => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => { onChange(o); setInputVal(o); setOpen(false) }}
+              className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors ${
+                value === o ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+              }`}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const SUNDAYS = [
   { key: 'attendance_2026_02_01', label: 'Feb 1' },
   { key: 'attendance_2026_02_08', label: 'Feb 8' },
@@ -31,7 +83,7 @@ export default function SimpleAttendance({ onBack }) {
   const [addLevel, setAddLevel] = useState('')
   const [addLoading, setAddLoading] = useState(false)
   const [addAttendance, setAddAttendance] = useState(null)
-  const [activeSunday, setActiveSunday] = useState(SUNDAYS[1].key)
+  const [activeSunday, setActiveSunday] = useState(SUNDAYS[2].key)
   const [expandedId, setExpandedId] = useState(null)
   const [filterMode, setFilterMode] = useState('all')
   const [visibleCount, setVisibleCount] = useState(20)
@@ -39,6 +91,7 @@ export default function SimpleAttendance({ onBack }) {
   const [editName, setEditName] = useState('')
   const [editAge, setEditAge] = useState('')
   const [editPhone, setEditPhone] = useState('')
+  const [editLevel, setEditLevel] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
   // Cleanup toast timer on unmount
@@ -159,13 +212,14 @@ export default function SimpleAttendance({ onBack }) {
     setEditName(member['Full Name'] || '')
     setEditAge(member['Age'] || '')
     setEditPhone(member['Phone Number'] || '')
+    setEditLevel(member['Current Level'] || '')
   }
 
   const saveEdit = async () => {
     if (!editingMember || !editName.trim()) return
     setEditSaving(true)
     try {
-      const updates = { 'Full Name': editName.trim(), 'Age': editAge || null, 'Phone Number': editPhone || null }
+      const updates = { 'Full Name': editName.trim(), 'Age': editAge || null, 'Phone Number': editPhone || null, 'Current Level': editLevel || null }
       const { error } = await supabase
         .from(TABLE)
         .update(updates)
@@ -367,7 +421,7 @@ export default function SimpleAttendance({ onBack }) {
                 {isExpanded && (
                   <div className="px-4 pb-3 pt-1 border-t border-gray-100">
                     <p className="text-xs text-gray-500 mb-2 font-medium">All Sundays:</p>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div className="space-y-1.5">
                       {SUNDAYS.map(s => {
                         const val = member[s.key]
                         const p = val === 'Present'
@@ -375,26 +429,28 @@ export default function SimpleAttendance({ onBack }) {
                         const sKey = `${member.id}_${s.key}`
                         const isSav = saving[sKey]
                         return (
-                          <div key={s.key} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: '#f5f3ef' }}>
-                            <span className="text-xs font-medium text-gray-600 flex-1">{s.label}</span>
-                            <button
-                              onClick={() => markAttendance(member.id, s.key, true)}
-                              disabled={isSav}
-                              className={`px-2 py-1 rounded text-xs font-bold transition-all ${
-                                p ? 'bg-green-600 text-white shadow' : 'bg-green-100 text-green-700'
-                              } ${isSav ? 'opacity-50' : ''}`}
-                            >
-                              P
-                            </button>
-                            <button
-                              onClick={() => markAttendance(member.id, s.key, false)}
-                              disabled={isSav}
-                              className={`px-2 py-1 rounded text-xs font-bold transition-all ${
-                                a ? 'bg-red-600 text-white shadow' : 'bg-red-100 text-red-700'
-                              } ${isSav ? 'opacity-50' : ''}`}
-                            >
-                              A
-                            </button>
+                          <div key={s.key} className="flex items-center rounded-lg px-3 py-2" style={{ backgroundColor: '#f5f3ef' }}>
+                            <span className="text-xs font-medium text-gray-600 w-14">{s.label}</span>
+                            <div className="flex gap-2 ml-auto">
+                              <button
+                                onClick={() => markAttendance(member.id, s.key, true)}
+                                disabled={isSav}
+                                className={`min-w-[36px] px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  p ? 'bg-green-600 text-white shadow' : 'bg-green-100 text-green-700'
+                                } ${isSav ? 'opacity-50' : ''}`}
+                              >
+                                P
+                              </button>
+                              <button
+                                onClick={() => markAttendance(member.id, s.key, false)}
+                                disabled={isSav}
+                                className={`min-w-[36px] px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  a ? 'bg-red-600 text-white shadow' : 'bg-red-100 text-red-700'
+                                } ${isSav ? 'opacity-50' : ''}`}
+                              >
+                                A
+                              </button>
+                            </div>
                           </div>
                         )
                       })}
@@ -495,6 +551,15 @@ export default function SimpleAttendance({ onBack }) {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Level</label>
+                <ComboSelect
+                  value={editLevel}
+                  onChange={setEditLevel}
+                  options={LEVELS}
+                  placeholder="Type or select level..."
+                />
+              </div>
               <button
                 onClick={saveEdit}
                 disabled={editSaving || !editName.trim()}
@@ -533,16 +598,23 @@ export default function SimpleAttendance({ onBack }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Gender</label>
-                  <select
-                    value={addGender}
-                    onChange={e => setAddGender(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    style={{ backgroundColor: '#f0eeea' }}
-                  >
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
+                  <div className="flex gap-2">
+                    {['Male', 'Female'].map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setAddGender(addGender === g ? '' : g)}
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                          addGender === g
+                            ? 'bg-blue-600 text-white ring-2 ring-blue-300 shadow-md'
+                            : 'text-gray-600'
+                        }`}
+                        style={addGender !== g ? { backgroundColor: '#f0eeea' } : {}}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Age</label>
@@ -569,17 +641,12 @@ export default function SimpleAttendance({ onBack }) {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Level</label>
-                <select
+                <ComboSelect
                   value={addLevel}
-                  onChange={e => setAddLevel(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  style={{ backgroundColor: '#f0eeea' }}
-                >
-                  <option value="">Select</option>
-                  {['JHS1','JHS2','JHS3','SHS1','SHS2','SHS3','COMPLETED','UNIVERSITY'].map(l => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
+                  onChange={setAddLevel}
+                  options={LEVELS}
+                  placeholder="Type or select level..."
+                />
               </div>
               {/* Attendance for active Sunday */}
               <div>
