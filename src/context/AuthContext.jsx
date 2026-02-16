@@ -396,7 +396,7 @@ export const AuthProvider = ({ children }) => {
           email,
           options: {
             emailRedirectTo: redirectUrl,
-            shouldCreateUser: false // Only allow existing users
+            shouldCreateUser: true // Allow both new and existing users
           }
         }
         if (captchaToken) {
@@ -409,11 +409,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error sending magic link:', error)
-      if (error.message?.includes('Signups not allowed')) {
-        toast.error('No account found with this email. Please ask the admin for an invite.')
-      } else {
-        toast.error(error.message || 'Failed to send magic link')
-      }
+      toast.error(error.message || 'Failed to send magic link')
       throw error
     }
   }
