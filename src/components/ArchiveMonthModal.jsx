@@ -488,8 +488,17 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                     {columns.map(col => (
                                                         <th key={col} className="px-3 py-2 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
                                                     ))}
-                                                    <th className="px-3 py-2 text-left text-green-700 dark:text-green-300 font-semibold whitespace-nowrap">Present</th>
-                                                    <th className="px-3 py-2 text-left text-red-700 dark:text-red-300 font-semibold whitespace-nowrap">Absent</th>
+                                                    <th className="px-3 py-2 text-left text-green-700 dark:text-green-300 font-semibold whitespace-nowrap bg-green-50 dark:bg-green-900/20">Present</th>
+                                                    <th className="px-3 py-2 text-left text-red-700 dark:text-red-300 font-semibold whitespace-nowrap bg-red-50 dark:bg-red-900/20">Absent</th>
+                                                    {dateColumns.map(date => {
+                                                        const d = new Date(date + 'T00:00:00')
+                                                        const short = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                        return (
+                                                            <th key={date} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap text-xs bg-gray-50 dark:bg-gray-600">
+                                                                {short}
+                                                            </th>
+                                                        )
+                                                    })}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -502,21 +511,31 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                                 {getCellValue(row, col)}
                                                             </td>
                                                         ))}
-                                                        <td className="px-3 py-2 text-green-600 dark:text-green-400 font-semibold whitespace-nowrap">{counts.present}</td>
-                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400 font-semibold whitespace-nowrap">{counts.absent}</td>
+                                                        <td className="px-3 py-2 text-green-600 dark:text-green-400 font-bold whitespace-nowrap bg-green-50/50 dark:bg-green-900/10">{counts.present}</td>
+                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400 font-bold whitespace-nowrap bg-red-50/50 dark:bg-red-900/10">{counts.absent}</td>
+                                                        {dateColumns.map(date => {
+                                                            const val = row[date]
+                                                            const isPresent = val === 'Present' || val === true
+                                                            const isAbsent = val === 'Absent' || val === false
+                                                            return (
+                                                                <td key={date} className={`px-3 py-2 whitespace-nowrap text-xs font-medium ${isPresent ? 'text-green-600 dark:text-green-400' : isAbsent ? 'text-red-500 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                                                                    {isPresent ? 'P' : isAbsent ? 'A' : '-'}
+                                                                </td>
+                                                            )
+                                                        })}
                                                     </tr>
                                                     )
                                                 })}
                                                 {monthData.length > 50 && (
                                                     <tr>
-                                                        <td colSpan={columns.length + 2} className="px-3 py-3 text-center text-gray-400 text-xs bg-gray-50 dark:bg-gray-700/50">
+                                                        <td colSpan={columns.length + 2 + dateColumns.length} className="px-3 py-3 text-center text-gray-400 text-xs bg-gray-50 dark:bg-gray-700/50">
                                                             ...and {monthData.length - 50} more rows (all will be included in export)
                                                         </td>
                                                     </tr>
                                                 )}
                                                 {monthData.length === 0 && (
                                                     <tr>
-                                                        <td colSpan={columns.length + 2} className="px-2 py-4 text-center text-gray-400">No data</td>
+                                                        <td colSpan={columns.length + 2 + dateColumns.length} className="px-2 py-4 text-center text-gray-400">No data</td>
                                                     </tr>
                                                 )}
                                             </tbody>
