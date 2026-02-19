@@ -120,7 +120,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         return { total, males, females, ages, levels: sortedLevels }
     }, [monthData])
 
-    // Generate CSV
+    // Generate CSV - clean format optimized for Google Sheets
     const generateCSV = useCallback(() => {
         const columns = [
             'Full Name', 'Gender', 'Phone Number', 'Age',
@@ -139,14 +139,23 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         const sortedDates = [...dateColumns].sort()
 
         const allColumns = [...columns, ...sortedDates]
+        const colCount = allColumns.length
 
-        // Format phone numbers
+        // Pad a row to match column count
+        const padRow = (cells) => {
+            const padded = [...cells]
+            while (padded.length < colCount) padded.push('')
+            return padded.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
+        }
+
+        // Format phone numbers - use ="0..." format so Google Sheets preserves leading zeros
         const formatPhone = (val) => {
             if (!val) return ''
             const str = String(val).trim()
             const digits = str.replace(/\D/g, '')
             if (!digits) return str
-            return digits.startsWith('0') ? digits : '0' + digits
+            const withZero = digits.startsWith('0') ? digits : '0' + digits
+            return `="${withZero}"`
         }
 
         // Normalize gender
@@ -158,26 +167,24 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
             return val
         }
 
-        // Summary header
-        const summaryLines = [
-            `# Archive: ${label}`,
-            `# Total Members: ${stats.total}`,
-            `# Male: ${stats.males}`,
-            `# Female: ${stats.females}`,
-            `# Archived on: ${new Date().toLocaleString()}`,
-            ``
-        ]
+        const lines = []
 
-        // CSV header
-        const csvHeader = allColumns.map(h => `"${h}"`).join(',')
+        // Summary section - proper cells, no # comments
+        lines.push(padRow([`ARCHIVE: ${label}`, '', '', `Archived: ${new Date().toLocaleDateString()}`]))
+        lines.push(padRow([]))
+        lines.push(padRow(['Total Members', stats.total, '', 'Male', stats.males, '', 'Female', stats.females]))
+        lines.push(padRow([]))
 
-        // CSV rows
-        const csvRows = monthData.map(row => {
-            return allColumns.map(col => {
+        // Column headers
+        lines.push(allColumns.map(h => `"${h}"`).join(','))
+
+        // Data rows
+        monthData.forEach(row => {
+            const cells = allColumns.map(col => {
                 let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
 
                 if (col === 'Phone Number' || col === 'Parent Phone Number') {
-                    v = formatPhone(v)
+                    return formatPhone(v)
                 }
                 if (col === 'Gender') {
                     v = normalizeGender(v)
@@ -185,10 +192,11 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
 
                 if (typeof v === 'string') v = v.replace(/"/g, '""')
                 return `"${v}"`
-            }).join(',')
+            })
+            lines.push(cells.join(','))
         })
 
-        const csvContent = summaryLines.join('\n') + csvHeader + '\n' + csvRows.join('\n')
+        const csvContent = lines.join('\n')
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
         setCsvBlob(blob)
         return blob

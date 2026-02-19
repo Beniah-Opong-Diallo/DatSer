@@ -135,34 +135,26 @@ const ExportCenterPage = ({ onBack }) => {
         }
         setIsExporting(true)
         try {
-            // Build summary header
-            const summaryLines = [
-                `# Export Summary`,
-                `# Months: ${selectedMonths.map(m => m.replace('_', ' ')).join(', ')}`,
-                `# Total Members: ${summary.total}`,
-                `# Boys: ${summary.boys}`,
-                `# Girls: ${summary.girls}`,
-                `# Generated: ${new Date().toLocaleString()}`,
-                ``
-            ]
-
             // Build CSV header
             const header = [...columns, 'Month']
-            const csvHeader = header.map(h => `"${h}"`).join(',')
+            const colCount = header.length
 
-            // Helper to format phone numbers with leading 0
+            // Pad a row to match column count
+            const padRow = (cells) => {
+                const padded = [...cells]
+                while (padded.length < colCount) padded.push('')
+                return padded.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
+            }
+
+            // Helper to format phone numbers - use ="0..." so Google Sheets preserves leading zeros
             const formatPhone = (val) => {
                 if (!val) return ''
                 const str = String(val).trim()
                 if (!str) return ''
-                // Remove any non-digit characters
                 const digits = str.replace(/\D/g, '')
-                if (!digits) return str // Return original if no digits
-                // Always ensure it starts with 0
-                if (!digits.startsWith('0')) {
-                    return '0' + digits
-                }
-                return digits
+                if (!digits) return str
+                const withZero = digits.startsWith('0') ? digits : '0' + digits
+                return `="${withZero}"`
             }
 
             // Helper to normalize gender values
@@ -171,32 +163,42 @@ const ExportCenterPage = ({ onBack }) => {
                 const str = String(val).trim().toLowerCase()
                 if (str === 'm' || str === 'male') return 'Male'
                 if (str === 'f' || str === 'female') return 'Female'
-                return val // Return original if not recognized
+                return val
             }
 
-            // Build rows
-            const csvRows = previewData.map(row => {
-                const vals = columns.map(col => {
+            const lines = []
+
+            // Summary section - clean cells, no # comments
+            const monthsList = selectedMonths.map(m => m.replace('_', ' ')).join(', ')
+            lines.push(padRow([`EXPORT: ${monthsList}`, '', '', `Generated: ${new Date().toLocaleDateString()}`]))
+            lines.push(padRow([]))
+            lines.push(padRow(['Total Members', summary.total, '', 'Male', summary.boys, '', 'Female', summary.girls]))
+            lines.push(padRow([]))
+
+            // Column headers
+            lines.push(header.map(h => `"${h}"`).join(','))
+
+            // Data rows
+            previewData.forEach(row => {
+                const cells = columns.map(col => {
                     let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
-                    
-                    // Format phone numbers with leading 0
+
                     if (col === 'Phone Number' || col === 'Parent Phone Number') {
-                        v = formatPhone(v)
+                        return formatPhone(v)
                     }
-                    
-                    // Normalize gender values
+
                     if (col === 'Gender') {
                         v = normalizeGender(v)
                     }
-                    
+
                     if (typeof v === 'string') v = v.replace(/"/g, '""')
                     return `"${v}"`
                 })
-                vals.push(`"${(row._month || '').replace('_', ' ')}"`)
-                return vals.join(',')
+                cells.push(`"${(row._month || '').replace('_', ' ')}"`)
+                lines.push(cells.join(','))
             })
 
-            const csvContent = summaryLines.join('\n') + csvHeader + '\n' + csvRows.join('\n')
+            const csvContent = lines.join('\n')
 
             // Download
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
