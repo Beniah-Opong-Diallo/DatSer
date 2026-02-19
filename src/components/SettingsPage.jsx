@@ -53,7 +53,7 @@ import ConfirmModal from './ConfirmModal'
 import AdminControlsModal from './AdminControlsModal'
 
 const SettingsPage = ({ onBack, navigateToSection }) => {
-    const { user, signOut, preferences } = useAuth()
+    const { user, signOut, preferences, resetPassword } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
     const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, dataOwnerId } = useApp()
 
@@ -558,13 +558,17 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                             </div>
                         </div>
                         <button
-                            onClick={() => {
+                            onClick={async () => {
                                 if (user?.app_metadata?.provider === 'google') {
                                     toast.info('Your account is secured via Google. Manage it at myaccount.google.com')
                                 } else if (window.__needsPasswordSetup && window.__openSetPassword) {
                                     window.__openSetPassword()
                                 } else {
-                                    toast.info('Password reset link sent to your email')
+                                    try {
+                                        await resetPassword(user?.email)
+                                    } catch (err) {
+                                        // Error toast is already shown by resetPassword
+                                    }
                                 }
                             }}
                             className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
