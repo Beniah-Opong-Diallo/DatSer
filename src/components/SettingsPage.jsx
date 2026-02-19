@@ -1795,6 +1795,15 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
             icon: null,
             action: () => setActiveSection('appearance')
         },
+        {
+            id: 'quick_attendance',
+            section: 'appearance',
+            label: 'Quick Attendance Access',
+            description: 'Show attendance button on main app (secondary option)',
+            keywords: 'quick attendance access button calendar secondary fallback',
+            icon: Calendar,
+            action: () => setActiveSection('appearance')
+        },
 
         // --- Help & Danger ---
         {
