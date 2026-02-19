@@ -110,14 +110,12 @@ function AppContent({ isMobile, onOpenSimple }) {
     const hasWorkspace = !!preferences?.workspace_name
     const hasMembers = (members?.length || 0) > 0
     
-    // Show tutorial prompt for new users who haven't dismissed it
-    if (!tutorialDismissed && (!hasWorkspace || !hasMembers)) {
+    // Show tutorial prompt bar for new users who haven't dismissed it
+    // The full onboarding wizard only opens when user taps Yes on the prompt bar
+    if (!tutorialDismissed && !onboardingComplete && (!hasWorkspace || !hasMembers)) {
       setTimeout(() => setShowTutorialPrompt(true), 1000)
     }
     
-    // Show full onboarding only if explicitly needed
-    const shouldShowOnboarding = !onboardingComplete && (!hasWorkspace || !hasMembers)
-    setShowOnboarding(shouldShowOnboarding)
     setOnboardingAutoChecked(true)
   }, [appLoading, onboardingAutoChecked, members, preferences])
 

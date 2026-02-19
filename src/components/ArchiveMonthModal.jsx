@@ -169,15 +169,21 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         return val
     }
 
-    // Find attendance date columns
+    // Find attendance date columns - support OLD (Attendance 7th) and NEW (attendance_2025_01_07) formats
     const dateColumns = useMemo(() => {
-        const dates = new Set()
+        const cols = new Set()
         monthData.forEach(row => {
             Object.keys(row).forEach(key => {
-                if (/^\d{4}-\d{2}-\d{2}$/.test(key)) dates.add(key)
+                const keyLower = key.toLowerCase()
+                // OLD format: Attendance 7th, Attendance 14th, etc.
+                if (key.startsWith('Attendance ')) cols.add(key)
+                // NEW format: attendance_2025_01_07
+                else if (/^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)) cols.add(key)
+                // Also catch raw YYYY-MM-DD date columns just in case
+                else if (/^\d{4}-\d{2}-\d{2}$/.test(key)) cols.add(key)
             })
         })
-        return [...dates].sort()
+        return [...cols].sort()
     }, [monthData])
 
     // Compute present/absent counts for a row
@@ -481,7 +487,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                         <span className="text-xs text-gray-500 dark:text-gray-400">{monthData.length} records</span>
                                     </div>
 
-                                    <div className="overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                    <div className="overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
                                         <table className="min-w-full text-xs sm:text-sm">
                                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
                                                 <tr>
@@ -490,12 +496,22 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                     ))}
                                                     <th className="px-3 py-2 text-left text-green-700 dark:text-green-300 font-semibold whitespace-nowrap bg-green-50 dark:bg-green-900/20">Present</th>
                                                     <th className="px-3 py-2 text-left text-red-700 dark:text-red-300 font-semibold whitespace-nowrap bg-red-50 dark:bg-red-900/20">Absent</th>
-                                                    {dateColumns.map(date => {
-                                                        const d = new Date(date + 'T00:00:00')
-                                                        const short = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                    {dateColumns.map(col => {
+                                                        // Format header: "Attendance 7th" → "7th", "attendance_2025_01_07" → "Jan 7", "2025-01-07" → "Jan 7"
+                                                        let label = col
+                                                        if (col.startsWith('Attendance ')) {
+                                                            label = col.replace('Attendance ', '')
+                                                        } else if (/^attendance_\d{4}_\d{2}_\d{2}$/i.test(col)) {
+                                                            const parts = col.split('_')
+                                                            const d = new Date(+parts[1], +parts[2] - 1, +parts[3])
+                                                            label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                        } else if (/^\d{4}-\d{2}-\d{2}$/.test(col)) {
+                                                            const d = new Date(col + 'T00:00:00')
+                                                            label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                        }
                                                         return (
-                                                            <th key={date} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap text-xs bg-gray-50 dark:bg-gray-600">
-                                                                {short}
+                                                            <th key={col} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap text-xs bg-gray-50 dark:bg-gray-600">
+                                                                {label}
                                                             </th>
                                                         )
                                                     })}
