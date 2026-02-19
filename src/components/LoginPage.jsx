@@ -522,15 +522,6 @@ const LoginPage = ({ onRequestSimple }) => {
               {mode === 'forgot' && 'Enter your email to reset'}
               {mode === 'magiclink' && 'We\'ll email you a login link'}
             </p>
-            {mode === 'login' && onRequestSimple && (
-              <button
-                type="button"
-                onClick={onRequestSimple}
-                className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all"
-              >
-                📋 Open February Attendance
-              </button>
-            )}
           </div>
 
           {error && (
