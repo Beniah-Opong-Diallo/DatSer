@@ -413,8 +413,8 @@ const LoginPage = ({ onRequestSimple }) => {
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-5 text-xs text-gray-500 dark:text-gray-400">
-            <p>The Maker's House Chapel Teen Ministry</p>
+          <div className="text-center mt-5 text-xs text-gray-500">
+            <p>A simple platform for tracking and organizing records.</p>
           </div>
         </div>
       </div>
@@ -491,10 +491,10 @@ const LoginPage = ({ onRequestSimple }) => {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            TMH Teen Ministry
+            Datser
           </h1>
           <p className="text-sm text-gray-600">
-            Attendance & Data Management
+            Attendance Tracking & Management
           </p>
         </div>
 
@@ -742,8 +742,8 @@ const LoginPage = ({ onRequestSimple }) => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-5 text-xs text-gray-500 dark:text-gray-400">
-          <p>The Maker's House Chapel Teen Ministry</p>
+        <div className="text-center mt-5 text-xs text-gray-500">
+          <p>A simple platform for tracking and organizing records.</p>
         </div>
       </div>
     </div>

@@ -225,17 +225,6 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
                 setIsOpen(false)
             }
         },
-        {
-            id: 'settings-dyslexic-font',
-            label: 'Settings → Dyslexic Font',
-            icon: Zap,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('accessibility')
-                setIsOpen(false)
-            }
-        },
         // Data Management Settings
         {
             id: 'settings-data',

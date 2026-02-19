@@ -1409,7 +1409,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                     <button
                         onClick={() => {
                             setHighContrast(true)
-                            setFontSize('20')
                             setFocusVisible(true)
                         }}
                         className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
@@ -1719,24 +1718,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
             action: () => { setActiveSection('appearance'); setThemeMode('system') }
         },
         {
-            id: 'font_size',
-            section: 'appearance',
-            label: 'Font Size',
-            description: `Current size: ${fontSize}px`,
-            keywords: 'font text size bigger smaller large small scale',
-            icon: null, // text icon?
-            action: () => setActiveSection('appearance')
-        },
-        {
-            id: 'font_family',
-            section: 'appearance',
-            label: 'Font Family',
-            description: 'Change text font style',
-            keywords: 'font family style type typography',
-            icon: null,
-            action: () => setActiveSection('appearance')
-        },
-        {
             id: 'quick_attendance',
             section: 'appearance',
             label: 'Quick Attendance Access',
@@ -1766,7 +1747,7 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
             isDestructive: true,
             action: () => setIsDeleteAccountOpen(true)
         }
-    ], [user, currentTable, fontSize, handleSignOut, setActiveSection])
+    ], [user, currentTable, handleSignOut, setActiveSection])
 
     // Filter items based on search query
     const searchResults = useMemo(() => {
