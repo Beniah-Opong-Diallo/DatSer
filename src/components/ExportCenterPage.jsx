@@ -42,6 +42,7 @@ const ExportCenterPage = ({ onBack }) => {
     const [showPreview, setShowPreview] = useState(false)
     const [previewData, setPreviewData] = useState([])
     const [loadingPreview, setLoadingPreview] = useState(false)
+    const [previewMode, setPreviewMode] = useState('standard') // 'standard' or 'archive'
 
     // Exporting
     const [isExporting, setIsExporting] = useState(false)
@@ -127,6 +128,33 @@ const ExportCenterPage = ({ onBack }) => {
         const monthsCount = selectedMonths.length
         return { total, boys, girls, monthsCount }
     }, [previewData, selectedMonths])
+
+    // Extract attendance date columns (like ArchiveMonthModal does)
+    const dateColumns = useMemo(() => {
+        const cols = new Set()
+        previewData.forEach(row => {
+            Object.keys(row).forEach(key => {
+                const keyLower = key.toLowerCase()
+                // Match attendance columns: attendance_YYYY_MM_DD or Attendance DD or YYYY-MM-DD
+                if (key.startsWith('Attendance ')) cols.add(key)
+                else if (/^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)) cols.add(key)
+                else if (/^\d{4}-\d{2}-\d{2}$/.test(key)) cols.add(key)
+            })
+        })
+        return [...cols].sort()
+    }, [previewData])
+
+    // Get attendance counts for a row
+    const getAttendanceCounts = useCallback((row) => {
+        let present = 0
+        let absent = 0
+        dateColumns.forEach(date => {
+            const val = row[date]
+            if (val === 'Present' || val === true) present++
+            else if (val === 'Absent' || val === false) absent++
+        })
+        return { present, absent }
+    }, [dateColumns])
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -459,38 +487,113 @@ const ExportCenterPage = ({ onBack }) => {
                             </div>
                         </div>
 
+                        {/* Preview Mode Toggle */}
+                        <div className="flex gap-2 mb-4">
+                            <button
+                                onClick={() => setPreviewMode('standard')}
+                                className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${previewMode === 'standard'
+                                    ? 'bg-blue-600 text-white shadow-md'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    }`}
+                            >
+                                Standard View
+                            </button>
+                            <button
+                                onClick={() => setPreviewMode('archive')}
+                                className={`flex-1 py-2 px-3 rounded-lg font-medium text-sm transition-all ${previewMode === 'archive'
+                                    ? 'bg-amber-600 text-white shadow-md'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    }`}
+                            >
+                                Archive View
+                            </button>
+                        </div>
+
                         {/* Table Preview */}
                         <div className="overflow-x-auto max-h-96 lg:max-h-[600px] border border-gray-200 dark:border-gray-700 rounded-lg">
                             <table className="min-w-full text-xs lg:text-sm">
                                 <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
                                     <tr>
-                                        {columns.map(col => (
-                                            <th key={col} className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
-                                        ))}
-                                        <th className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Month</th>
+                                        {previewMode === 'standard' ? (
+                                            <>
+                                                {columns.map(col => (
+                                                    <th key={col} className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
+                                                ))}
+                                                <th className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Month</th>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <th className="px-3 lg:px-4 py-2 lg:py-3 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Full Name</th>
+                                                {dateColumns.map(col => {
+                                                    let label = col
+                                                    if (col.startsWith('Attendance ')) {
+                                                        label = col.replace('Attendance ', '')
+                                                    } else if (/^attendance_\d{4}_\d{2}_\d{2}$/i.test(col)) {
+                                                        const parts = col.split('_')
+                                                        const d = new Date(+parts[1], +parts[2] - 1, +parts[3])
+                                                        label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(col)) {
+                                                        const d = new Date(col + 'T00:00:00')
+                                                        label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                    }
+                                                    return (
+                                                        <th key={col} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap text-xs bg-gray-50 dark:bg-gray-600">
+                                                            {label}
+                                                        </th>
+                                                    )
+                                                })}
+                                                <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Present</th>
+                                                <th className="px-3 py-2 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">Absent</th>
+                                            </>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {previewData.slice(0, 100).map((row, i) => (
-                                        <tr key={i} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                            {columns.map(col => (
-                                                <td key={col} className="px-3 lg:px-4 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap">
-                                                    {row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? '-'}
-                                                </td>
-                                            ))}
-                                            <td className="px-3 lg:px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{(row._month || '').replace('_', ' ')}</td>
-                                        </tr>
-                                    ))}
+                                    {previewMode === 'standard' ? (
+                                        previewData.slice(0, 100).map((row, i) => (
+                                            <tr key={i} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                {columns.map(col => (
+                                                    <td key={col} className="px-3 lg:px-4 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                                        {row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? '-'}
+                                                    </td>
+                                                ))}
+                                                <td className="px-3 lg:px-4 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{(row._month || '').replace('_', ' ')}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        previewData.slice(0, 100).map((row, i) => {
+                                            const counts = getAttendanceCounts(row)
+                                            return (
+                                                <tr key={i} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <td className="px-3 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap font-medium">
+                                                        {row['full_name'] || row['Full Name'] || row.name || 'Unknown'}
+                                                    </td>
+                                                    {dateColumns.map(date => {
+                                                        const val = row[date]
+                                                        const isPresent = val === 'Present' || val === true
+                                                        const isAbsent = val === 'Absent' || val === false
+                                                        return (
+                                                            <td key={date} className={`px-3 py-2 whitespace-nowrap text-xs font-medium ${isPresent ? 'text-green-600 dark:text-green-400 font-bold' : isAbsent ? 'text-red-500 dark:text-red-400 font-bold' : 'text-gray-300 dark:text-gray-600'}`}>
+                                                                {isPresent ? 'P' : isAbsent ? 'A' : '-'}
+                                                            </td>
+                                                        )
+                                                    })}
+                                                    <td className="px-3 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap font-semibold">{counts.present}</td>
+                                                    <td className="px-3 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap font-semibold">{counts.absent}</td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
                                     {previewData.length > 100 && (
                                         <tr>
-                                            <td colSpan={columns.length + 1} className="px-3 py-3 text-center text-gray-400 text-xs lg:text-sm bg-gray-50 dark:bg-gray-700/50">
+                                            <td colSpan={previewMode === 'standard' ? columns.length + 1 : dateColumns.length + 3} className="px-3 py-3 text-center text-gray-400 text-xs lg:text-sm bg-gray-50 dark:bg-gray-700/50">
                                                 ...and {previewData.length - 100} more rows (all will be included in export)
                                             </td>
                                         </tr>
                                     )}
                                     {previewData.length === 0 && (
                                         <tr>
-                                            <td colSpan={columns.length + 1} className="px-2 py-4 text-center text-gray-400">No data</td>
+                                            <td colSpan={previewMode === 'standard' ? columns.length + 1 : dateColumns.length + 3} className="px-2 py-4 text-center text-gray-400">No data</td>
                                         </tr>
                                     )}
                                 </tbody>
