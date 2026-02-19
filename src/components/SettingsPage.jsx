@@ -54,7 +54,7 @@ import AdminControlsModal from './AdminControlsModal'
 
 const SettingsPage = ({ onBack, navigateToSection }) => {
     const { user, signOut, preferences } = useAuth()
-    const { isDarkMode, toggleTheme, themeMode, setThemeMode, fontSize, setFontSize, fontFamily, setFontFamily, commandKEnabled, setCommandKEnabled } = useTheme()
+    const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
     const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, dataOwnerId } = useApp()
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
@@ -1378,65 +1378,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                 </div>
             </div>
 
-            {/* Typography Settings */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <Monitor className="w-5 h-5 text-purple-500" />
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Typography</h4>
-                </div>
-
-                <div className="space-y-4">
-                    {/* Font Size */}
-                    <div>
-                        <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Size</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                            {[
-                                { label: 'Small', value: '14' },
-                                { label: 'Medium', value: '16' },
-                                { label: 'Large', value: '18' },
-                                { label: 'Extra Large', value: '20' },
-                                { label: 'XXL', value: '24' }
-                            ].map((size) => (
-                                <button
-                                    key={size.value}
-                                    onClick={() => setFontSize(size.value)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${fontSize === size.value
-                                            ? 'bg-primary-600 text-white'
-                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                        }`}
-                                >
-                                    {size.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Font Family */}
-                    <div>
-                        <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Family</label>
-                        <div className="space-y-2">
-                            {[
-                                { value: 'OpenDyslexic', label: 'OpenDyslexic (Default)', description: 'Dyslexia-friendly' },
-                                { value: 'system-ui', label: 'System', description: 'OS default' },
-                                { value: 'Georgia, serif', label: 'Georgia', description: 'Serif, readable' },
-                                { value: 'Courier New, monospace', label: 'Courier New', description: 'Monospace' }
-                            ].map((font) => (
-                                <button
-                                    key={font.value}
-                                    onClick={() => setFontFamily(font.value)}
-                                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${fontFamily === font.value
-                                            ? 'bg-primary-600 text-white'
-                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                        }`}
-                                    style={{ fontFamily: font.value }}
-                                >
-                                    {font.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             {/* Quick Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">

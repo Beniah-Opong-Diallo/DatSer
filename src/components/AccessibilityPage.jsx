@@ -3,7 +3,7 @@ import { ArrowLeft, Eye, Zap, Monitor, Volume2, Keyboard, Moon, Sun } from 'luci
 import { useTheme } from '../context/ThemeContext'
 
 const AccessibilityPage = ({ onBack }) => {
-  const { isDarkMode, toggleTheme, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme()
+  const { isDarkMode, toggleTheme } = useTheme()
   
   // Animation settings
   const [animationsEnabled, setAnimationsEnabled] = useState(() => {
@@ -231,56 +231,6 @@ const AccessibilityPage = ({ onBack }) => {
             </div>
           </div>
           
-          {/* Typography Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Monitor className="w-5 h-5 text-purple-500" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Typography</h2>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Font Size */}
-              <div>
-                <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Size</label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {fontSizes.map((size) => (
-                    <button
-                      key={size.value}
-                      onClick={() => setFontSize(size.value)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        fontSize === size.value
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {size.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Font Family */}
-              <div>
-                <label className="font-medium text-gray-900 dark:text-white mb-2 block">Font Family</label>
-                <div className="space-y-2">
-                  {fontFamilies.map((font) => (
-                    <button
-                      key={font.value}
-                      onClick={() => setFontFamily(font.value)}
-                      className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
-                        fontFamily === font.value
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      style={{ fontFamily: font.value }}
-                    >
-                      {font.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
           
           {/* Quick Actions */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
