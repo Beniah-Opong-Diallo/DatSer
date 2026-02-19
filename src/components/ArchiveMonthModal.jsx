@@ -512,7 +512,8 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                         <span className="text-xs text-gray-500 dark:text-gray-400">{monthData.length} records</span>
                                     </div>
 
-                                    <div className="archive-preview-table overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-r-2xl overflow-hidden">
+                                    <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+                                        <div className="archive-preview-table overflow-auto max-h-80 sm:max-h-96">
                                         <table className="min-w-full text-xs sm:text-sm">
                                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
                                                 <tr>
@@ -581,6 +582,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                 )}
                                             </tbody>
                                         </table>
+                                        </div>
                                     </div>
                                 </section>
                             )}
