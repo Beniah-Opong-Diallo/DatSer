@@ -295,6 +295,7 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
     const removeCountdownRef = useRef(null)
     const [removeCountdownMs, setRemoveCountdownMs] = useState(0)
     const [searchQuery, setSearchQuery] = useState('')
+    const [showUsageDetails, setShowUsageDetails] = useState(false)
 
     // Fetch collaborators for Team section display
     useEffect(() => {
@@ -2092,6 +2093,118 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                         <p className="text-[10px] text-gray-400 dark:text-gray-500">
                             Includes magic links, password resets, and invites. Resets hourly.
                         </p>
+                    </div>
+
+                    {/* Brief explanation */}
+                    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            <strong className="text-gray-800 dark:text-gray-200">Database Storage</strong> is the space your member data, attendance records, and monthly tables use on the server.
+                            <strong className="text-gray-800 dark:text-gray-200"> Auth Emails</strong> are login-related emails (magic links, password resets, invites) — limited to 3 per hour on the free plan.
+                            Archiving old months exports them as CSV and removes them from the database, freeing up storage.
+                        </p>
+
+                        {/* Learn More dropdown */}
+                        <button
+                            onClick={() => setShowUsageDetails(prev => !prev)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                        >
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showUsageDetails ? 'rotate-180' : ''}`} />
+                            {showUsageDetails ? 'Show less' : 'Learn more about how this works'}
+                        </button>
+
+                        {showUsageDetails && (
+                            <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-3 space-y-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed animate-in fade-in">
+
+                                {/* What is Supabase */}
+                                <div>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-1.5">
+                                        <Database className="w-3.5 h-3.5 text-emerald-500" />
+                                        What powers this app?
+                                    </p>
+                                    <p>
+                                        This app uses <strong>Supabase</strong> — an open-source backend platform — to store all your data securely in a real PostgreSQL database hosted in the cloud (EU-North region).
+                                        Supabase handles your database, user authentication (login/signup), and secure access control so your data stays private and only accessible to you and your team.
+                                    </p>
+                                </div>
+
+                                {/* Database Storage explained */}
+                                <div>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-1.5">
+                                        <Database className="w-3.5 h-3.5 text-blue-500" />
+                                        Database Storage (500 MB limit)
+                                    </p>
+                                    <p>
+                                        Every member you add, every attendance record you mark, and every monthly table you create takes up space in the database.
+                                        On the <strong>free plan</strong>, you get <strong>500 MB</strong> of total database storage. The bar above shows how much you've used.
+                                    </p>
+                                    <p className="mt-1">
+                                        For context, 500 MB can comfortably hold <strong>thousands of members</strong> across dozens of monthly tables.
+                                        You'll likely never hit this limit with normal use, but it's good to keep an eye on it.
+                                    </p>
+                                </div>
+
+                                {/* Why archive */}
+                                <div>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-1.5">
+                                        <Archive className="w-3.5 h-3.5 text-amber-500" />
+                                        Why archive old months?
+                                    </p>
+                                    <p>
+                                        Each monthly table (e.g. "January 2026") stores member names, attendance dates, and status for that month.
+                                        Over time, old months you no longer need to edit just sit in the database taking up space.
+                                    </p>
+                                    <p className="mt-1">
+                                        <strong>Archiving</strong> exports the month's data as a CSV file (which you download and keep), then deletes the table from the database.
+                                        This frees up storage while keeping your records safe on your device. You can always re-import the CSV later if needed.
+                                    </p>
+                                    <p className="mt-1 text-amber-700 dark:text-amber-400">
+                                        <strong>Recommendation:</strong> Archive months that are more than 2–3 months old, especially if you have many monthly tables.
+                                    </p>
+                                </div>
+
+                                {/* Auth Emails explained */}
+                                <div>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-1.5">
+                                        <Mail className="w-3.5 h-3.5 text-purple-500" />
+                                        Auth Emails (3 per hour limit)
+                                    </p>
+                                    <p>
+                                        Supabase sends authentication emails on your behalf for:
+                                    </p>
+                                    <ul className="list-disc list-inside mt-1 space-y-0.5 ml-1">
+                                        <li><strong>Magic links</strong> — passwordless login links sent to collaborators</li>
+                                        <li><strong>Password resets</strong> — "forgot password" emails</li>
+                                        <li><strong>Invites</strong> — when you invite a new team member</li>
+                                        <li><strong>Signup confirmations</strong> — email verification for new accounts</li>
+                                    </ul>
+                                    <p className="mt-1">
+                                        On the free plan, Supabase limits this to <strong>3 emails per hour</strong> to prevent abuse.
+                                        The counter above tracks how many you've sent in the current hour. Once you hit 3, you'll need to wait for the timer to reset before sending more.
+                                    </p>
+                                    <p className="mt-1">
+                                        This is a <strong>server-side limit</strong> set by Supabase — the countdown timer shows approximately when you can send again.
+                                        Normal usage (occasional invites or password resets) will rarely hit this limit.
+                                    </p>
+                                </div>
+
+                                {/* Free plan summary */}
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg p-2.5">
+                                    <p className="font-semibold text-blue-800 dark:text-blue-300 mb-1 text-[11px]">Free Plan Summary</p>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                                        <span className="text-gray-600 dark:text-gray-400">Database</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">500 MB</span>
+                                        <span className="text-gray-600 dark:text-gray-400">Auth emails</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">3 per hour</span>
+                                        <span className="text-gray-600 dark:text-gray-400">File storage</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">1 GB</span>
+                                        <span className="text-gray-600 dark:text-gray-400">Realtime connections</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">200 concurrent</span>
+                                        <span className="text-gray-600 dark:text-gray-400">Edge functions</span>
+                                        <span className="font-medium text-gray-800 dark:text-gray-200">500K invocations/month</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
