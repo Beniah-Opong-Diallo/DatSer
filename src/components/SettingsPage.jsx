@@ -93,31 +93,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
         return () => cancelAnimationFrame(raf1)
     }, [activeSection, showHelpCenter])
 
-    // Accessibility settings state
-    const [animationsEnabled, setAnimationsEnabled] = useState(() => {
-        const saved = localStorage.getItem('animationsEnabled')
-        return saved !== 'false' // Default to true
-    })
-
-    const [reducedMotion, setReducedMotion] = useState(() => {
-        const saved = localStorage.getItem('reducedMotion')
-        return saved === 'true'
-    })
-
-    const [highContrast, setHighContrast] = useState(() => {
-        const saved = localStorage.getItem('highContrast')
-        return saved === 'true'
-    })
-
-    const [focusVisible, setFocusVisible] = useState(() => {
-        const saved = localStorage.getItem('focusVisible')
-        return saved !== 'false' // Default to true
-    })
-
-    const [performanceMode, setPerformanceMode] = useState(() => {
-        const saved = localStorage.getItem('performanceMode')
-        return saved === 'true'
-    })
 
     // Auto-Sunday toggle handlers
     const toggleAutoSunday = () => {
@@ -264,30 +239,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
     const emailsRemaining = Math.max(0, EMAIL_RATE_LIMIT - emailSends.length)
     const emailPct = Math.round((emailSends.length / EMAIL_RATE_LIMIT) * 100)
 
-    // Apply accessibility settings
-    useEffect(() => {
-        localStorage.setItem('animationsEnabled', String(animationsEnabled))
-        localStorage.setItem('reducedMotion', String(reducedMotion))
-        localStorage.setItem('highContrast', String(highContrast))
-        localStorage.setItem('focusVisible', String(focusVisible))
-        localStorage.setItem('performanceMode', String(performanceMode))
-
-        // Apply to document
-        document.documentElement.classList.toggle('animations-disabled', !animationsEnabled)
-        document.documentElement.classList.toggle('reduced-motion', reducedMotion)
-        document.documentElement.classList.toggle('high-contrast', highContrast)
-        document.documentElement.classList.toggle('focus-visible', focusVisible)
-        document.documentElement.classList.toggle('performance-mode', performanceMode)
-
-        // Add custom CSS for performance mode
-        if (performanceMode) {
-            document.documentElement.style.setProperty('--transition-duration', '0ms')
-            document.documentElement.style.setProperty('--animation-duration', '0ms')
-        } else {
-            document.documentElement.style.setProperty('--transition-duration', '')
-            document.documentElement.style.setProperty('--animation-duration', '')
-        }
-    }, [animationsEnabled, reducedMotion, highContrast, focusVisible, performanceMode])
     const [removeDelay, setRemoveDelay] = useState(0)
     const [isRemovingCollaborator, setIsRemovingCollaborator] = useState(false)
     const [isExportingCollaborator, setIsExportingCollaborator] = useState(false)
@@ -476,7 +427,7 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
             case 'appearance':
                 return themeMode === 'system' ? 'Auto' : themeMode === 'dark' ? 'Dark' : 'Light'
             case 'accessibility':
-                return performanceMode ? 'Performance Mode' : animationsEnabled ? 'Animations On' : 'Reduced'
+                return 'Command Menu'
             case 'help':
                 return 'Get help & support'
             case 'danger':
@@ -1347,121 +1298,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
 
     const renderAccessibilitySection = () => (
         <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Accessibility</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Performance and accessibility settings</p>
-            </div>
-
-            {/* Performance Settings */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <Zap className="w-5 h-5 text-yellow-500" />
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Performance</h4>
-                </div>
-
-                <div className="space-y-4">
-                    {/* Performance Mode */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="font-medium text-gray-900 dark:text-white">Performance Mode</label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Disable all animations for maximum speed</p>
-                        </div>
-                        <button
-                            onClick={() => setPerformanceMode(!performanceMode)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${performanceMode ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${performanceMode ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-
-                    {/* Animations Toggle */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="font-medium text-gray-900 dark:text-white">Animations</label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Enable visual animations and transitions</p>
-                        </div>
-                        <button
-                            onClick={() => setAnimationsEnabled(!animationsEnabled)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${animationsEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${animationsEnabled ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-
-                    {/* Reduced Motion */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="font-medium text-gray-900 dark:text-white">Reduced Motion</label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Minimize animations for users with motion sensitivity</p>
-                        </div>
-                        <button
-                            onClick={() => setReducedMotion(!reducedMotion)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reducedMotion ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reducedMotion ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Visual Settings */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <Eye className="w-5 h-5 text-blue-500" />
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Visual</h4>
-                </div>
-
-                <div className="space-y-4">
-                    {/* High Contrast */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="font-medium text-gray-900 dark:text-white">High Contrast</label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Increase contrast for better visibility</p>
-                        </div>
-                        <button
-                            onClick={() => setHighContrast(!highContrast)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${highContrast ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${highContrast ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-
-                    {/* Focus Visible */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="font-medium text-gray-900 dark:text-white">Focus Indicators</label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Show clear focus outlines for keyboard navigation</p>
-                        </div>
-                        <button
-                            onClick={() => setFocusVisible(!focusVisible)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${focusVisible ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${focusVisible ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             {/* Command Menu Settings */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -1497,63 +1333,6 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                             </p>
                         </div>
                     )}
-                </div>
-            </div>
-
-
-            {/* Quick Actions */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                        onClick={() => {
-                            setPerformanceMode(true)
-                            setAnimationsEnabled(false)
-                            setReducedMotion(true)
-                        }}
-                        className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Zap className="w-4 h-4" />
-                        Maximum Performance
-                    </button>
-                    <button
-                        onClick={() => {
-                            setPerformanceMode(false)
-                            setAnimationsEnabled(true)
-                            setReducedMotion(false)
-                            setHighContrast(false)
-                        }}
-                        className="px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Full Animations
-                    </button>
-                    <button
-                        onClick={() => {
-                            setHighContrast(true)
-                            setFocusVisible(true)
-                        }}
-                        className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Eye className="w-4 h-4" />
-                        High Visibility
-                    </button>
-                    <button
-                        onClick={() => {
-                            localStorage.removeItem('animationsEnabled')
-                            localStorage.removeItem('reducedMotion')
-                            localStorage.removeItem('highContrast')
-                            localStorage.removeItem('focusVisible')
-                            localStorage.removeItem('performanceMode')
-                            localStorage.removeItem('fontSize')
-                            localStorage.removeItem('fontFamily')
-                            window.location.reload()
-                        }}
-                        className="px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                        <RotateCcw className="w-4 h-4" />
-                        Reset All Settings
-                    </button>
                 </div>
             </div>
         </div>
@@ -1653,8 +1432,8 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
             label: 'Accessibility',
             icon: Zap,
             color: 'yellow',
-            content: 'Performance and accessibility settings. Control animations, reduce motion, adjust font size and family, enable high contrast mode, and optimize for screen readers and keyboard navigation.',
-            keywords: 'accessibility performance animations reduced motion font size high contrast focus keyboard screen reader'
+            content: 'Command Menu settings. Enable or disable quick navigation with keyboard shortcuts.',
+            keywords: 'command menu keyboard shortcuts navigation'
         },
         {
             id: 'help',
