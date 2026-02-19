@@ -6,21 +6,33 @@ import {
     Users,
     ChevronDown,
     ChevronUp,
+    ChevronLeft,
     Loader2,
     X,
     AlertTriangle,
     CheckCircle,
     ExternalLink,
     FileSpreadsheet,
-    Info
+    Info,
+    GripVertical,
+    Eye
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 
+const DEFAULT_COLUMNS = [
+    'Full Name',
+    'Gender',
+    'Phone Number',
+    'Age',
+    'Current Level',
+    'Parent Name',
+    'Parent Phone Number'
+]
+
 const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) => {
-    const { members, deleteMonthTable, isSupabaseConfigured, dataOwnerId, monthlyTables } = useApp()
-    const { user } = useApp()
+    const { members, deleteMonthTable, isSupabaseConfigured } = useApp()
 
     const [step, setStep] = useState('summary') // 'summary' | 'confirm' | 'archiving' | 'done'
     const [monthData, setMonthData] = useState([])
@@ -29,6 +41,11 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
     const [downloaded, setDownloaded] = useState(false)
     const [showDetails, setShowDetails] = useState(false)
     const [archiveError, setArchiveError] = useState(null)
+
+    // Export Center features
+    const [columns, setColumns] = useState(DEFAULT_COLUMNS)
+    const [draggedIdx, setDraggedIdx] = useState(null)
+    const [showPreview, setShowPreview] = useState(false)
 
     const label = tableName ? tableName.replace('_', ' ') : ''
 
@@ -39,6 +56,8 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         setDownloaded(false)
         setCsvBlob(null)
         setArchiveError(null)
+        setShowPreview(false)
+        setColumns(DEFAULT_COLUMNS)
         setLoading(true)
 
         const fetchData = async () => {
@@ -112,44 +131,75 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
             }
         })
 
-        // Sort levels by count descending
         const sortedLevels = Object.entries(levels)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 8) // Top 8
+            .slice(0, 8)
 
         return { total, males, females, ages, levels: sortedLevels }
     }, [monthData])
 
-    // Generate CSV - clean format optimized for Google Sheets
-    const generateCSV = useCallback(() => {
-        const columns = [
-            'Full Name', 'Gender', 'Phone Number', 'Age',
-            'Current Level', 'Parent Name', 'Parent Phone Number'
-        ]
+    // Drag-and-drop column reorder
+    const handleDragStart = (idx) => setDraggedIdx(idx)
+    const handleDragOver = (e) => e.preventDefault()
+    const handleDrop = (idx) => {
+        if (draggedIdx === null || draggedIdx === idx) return
+        const newCols = [...columns]
+        const [removed] = newCols.splice(draggedIdx, 1)
+        newCols.splice(idx, 0, removed)
+        setColumns(newCols)
+        setDraggedIdx(null)
+        setCsvBlob(null)
+    }
 
-        // Find all attendance date columns (they look like YYYY-MM-DD)
-        const dateColumns = new Set()
+    // Helper: format phone for display
+    const formatPhoneDisplay = (val) => {
+        if (!val) return ''
+        const str = String(val).trim()
+        const digits = str.replace(/\D/g, '')
+        if (!digits) return str
+        return digits.startsWith('0') ? digits : '0' + digits
+    }
+
+    // Helper: normalize gender for display
+    const normalizeGender = (val) => {
+        if (!val) return ''
+        const str = String(val).trim().toLowerCase()
+        if (str === 'm' || str === 'male') return 'Male'
+        if (str === 'f' || str === 'female') return 'Female'
+        return val
+    }
+
+    // Get cell value for display
+    const getCellValue = (row, col) => {
+        let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
+        if (col === 'Phone Number' || col === 'Parent Phone Number') return formatPhoneDisplay(v)
+        if (col === 'Gender') return normalizeGender(v)
+        return v || '-'
+    }
+
+    // Find attendance date columns
+    const dateColumns = useMemo(() => {
+        const dates = new Set()
         monthData.forEach(row => {
             Object.keys(row).forEach(key => {
-                if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-                    dateColumns.add(key)
-                }
+                if (/^\d{4}-\d{2}-\d{2}$/.test(key)) dates.add(key)
             })
         })
-        const sortedDates = [...dateColumns].sort()
+        return [...dates].sort()
+    }, [monthData])
 
-        const allColumns = [...columns, ...sortedDates]
+    // Generate CSV - clean format optimized for Google Sheets
+    const generateCSV = useCallback(() => {
+        const allColumns = [...columns, ...dateColumns]
         const colCount = allColumns.length
 
-        // Pad a row to match column count
         const padRow = (cells) => {
             const padded = [...cells]
             while (padded.length < colCount) padded.push('')
             return padded.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
         }
 
-        // Format phone numbers - use ="0..." format so Google Sheets preserves leading zeros
-        const formatPhone = (val) => {
+        const formatPhoneCSV = (val) => {
             if (!val) return ''
             const str = String(val).trim()
             const digits = str.replace(/\D/g, '')
@@ -158,18 +208,9 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
             return `="${withZero}"`
         }
 
-        // Normalize gender
-        const normalizeGender = (val) => {
-            if (!val) return ''
-            const str = String(val).trim().toLowerCase()
-            if (str === 'm' || str === 'male') return 'Male'
-            if (str === 'f' || str === 'female') return 'Female'
-            return val
-        }
-
         const lines = []
 
-        // Summary section - proper cells, no # comments
+        // Summary section
         lines.push(padRow([`ARCHIVE: ${label}`, '', '', `Archived: ${new Date().toLocaleDateString()}`]))
         lines.push(padRow([]))
         lines.push(padRow(['Total Members', stats.total, '', 'Male', stats.males, '', 'Female', stats.females]))
@@ -184,7 +225,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                 let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
 
                 if (col === 'Phone Number' || col === 'Parent Phone Number') {
-                    return formatPhone(v)
+                    return formatPhoneCSV(v)
                 }
                 if (col === 'Gender') {
                     v = normalizeGender(v)
@@ -200,7 +241,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
         setCsvBlob(blob)
         return blob
-    }, [monthData, label, stats])
+    }, [monthData, columns, dateColumns, label, stats])
 
     // Download CSV
     const handleDownload = useCallback(() => {
@@ -217,7 +258,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         toast.success('CSV downloaded successfully!')
     }, [csvBlob, generateCSV, tableName])
 
-    // Open Google Sheets import
+    // Open Google Sheets
     const handleOpenSheets = () => {
         window.open('https://sheets.google.com/create', '_blank')
     }
@@ -240,15 +281,18 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-            {/* Modal */}
-            <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Modal - full width on mobile, max-w-4xl on desktop */}
+            <div className="relative bg-white dark:bg-gray-800 sm:rounded-2xl shadow-2xl w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[92vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-5 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between sm:rounded-t-2xl z-10">
                     <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors sm:hidden">
+                            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                        </button>
                         <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
                             <Archive className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                         </div>
@@ -257,12 +301,12 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                             <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors hidden sm:block">
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
 
-                <div className="p-5 space-y-5">
+                <div className="p-4 sm:p-5 space-y-5">
                     {/* Loading */}
                     {loading && (
                         <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -275,7 +319,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                     {!loading && step === 'summary' && (
                         <>
                             {/* Info Banner */}
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 sm:p-4">
                                 <div className="flex gap-3">
                                     <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                                     <div>
@@ -289,62 +333,167 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                             </div>
 
                             {/* Summary Stats */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">Total People</div>
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 sm:p-6 border border-blue-200 dark:border-blue-800">
+                                <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                                    <FileSpreadsheet className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                    Archive Summary
+                                </h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-blue-100 dark:border-blue-800">
+                                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Total People</div>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-indigo-100 dark:border-indigo-800">
+                                        <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{stats.males}</div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Male</div>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-pink-100 dark:border-pink-800">
+                                        <div className="text-2xl font-bold text-pink-600 dark:text-pink-400">{stats.females}</div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Female</div>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-green-100 dark:border-green-800">
+                                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">{dateColumns.length}</div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Attendance Dates</div>
+                                    </div>
                                 </div>
-                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.males}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">Male</div>
-                                </div>
-                                <div className="bg-pink-50 dark:bg-pink-900/20 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-pink-600 dark:text-pink-400">{stats.females}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">Female</div>
-                                </div>
+
+                                {/* Expandable Details */}
+                                <button
+                                    onClick={() => setShowDetails(!showDetails)}
+                                    className="mt-4 w-full flex items-center justify-between px-3 py-2 bg-white/60 dark:bg-gray-800/60 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <span>Age & Level Breakdown</span>
+                                    {showDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+
+                                {showDetails && (
+                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {Object.keys(stats.ages).length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Age Groups</h4>
+                                                <div className="space-y-1">
+                                                    {Object.entries(stats.ages).map(([bracket, count]) => (
+                                                        <div key={bracket} className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg">
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300">{bracket}</span>
+                                                            <span className="text-xs font-semibold text-gray-900 dark:text-white">{count}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {stats.levels.length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Top Levels</h4>
+                                                <div className="space-y-1">
+                                                    {stats.levels.map(([level, count]) => (
+                                                        <div key={level} className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg">
+                                                            <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{level}</span>
+                                                            <span className="text-xs font-semibold text-gray-900 dark:text-white">{count}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Expandable Details */}
+                            {/* Column Order (drag-and-drop) */}
+                            <section className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+                                <h3 className="font-semibold text-gray-900 dark:text-white mb-1 flex items-center gap-2 text-sm">
+                                    <GripVertical className="w-4 h-4 text-gray-400" /> Column Order
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Drag to reorder • Click X to remove</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {columns.map((col, idx) => (
+                                        <div
+                                            key={col}
+                                            draggable
+                                            onDragStart={() => handleDragStart(idx)}
+                                            onDragOver={handleDragOver}
+                                            onDrop={() => handleDrop(idx)}
+                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 cursor-grab select-none ${draggedIdx === idx ? 'opacity-50' : ''}`}
+                                        >
+                                            <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                            <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">{col}</span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setColumns(prev => prev.filter((_, i) => i !== idx))
+                                                    setCsvBlob(null)
+                                                }}
+                                                className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                                title="Remove column"
+                                            >
+                                                <X className="w-4 h-4 text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                {columns.length < DEFAULT_COLUMNS.length && (
+                                    <button
+                                        onClick={() => { setColumns(DEFAULT_COLUMNS); setCsvBlob(null) }}
+                                        className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        Reset columns
+                                    </button>
+                                )}
+                            </section>
+
+                            {/* Preview Button */}
                             <button
-                                onClick={() => setShowDetails(!showDetails)}
-                                className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                onClick={() => setShowPreview(!showPreview)}
+                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-colors"
                             >
-                                <span>More Details</span>
-                                {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                <Eye className="w-5 h-5" />
+                                {showPreview ? 'Hide Preview' : 'Preview Data'}
                             </button>
 
-                            {showDetails && (
-                                <div className="space-y-4 animate-in">
-                                    {/* Age Breakdown */}
-                                    {Object.keys(stats.ages).length > 0 && (
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Age Groups</h4>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {Object.entries(stats.ages).map(([bracket, count]) => (
-                                                    <div key={bracket} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                                        <span className="text-sm text-gray-700 dark:text-gray-300">{bracket}</span>
-                                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{count}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                            {/* Data Preview Table */}
+                            {showPreview && (
+                                <section className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
+                                            <Users className="w-4 h-4 text-green-500" /> Preview
+                                        </h3>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">{monthData.length} records</span>
+                                    </div>
 
-                                    {/* Level Breakdown */}
-                                    {stats.levels.length > 0 && (
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Top Levels</h4>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {stats.levels.map(([level, count]) => (
-                                                    <div key={level} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{level}</span>
-                                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{count}</span>
-                                                    </div>
+                                    <div className="overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <table className="min-w-full text-xs sm:text-sm">
+                                            <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+                                                <tr>
+                                                    {columns.map(col => (
+                                                        <th key={col} className="px-3 py-2 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {monthData.slice(0, 50).map((row, i) => (
+                                                    <tr key={i} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                        {columns.map(col => (
+                                                            <td key={col} className="px-3 py-2 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                                                {getCellValue(row, col)}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
                                                 ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                                                {monthData.length > 50 && (
+                                                    <tr>
+                                                        <td colSpan={columns.length} className="px-3 py-3 text-center text-gray-400 text-xs bg-gray-50 dark:bg-gray-700/50">
+                                                            ...and {monthData.length - 50} more rows (all will be included in export)
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {monthData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={columns.length} className="px-2 py-4 text-center text-gray-400">No data</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
                             )}
 
                             {/* Actions */}
@@ -352,10 +501,10 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                 {/* Download CSV */}
                                 <button
                                     onClick={handleDownload}
-                                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg hover:shadow-xl transition-all"
                                 >
                                     <Download className="w-5 h-5" />
-                                    {downloaded ? 'Download Again' : 'Download CSV'}
+                                    {downloaded ? 'Download Again' : 'Export to CSV for Google Sheets'}
                                 </button>
 
                                 {/* Open Google Sheets */}
@@ -385,6 +534,10 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                         We recommend downloading the CSV before deleting
                                     </p>
                                 )}
+
+                                <p className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                                    The exported CSV includes a summary header and can be imported directly into Google Sheets.
+                                </p>
                             </div>
                         </>
                     )}
