@@ -70,7 +70,12 @@ export const AuthProvider = ({ children }) => {
         // With implicit flow, Supabase puts tokens in the hash fragment
         const hash = window.location.hash
         if (hash && hash.length > 1) {
-          welcomeToastShownRef.current = false
+          // Suppress welcome toast for password recovery flow
+          if (hash.includes('type=recovery')) {
+            welcomeToastShownRef.current = true
+          } else {
+            welcomeToastShownRef.current = false
+          }
           
           // Check for error in hash (e.g. expired invite link)
           if (hash.includes('error=')) {

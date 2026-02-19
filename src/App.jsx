@@ -24,6 +24,7 @@ const CommandPalette = lazy(() => import('./components/CommandPalette'))
 const ExecAttendancePage = lazy(() => import('./components/ExecAttendancePage'))
 const SimpleAttendance = lazy(() => import('./components/SimpleAttendance'))
 const SetPasswordModal = lazy(() => import('./components/SetPasswordModal'))
+const ResetPasswordModal = lazy(() => import('./components/ResetPasswordModal'))
 
 // Minimal loading fallback for lazy components
 const LazyFallback = memo(() => (
@@ -359,6 +360,15 @@ function AuthenticatedApp({ isMobile }) {
   const { isAuthenticated, loading } = useAuth()
   const [showSimple, setShowSimple] = useState(() => localStorage.getItem('openSimpleAttendance') === 'true')
 
+  // Detect password recovery flow from hash BEFORE AuthContext clears it
+  const [showResetPassword, setShowResetPassword] = useState(() => {
+    const hash = window.location.hash
+    if (hash && hash.includes('type=recovery')) return true
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('type') === 'recovery') return true
+    return false
+  })
+
   // Persist showSimple flag
   useEffect(() => {
     if (showSimple) localStorage.setItem('openSimpleAttendance', 'true')
@@ -398,6 +408,14 @@ function AuthenticatedApp({ isMobile }) {
   return (
     <AppProvider>
       <AppContent isMobile={isMobile} onOpenSimple={() => setShowSimple(true)} />
+      {showResetPassword && (
+        <Suspense fallback={null}>
+          <ResetPasswordModal
+            isOpen={showResetPassword}
+            onClose={() => setShowResetPassword(false)}
+          />
+        </Suspense>
+      )}
     </AppProvider>
   )
 }
