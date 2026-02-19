@@ -653,6 +653,22 @@ const Dashboard = ({ isAdmin = false }) => {
     })
   }
 
+  // Select all duplicates
+  const selectAllDuplicates = () => {
+    const allDuplicateIds = new Set()
+    duplicateGroups.forEach(group => {
+      group.members.forEach(member => {
+        allDuplicateIds.add(member.id)
+      })
+    })
+    setSelectedDuplicateIds(allDuplicateIds)
+  }
+
+  // Deselect all duplicates
+  const deselectAllDuplicates = () => {
+    setSelectedDuplicateIds(new Set())
+  }
+
   // Bulk delete selected duplicates
   const deleteSelectedDuplicates = async () => {
     if (selectedDuplicateIds.size === 0) return
@@ -1542,19 +1558,33 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {dashboardTab === 'duplicates' && (
         <div className={`rounded-lg border p-3 sm:p-4 mt-4 sm:mt-10 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h3 className={`text-base sm:text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Duplicate Names</h3>
           </div>
           <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{duplicateGroups.length} names with duplicates</div>
-              <button
-                onClick={deleteSelectedDuplicates}
-                disabled={selectedDuplicateIds.size === 0}
-                className={`px-3 py-1 rounded text-sm ${selectedDuplicateIds.size === 0 ? 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
-              >
-                Delete Selected
-              </button>
+            {/* Control Bar */}
+            <div className={`rounded-lg p-3 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {duplicateGroups.length} names with duplicates
+                  {selectedDuplicateIds.size > 0 && <span className="ml-2 text-primary-600 dark:text-primary-400">({selectedDuplicateIds.size} selected)</span>}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={selectedDuplicateIds.size === 0 ? selectAllDuplicates : deselectAllDuplicates}
+                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${selectedDuplicateIds.size === 0 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-400 dark:bg-gray-600 text-white hover:bg-gray-500 dark:hover:bg-gray-500'}`}
+                  >
+                    {selectedDuplicateIds.size === 0 ? 'Select All' : 'Deselect All'}
+                  </button>
+                  <button
+                    onClick={deleteSelectedDuplicates}
+                    disabled={selectedDuplicateIds.size === 0}
+                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${selectedDuplicateIds.size === 0 ? 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                  >
+                    Delete All
+                  </button>
+                </div>
+              </div>
             </div>
             {duplicateGroups.length === 0 && (
               <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>No duplicate names found</div>
