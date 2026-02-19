@@ -21,6 +21,17 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 
+// Hide scrollbar styles
+const scrollbarHideStyle = `
+  .archive-preview-table::-webkit-scrollbar {
+    display: none;
+  }
+  .archive-preview-table {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+`
+
 const DEFAULT_COLUMNS = [
     'Full Name',
     'Gender',
@@ -190,18 +201,30 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
     const getAttendanceCounts = useCallback((row) => {
         let present = 0
         let absent = 0
+        let hasAny = false
         dateColumns.forEach(date => {
             const val = row[date]
-            if (val === 'Present' || val === true) present++
-            else if (val === 'Absent' || val === false) absent++
+            if (val === 'Present' || val === true) {
+                present++
+                hasAny = true
+            } else if (val === 'Absent' || val === false) {
+                absent++
+                hasAny = true
+            }
         })
-        return { present, absent }
+        return { present, absent, hasAny }
     }, [dateColumns])
 
     // Get cell value for display
     const getCellValue = (row, col) => {
-        if (col === 'Present') return getAttendanceCounts(row).present
-        if (col === 'Absent') return getAttendanceCounts(row).absent
+        if (col === 'Present') {
+            const counts = getAttendanceCounts(row)
+            return counts.hasAny ? counts.present : null
+        }
+        if (col === 'Absent') {
+            const counts = getAttendanceCounts(row)
+            return counts.hasAny ? counts.absent : null
+        }
         let v = row[col] ?? row[col.toLowerCase().replace(/ /g, '_')] ?? ''
         if (col === 'Phone Number' || col === 'Parent Phone Number') return formatPhoneDisplay(v)
         if (col === 'Gender') return normalizeGender(v)
@@ -309,7 +332,9 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
+        <>
+            <style>{scrollbarHideStyle}</style>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
@@ -487,7 +512,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                         <span className="text-xs text-gray-500 dark:text-gray-400">{monthData.length} records</span>
                                     </div>
 
-                                    <div className="overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+                                    <div className="archive-preview-table overflow-x-auto max-h-80 sm:max-h-96 border border-gray-200 dark:border-gray-700 rounded-r-2xl overflow-hidden">
                                         <table className="min-w-full text-xs sm:text-sm">
                                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
                                                 <tr>
@@ -527,14 +552,14 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                                 {getCellValue(row, col)}
                                                             </td>
                                                         ))}
-                                                        <td className="px-3 py-2 text-green-600 dark:text-green-400 font-bold whitespace-nowrap bg-green-50/50 dark:bg-green-900/10">{counts.present}</td>
-                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400 font-bold whitespace-nowrap bg-red-50/50 dark:bg-red-900/10">{counts.absent}</td>
+                                                        <td className="px-3 py-2 text-green-600 dark:text-green-400 font-bold whitespace-nowrap bg-green-50/50 dark:bg-green-900/10">{counts.hasAny ? counts.present : '-'}</td>
+                                                        <td className="px-3 py-2 text-red-600 dark:text-red-400 font-bold whitespace-nowrap bg-red-50/50 dark:bg-red-900/10">{counts.hasAny ? counts.absent : '-'}</td>
                                                         {dateColumns.map(date => {
                                                             const val = row[date]
                                                             const isPresent = val === 'Present' || val === true
                                                             const isAbsent = val === 'Absent' || val === false
                                                             return (
-                                                                <td key={date} className={`px-3 py-2 whitespace-nowrap text-xs font-medium ${isPresent ? 'text-green-600 dark:text-green-400' : isAbsent ? 'text-red-500 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                                                                <td key={date} className={`px-3 py-2 whitespace-nowrap text-xs font-medium ${isPresent ? 'text-green-600 dark:text-green-400 font-bold' : isAbsent ? 'text-red-500 dark:text-red-400 font-bold' : 'text-gray-300 dark:text-gray-600'}`}>
                                                                     {isPresent ? 'P' : isAbsent ? 'A' : '-'}
                                                                 </td>
                                                             )
@@ -706,6 +731,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                 </div>
             </div>
         </div>
+        </>
     )
 }
 
