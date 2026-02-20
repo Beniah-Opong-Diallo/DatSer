@@ -2204,7 +2204,7 @@ const SettingsPage = ({ onBack, navigateToSection }) => {
                     </div>
                 </div>
 
-                <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-[56px] sm:pt-[52px] md:pt-[100px] pb-8 space-y-4">
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-[70px] sm:pt-[68px] md:pt-[110px] pb-8 space-y-4">
                     {renderContent()}
                 </div>
             </div>
