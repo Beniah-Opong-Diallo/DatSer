@@ -22,7 +22,6 @@ const MonthModal = lazy(() => import('./components/MonthModal'))
 const AIChatAssistant = lazy(() => import('./components/AIChatAssistant'))
 const CommandPalette = lazy(() => import('./components/CommandPalette'))
 const ExecAttendancePage = lazy(() => import('./components/ExecAttendancePage'))
-const SimpleAttendance = lazy(() => import('./components/SimpleAttendance'))
 const SetPasswordModal = lazy(() => import('./components/SetPasswordModal'))
 const ResetPasswordModal = lazy(() => import('./components/ResetPasswordModal'))
 
@@ -39,7 +38,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Main app content - only shown when authenticated
-function AppContent({ isMobile, onOpenSimple }) {
+function AppContent({ isMobile }) {
 
   const { preferences, signOut } = useAuth()
   const { members, loading: appLoading, hasAccess, isCollaborator, dataOwnerId } = useApp()
@@ -358,7 +357,6 @@ function AppContent({ isMobile, onOpenSimple }) {
 // Auth wrapper - shows login or app based on auth state
 function AuthenticatedApp({ isMobile }) {
   const { isAuthenticated, loading } = useAuth()
-  const [showSimple, setShowSimple] = useState(() => localStorage.getItem('openSimpleAttendance') === 'true')
 
   // Detect password recovery flow from hash BEFORE AuthContext clears it
   const [showResetPassword, setShowResetPassword] = useState(() => {
@@ -369,24 +367,6 @@ function AuthenticatedApp({ isMobile }) {
     return false
   })
 
-  // Persist showSimple flag
-  useEffect(() => {
-    if (showSimple) localStorage.setItem('openSimpleAttendance', 'true')
-    else localStorage.removeItem('openSimpleAttendance')
-  }, [showSimple])
-
-  // Simple attendance mode - works WITHOUT sign-in, anyone can access
-  if (showSimple) {
-    return (
-      <Suspense fallback={
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-          <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }>
-        <SimpleAttendance onBack={() => setShowSimple(false)} />
-      </Suspense>
-    )
-  }
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -400,14 +380,14 @@ function AuthenticatedApp({ isMobile }) {
     )
   }
 
-  // Not authenticated -> show login page with button to open simple attendance
+  // Not authenticated -> show login page
   if (!isAuthenticated) {
-    return <LoginPage onRequestSimple={() => setShowSimple(true)} />
+    return <LoginPage />
   }
 
   return (
     <AppProvider>
-      <AppContent isMobile={isMobile} onOpenSimple={() => setShowSimple(true)} />
+      <AppContent isMobile={isMobile} />
       {showResetPassword && (
         <Suspense fallback={null}>
           <ResetPasswordModal

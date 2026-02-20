@@ -32,7 +32,7 @@ const getPasswordStrength = (password) => {
   return { score, label: 'Strong', color: 'bg-green-500', textColor: 'text-green-500', checks }
 }
 
-const LoginPage = ({ onRequestSimple }) => {
+const LoginPage = () => {
   const { signInWithGoogle, signUpWithEmail, signInWithEmail, signInWithMagicLink, resetPassword, bypassAuth } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)

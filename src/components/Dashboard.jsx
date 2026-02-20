@@ -1417,7 +1417,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 const map = attendanceData[selectedSundayDate] || {}
                 const presentMembers = members.filter(m => map[m.id] === true)
                 const absentMembers = members.filter(m => map[m.id] === false)
-                // Count from map values directly to include all records (e.g. members added via SimpleAttendance)
+                // Count from map values directly to include all records
                 const presentCount = Object.values(map).filter(v => v === true).length
                 const absentCount = Object.values(map).filter(v => v === false).length
 
