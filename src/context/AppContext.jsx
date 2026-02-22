@@ -211,6 +211,15 @@ export const AppProvider = ({ children }) => {
         .eq('user_id', user.id)
       if (!error) {
         setLockedDefaultDate(dateStr || null)
+        if (dateStr) {
+          try {
+            const [year, month, day] = dateStr.split('-')
+            const newDate = new Date(year, parseInt(month) - 1, parseInt(day))
+            setSelectedAttendanceDate(newDate)
+          } catch (e) {
+            console.error('Error parsing locked date:', e)
+          }
+        }
         return true
       }
       console.error('Error saving locked default date:', error)
@@ -291,23 +300,23 @@ export const AppProvider = ({ children }) => {
       if (error || !data) {
         // Not a collaborator - verify they are an actual owner with data
         console.log('User is NOT a collaborator. Checking if they are an owner...')
-        
+
         // Check if this user has any month tables (i.e., they are a real owner)
         const { data: ownerTables, error: ownerError } = await supabase
           .from('user_month_tables')
           .select('id')
           .eq('user_id', user.id)
           .limit(1)
-        
+
         // Also check if they have user_preferences (created during onboarding)
         const { data: prefs, error: prefsError } = await supabase
           .from('user_preferences')
           .select('id')
           .eq('user_id', user.id)
           .limit(1)
-        
+
         const isRealOwner = (ownerTables && ownerTables.length > 0) || (prefs && prefs.length > 0)
-        
+
         if (!isRealOwner) {
           // Random user with no data and not a collaborator - DENY ACCESS
           console.log('❌ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
@@ -317,7 +326,7 @@ export const AppProvider = ({ children }) => {
           setHasAccess(false)
           return null
         }
-        
+
         console.log('✅ User is a verified owner')
         setIsCollaborator(false)
         setDataOwnerId(user.id)
@@ -733,6 +742,20 @@ export const AppProvider = ({ children }) => {
     setAvailableSundayDates(sundays)
 
     if (sundays.length > 0) {
+      // 1. Check locked configuration (highest priority)
+      if (lockedDefaultDate) {
+        const [lyear, lmonth, lday] = lockedDefaultDate.split('-')
+        const lockedMatch = sundays.find(sunday => (
+          sunday.getFullYear() === parseInt(lyear) &&
+          sunday.getMonth() === parseInt(lmonth) - 1 &&
+          sunday.getDate() === parseInt(lday)
+        ))
+        if (lockedMatch) {
+          setAndSaveAttendanceDate(lockedMatch)
+          return
+        }
+      }
+
       // Check if there's a configured default date for this month - this takes priority
       const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
       if (configured) {
@@ -1594,7 +1617,7 @@ export const AppProvider = ({ children }) => {
   // Delete member
   const deleteMember = async (memberId) => {
     console.log(`[DELETE] Starting deletion for member ID: ${memberId}`)
-    
+
     // Validate memberId
     if (!memberId) {
       console.error('[DELETE] Error: No member ID provided')
@@ -1627,7 +1650,7 @@ export const AppProvider = ({ children }) => {
     setLoading(true)
     try {
       console.log(`[DELETE] Attempting Supabase delete from table: ${currentTable}, member ID: ${memberId}`)
-      
+
       let deleted = false
 
       // Attempt 1: Direct delete with .select() to verify rows were actually removed
@@ -2109,10 +2132,10 @@ export const AppProvider = ({ children }) => {
 
       // Clear cache for the new month to ensure fresh data fetch
       membersCacheRef.current.delete(monthIdentifier)
-      
+
       // Switch to the new month
       changeCurrentTable(monthIdentifier)
-      
+
       // Force refresh members after a short delay to ensure table is ready
       setTimeout(async () => {
         membersCacheRef.current.delete(monthIdentifier)
@@ -2484,11 +2507,11 @@ export const AppProvider = ({ children }) => {
     fetchMembers()
   }, [currentTable, authLoading])
 
-  // Initialize attendance dates when current table changes
+  // Initialize attendance dates when current table changes or locked default date is loaded
   useEffect(() => {
     if (!currentTable) return
     initializeAttendanceDates()
-  }, [currentTable])
+  }, [currentTable, lockedDefaultDate])
 
   // Check for badge processing after attendance data is loaded
   useEffect(() => {

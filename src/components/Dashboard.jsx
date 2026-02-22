@@ -99,7 +99,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [isClosingFilters, setIsClosingFilters] = useState(false)
   const [sortNewestFirst, setSortNewestFirst] = useState(true) // Toggle for Marked tab sort order
 
-  
+
   // Track the timestamp of each attendance action for chronological sorting (most recent first)
   // Key: `${memberId}_${dateKey}`, Value: Date.now()
   const actionTimestampsRef = useRef({})
@@ -339,8 +339,10 @@ const Dashboard = ({ isAdmin = false }) => {
     if (!lockedDefaultDate || sundayDates.length === 0) return
     if (sundayDates.includes(lockedDefaultDate)) {
       setSelectedSundayDate(lockedDefaultDate)
+      const [year, month, day] = lockedDefaultDate.split('-')
+      setAndSaveAttendanceDate(new Date(year, parseInt(month) - 1, parseInt(day)))
     }
-  }, [lockedDefaultDate, sundayDates, currentTable])
+  }, [lockedDefaultDate, sundayDates, currentTable, setAndSaveAttendanceDate])
 
   // Aggregated counts across selected or all Sundays for Edited Members
   const selectedDatesForCounting = selectedBulkSundayDates && selectedBulkSundayDates.size > 0
