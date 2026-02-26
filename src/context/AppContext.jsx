@@ -127,6 +127,7 @@ export const AppProvider = ({ children }) => {
   // Admin sticky defaults for collaborators
   const [ownerStickyMonth, setOwnerStickyMonth] = useState(null)
   const [ownerStickySundays, setOwnerStickySundays] = useState([])
+  const adminBroadcastRef = useRef({ month: null, date: null })
 
   // Load saved month from user preferences on app startup
   useEffect(() => {
@@ -301,26 +302,80 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('user_preferences')
-        .select('admin_sticky_month, admin_sticky_sundays')
+        .select('admin_sticky_month, admin_sticky_sundays, locked_default_date')
         .eq('user_id', ownerId)
         .single()
 
       if (!error && data) {
         setOwnerStickyMonth(data.admin_sticky_month || null)
         setOwnerStickySundays(Array.isArray(data.admin_sticky_sundays) ? data.admin_sticky_sundays : [])
+        setLockedDefaultDate(data.locked_default_date || null)
         return data
       }
 
       setOwnerStickyMonth(null)
       setOwnerStickySundays([])
+      setLockedDefaultDate(null)
       return null
     } catch (err) {
       console.error('Error fetching owner sticky defaults:', err)
       setOwnerStickyMonth(null)
       setOwnerStickySundays([])
+      setLockedDefaultDate(null)
       return null
     }
   }, [isSupabaseConfigured])
+
+  useEffect(() => {
+    if (isCollaborator || !isSupabaseConfigured() || !user?.id || !currentTable) return
+    if (adminBroadcastRef.current.month === currentTable) return
+
+    const [monthName, yearStr] = currentTable.split('_')
+    const yearNum = parseInt(yearStr, 10)
+    if (!monthName || Number.isNaN(yearNum)) return
+
+    adminBroadcastRef.current.month = currentTable
+    ;(async () => {
+      try {
+        await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            admin_sticky_month: currentTable,
+            admin_sticky_year: yearNum,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+      } catch (err) {
+        console.error('Error broadcasting admin month change:', err)
+      }
+    })()
+  }, [isCollaborator, isSupabaseConfigured, user?.id, currentTable])
+
+  useEffect(() => {
+    if (isCollaborator || !isSupabaseConfigured() || !user?.id || !selectedAttendanceDate) return
+
+    const dateStr = getLocalDateString(selectedAttendanceDate)
+    if (!dateStr || adminBroadcastRef.current.date === dateStr) return
+
+    adminBroadcastRef.current.date = dateStr
+    ;(async () => {
+      try {
+        await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            locked_default_date: dateStr,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+      } catch (err) {
+        console.error('Error broadcasting admin date change:', err)
+      }
+    })()
+  }, [isCollaborator, isSupabaseConfigured, user?.id, selectedAttendanceDate])
 
   // Check if current user is a collaborator and get the owner's ID
   const checkCollaboratorStatus = async () => {
@@ -473,12 +528,14 @@ export const AppProvider = ({ children }) => {
           const nextStickySundays = Array.isArray(payload?.new?.admin_sticky_sundays)
             ? payload.new.admin_sticky_sundays
             : []
+          const nextLockedDate = payload?.new?.locked_default_date || null
           if (nextStickyMonth) {
             setOwnerStickyMonth(nextStickyMonth)
           }
           if (nextStickySundays.length > 0) {
             setOwnerStickySundays(nextStickySundays)
           }
+          setLockedDefaultDate(nextLockedDate)
         }
       )
       .subscribe()
@@ -489,14 +546,14 @@ export const AppProvider = ({ children }) => {
   }, [isSupabaseConfigured, isCollaborator, dataOwnerId])
 
   useEffect(() => {
-    if (!isCollaborator || !ownerStickyMonth) return
+    if (!isCollaborator || !ownerStickyMonth || lockedDefaultDate) return
     if (currentTable !== ownerStickyMonth) {
       changeCurrentTable(ownerStickyMonth)
     }
-  }, [isCollaborator, ownerStickyMonth, currentTable, changeCurrentTable])
+  }, [isCollaborator, ownerStickyMonth, lockedDefaultDate, currentTable, changeCurrentTable])
 
   useEffect(() => {
-    if (!isCollaborator || ownerStickySundays.length === 0 || !currentTable) return
+    if (!isCollaborator || ownerStickySundays.length === 0 || !currentTable || lockedDefaultDate) return
 
     const [monthName, yearStr] = currentTable.split('_')
     const monthIndex = MONTHS_IN_YEAR.indexOf(monthName)
@@ -516,7 +573,7 @@ export const AppProvider = ({ children }) => {
 
     setSelectedAttendanceDate(targetDate)
     localStorage.setItem(`selectedAttendanceDate_${currentTable}`, targetDate.toISOString())
-  }, [isCollaborator, ownerStickySundays, currentTable, selectedAttendanceDate])
+  }, [isCollaborator, ownerStickySundays, lockedDefaultDate, currentTable, selectedAttendanceDate])
 
   // Activity Logging Helper
   const logActivity = useCallback(async (action, details) => {
@@ -2592,6 +2649,42 @@ export const AppProvider = ({ children }) => {
     const savedDateKey = `selectedAttendanceDate_${currentTable}`
     localStorage.setItem(savedDateKey, date.toISOString())
   }, [currentTable])
+
+  useEffect(() => {
+    if (!isCollaborator || !lockedDefaultDate || !currentTable) return
+
+    const [year, month, day] = lockedDefaultDate.split('-').map(Number)
+    const monthName = MONTHS_IN_YEAR[month - 1]
+    if (!monthName || Number.isNaN(year)) return
+
+    const targetTable = `${monthName}_${year}`
+    if (currentTable !== targetTable) {
+      changeCurrentTable(targetTable)
+      return
+    }
+
+    const targetDate = new Date(year, month - 1, day)
+    const currentSelected = selectedAttendanceDate ? selectedAttendanceDate.toISOString().slice(0, 10) : null
+    if (currentSelected === lockedDefaultDate) return
+
+    setAndSaveAttendanceDate(targetDate)
+    ;(async () => {
+      const attendanceMap = await fetchAttendanceForDate(targetDate)
+      const dateKey = getLocalDateString(targetDate)
+      setAttendanceData(prev => ({
+        ...prev,
+        [dateKey]: attendanceMap
+      }))
+    })()
+  }, [
+    isCollaborator,
+    lockedDefaultDate,
+    currentTable,
+    selectedAttendanceDate,
+    changeCurrentTable,
+    setAndSaveAttendanceDate,
+    fetchAttendanceForDate
+  ])
 
   // Fetch monthly tables when dependencies change (e.g., collaborator status)
   useEffect(() => {
