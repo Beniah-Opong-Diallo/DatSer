@@ -31,6 +31,7 @@ const LazyFallback = memo(() => (
     <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
   </div>
 ))
+LazyFallback.displayName = 'LazyFallback'
 
 // Context
 import { AppProvider, useApp } from './context/AppContext'
