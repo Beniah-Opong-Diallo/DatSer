@@ -58,6 +58,24 @@ const MonthModal = ({ isOpen, onClose }) => {
 
   const memberOptions = useMemo(() => searchableMembers.slice(0, 100), [searchableMembers])
 
+  const getSundaysInMonth = (month, year) => {
+    const sundays = []
+    const date = new Date(year, month - 1, 1)
+
+    // Find first Sunday
+    while (date.getDay() !== 0) {
+      date.setDate(date.getDate() + 1)
+    }
+
+    // Collect all Sundays in the month
+    while (date.getMonth() === month - 1) {
+      sundays.push(new Date(date))
+      date.setDate(date.getDate() + 7)
+    }
+
+    return sundays
+  }
+
   const attendanceSourceSundays = useMemo(() => {
     if (!attendanceSourceTable) return []
     const [monthName, yearStr] = attendanceSourceTable.split('_')
@@ -91,24 +109,6 @@ const MonthModal = ({ isOpen, onClose }) => {
       active = false
     }
   }, [copyMode, attendanceSourceDate, attendanceSourceTable, fetchAttendanceForDateInTable])
-
-  const getSundaysInMonth = (month, year) => {
-    const sundays = []
-    const date = new Date(year, month - 1, 1)
-
-    // Find first Sunday
-    while (date.getDay() !== 0) {
-      date.setDate(date.getDate() + 1)
-    }
-
-    // Collect all Sundays in the month
-    while (date.getMonth() === month - 1) {
-      sundays.push(new Date(date))
-      date.setDate(date.getDate() + 7)
-    }
-
-    return sundays
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
