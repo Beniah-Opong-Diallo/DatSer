@@ -129,6 +129,7 @@ export const AppProvider = ({ children }) => {
   const [ownerStickySundays, setOwnerStickySundays] = useState([])
   const [adminSyncNotice, setAdminSyncNotice] = useState(null)
   const adminBroadcastRef = useRef({ month: null, date: null })
+  const adminRealtimeChannelRef = useRef(null)
 
   // Load saved month from user preferences on app startup
   useEffect(() => {
@@ -391,6 +392,44 @@ export const AppProvider = ({ children }) => {
     adminSyncNotice
   ])
 
+  const applyAdminBroadcastNotice = useCallback((payload) => {
+    if (!isCollaborator) return
+    const targetTable = payload?.targetTable || null
+    const targetDateKey = payload?.targetDate || null
+    if (!targetTable && !targetDateKey) return
+    const noticeKey = `${targetTable || 'none'}|${targetDateKey || 'none'}|broadcast`
+    if (adminSyncNotice?.key === noticeKey) return
+    setAdminSyncNotice({
+      key: noticeKey,
+      targetTable,
+      targetDate: targetDateKey,
+      blocking: true
+    })
+  }, [isCollaborator, adminSyncNotice])
+
+  useEffect(() => {
+    const channelOwnerId = isCollaborator ? dataOwnerId : user?.id
+    if (!isSupabaseConfigured() || !channelOwnerId) return
+    const channel = supabase.channel(`admin-sync-${channelOwnerId}`, {
+      config: {
+        broadcast: { self: false }
+      }
+    })
+    if (isCollaborator) {
+      channel.on('broadcast', { event: 'admin_period_change' }, ({ payload }) => {
+        applyAdminBroadcastNotice(payload)
+      })
+    }
+    channel.subscribe()
+    adminRealtimeChannelRef.current = channel
+    return () => {
+      supabase.removeChannel(channel)
+      if (adminRealtimeChannelRef.current === channel) {
+        adminRealtimeChannelRef.current = null
+      }
+    }
+  }, [isSupabaseConfigured, isCollaborator, dataOwnerId, user?.id, applyAdminBroadcastNotice])
+
   useEffect(() => {
     if (isCollaborator || !isSupabaseConfigured() || !user?.id || !currentTable) return
     if (adminBroadcastRef.current.month === currentTable) return
@@ -412,6 +451,14 @@ export const AppProvider = ({ children }) => {
           }, {
             onConflict: 'user_id'
           })
+        adminRealtimeChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'admin_period_change',
+          payload: {
+            targetTable: currentTable,
+            targetDate: null
+          }
+        })
       } catch (err) {
         console.error('Error broadcasting admin month change:', err)
       }
@@ -436,6 +483,14 @@ export const AppProvider = ({ children }) => {
           }, {
             onConflict: 'user_id'
           })
+        adminRealtimeChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'admin_period_change',
+          payload: {
+            targetTable: currentTable,
+            targetDate: dateStr
+          }
+        })
       } catch (err) {
         console.error('Error broadcasting admin date change:', err)
       }
@@ -1251,6 +1306,65 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  const getAttendanceColumnsForTable = useCallback(async (tableName) => {
+    try {
+      if (!isSupabaseConfigured()) return []
+      if (!tableName) return []
+
+      const { data, error } = await supabase.rpc('get_table_columns', {
+        table_name: tableName
+      })
+
+      if (error) {
+        console.error('Error getting table columns:', error)
+        return []
+      }
+
+      return data?.filter(col => {
+        const name = col.column_name
+        const nameLower = name.toLowerCase()
+        const isOldFormat = name.startsWith('Attendance ')
+        const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(nameLower)
+        return isOldFormat || isNewFormat
+      }) || []
+    } catch (error) {
+      console.error('Error getting table columns:', error)
+      return []
+    }
+  }, [isSupabaseConfigured])
+
+  const findAttendanceColumnForDateInTable = useCallback(async (date, tableName) => {
+    try {
+      const attendanceColumns = await getAttendanceColumnsForTable(tableName)
+      const dayOfMonth = date.getDate()
+      const month = date.getMonth() + 1
+      const year = date.getFullYear()
+
+      const matchingColumn = attendanceColumns.find(col => {
+        const colName = col.column_name.toLowerCase()
+        const newFormatMatch = colName.match(/attendance_(\d{4})_(\d{2})_(\d{2})/)
+        if (newFormatMatch) {
+          const [, colYear, colMonth, colDay] = newFormatMatch
+          return parseInt(colYear) === year &&
+            parseInt(colMonth) === month &&
+            parseInt(colDay) === dayOfMonth
+        }
+
+        const oldFormatMatch = col.column_name.match(/[Aa]ttendance[_ ](\d+)(st|nd|rd|th)?/)
+        if (oldFormatMatch) {
+          return parseInt(oldFormatMatch[1]) === dayOfMonth
+        }
+
+        return false
+      })
+
+      return matchingColumn ? matchingColumn.column_name : null
+    } catch (error) {
+      console.error('Error finding attendance column for date:', error)
+      return null
+    }
+  }, [getAttendanceColumnsForTable])
+
   // Check if attendance column exists in the current table
   const checkAttendanceColumnExists = async (attendanceColumn) => {
     try {
@@ -1610,6 +1724,54 @@ export const AppProvider = ({ children }) => {
       return {}
     }
   }
+
+  const fetchAttendanceForDateInTable = useCallback(async (date, tableName) => {
+    try {
+      if (!isSupabaseConfigured()) {
+        const dateKey = getLocalDateString(date)
+        return attendanceData[dateKey] || {}
+      }
+      if (!tableName) return {}
+
+      const attendanceColumn = await findAttendanceColumnForDateInTable(date, tableName)
+
+      if (!attendanceColumn) {
+        console.log(`No attendance column found for this date in ${tableName}`)
+        return {}
+      }
+
+      let allRecords = []
+      let fetchOff = 0
+      const PG_SIZE = 1000
+      while (true) {
+        const { data: pg, error: pgErr } = await supabase
+          .from(tableName)
+          .select(`id, "${attendanceColumn}"`)
+          .range(fetchOff, fetchOff + PG_SIZE - 1)
+
+        if (pgErr) throw pgErr
+        if (!pg || pg.length === 0) break
+        allRecords = allRecords.concat(pg)
+        if (pg.length < PG_SIZE) break
+        fetchOff += PG_SIZE
+      }
+
+      const attendanceMap = {}
+      allRecords.forEach(record => {
+        const value = record[attendanceColumn]
+        if (value === 'Present') {
+          attendanceMap[record.id] = true
+        } else if (value === 'Absent') {
+          attendanceMap[record.id] = false
+        }
+      })
+
+      return attendanceMap
+    } catch (error) {
+      console.error('Error fetching attendance:', error)
+      return {}
+    }
+  }, [attendanceData, findAttendanceColumnForDateInTable, isSupabaseConfigured])
 
   // Update member
   // Options: { silent: boolean } - if true, suppresses toast notifications (for batch operations)
@@ -2190,10 +2352,12 @@ export const AppProvider = ({ children }) => {
     monthName,
     sundays,
     copyMode = 'all',
-    selectedMemberIds = []
+    selectedMemberIds = [],
+    sourceTableOverride = null
   }) => {
     try {
       const monthIdentifier = `${monthName}_${year}`
+      const resolvedCopyMode = copyMode === 'attendance' ? 'custom' : copyMode
 
       if (!isSupabaseConfigured()) {
         // Demo mode - simulate table creation locally
@@ -2203,9 +2367,9 @@ export const AppProvider = ({ children }) => {
         })
 
         changeCurrentTable(monthIdentifier)
-        if (copyMode === 'empty') {
+        if (resolvedCopyMode === 'empty') {
           toast.success(`${monthIdentifier} created as a fresh month (Demo Mode)`)
-        } else if (copyMode === 'custom') {
+        } else if (resolvedCopyMode === 'custom') {
           if (selectedMemberIds.length === 0) {
             toast.info(`${monthIdentifier} created empty (Demo Mode)`)
           } else {
@@ -2218,10 +2382,10 @@ export const AppProvider = ({ children }) => {
       }
 
       // Determine the source table: use currentTable if set, otherwise find the most recent month
-      let sourceTable = currentTable
+      let sourceTable = sourceTableOverride || currentTable
 
       // If no current table or we want to ensure we use the most recent, find it
-      if (!sourceTable || monthlyTables.length > 0) {
+      if (!sourceTable && monthlyTables.length > 0) {
         // Sort tables to find the most recent one
         const sortedTables = [...monthlyTables].sort((a, b) => {
           const [monthA, yearA] = a.split('_')
@@ -2270,7 +2434,7 @@ export const AppProvider = ({ children }) => {
       await ensureTableReady(monthIdentifier)
 
       // Handle custom/empty copy after table creation
-      if (copyMode === 'custom' || copyMode === 'empty') {
+      if (resolvedCopyMode === 'custom' || resolvedCopyMode === 'empty') {
         // Always clear the auto-copied rows first so we start from desired baseline
         const { error: clearError } = await supabase
           .from(monthIdentifier)
@@ -2283,7 +2447,7 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      if (copyMode === 'custom' && selectedMemberIds.length > 0) {
+      if (resolvedCopyMode === 'custom' && selectedMemberIds.length > 0) {
         const { data: selectedMembers, error: fetchSelectedError } = await supabase
           .from(sourceTable)
           .select('*')
@@ -2342,9 +2506,9 @@ export const AppProvider = ({ children }) => {
       }
 
 
-      if (copyMode === 'empty') {
+      if (resolvedCopyMode === 'empty') {
         toast.success(`Month ${monthName} ${year} created as a fresh workspace.`)
-      } else if (copyMode === 'custom') {
+      } else if (resolvedCopyMode === 'custom') {
         const copiedCount = selectedMemberIds.length
         toast.success(`Month ${monthName} ${year} created with ${copiedCount} selected member${copiedCount === 1 ? '' : 's'}.`)
       } else {
@@ -3175,6 +3339,7 @@ export const AppProvider = ({ children }) => {
     markAttendance,
     bulkAttendance,
     fetchAttendanceForDate,
+    fetchAttendanceForDateInTable,
     loadAllAttendanceData,
     loadAllBadgeData,
     currentTable,
@@ -3227,7 +3392,7 @@ export const AppProvider = ({ children }) => {
     logActivity, checkCollaboratorStatus, updateWorkspaceForAllTables,
     refreshSearch, forceRefreshMembers, forceRefreshMembersSilent,
     searchMemberAcrossAllTables, addMember, updateMember, deleteMember,
-    fetchMembers, markAttendance, bulkAttendance, fetchAttendanceForDate,
+    fetchMembers, markAttendance, bulkAttendance, fetchAttendanceForDate, fetchAttendanceForDateInTable,
     loadAllAttendanceData, loadAllBadgeData, changeCurrentTable, createNewMonth,
     deleteMonthTable, fetchMonthlyTables, getAttendanceColumns, getAvailableAttendanceDates,
     findAttendanceColumnForDate, calculateAttendanceRate, calculateMemberBadge,

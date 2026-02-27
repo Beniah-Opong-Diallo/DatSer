@@ -1,11 +1,11 @@
-﻿import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { X, Calendar, Plus } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 const MonthModal = ({ isOpen, onClose }) => {
-  const { createNewMonth, members = [], filteredMembers = [] } = useApp()
+  const { createNewMonth, members = [], filteredMembers = [], monthlyTables = [], fetchAttendanceForDateInTable } = useApp()
   const { isDarkMode } = useTheme()
   const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -15,6 +15,9 @@ const MonthModal = ({ isOpen, onClose }) => {
   const [copyMode, setCopyMode] = useState('all')
   const [selectedMemberIds, setSelectedMemberIds] = useState([])
   const [memberSearch, setMemberSearch] = useState('')
+  const [attendanceSourceTable, setAttendanceSourceTable] = useState('')
+  const [attendanceSourceDate, setAttendanceSourceDate] = useState('')
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
 
   const months = [
     { value: 1, label: 'January' },
@@ -55,6 +58,40 @@ const MonthModal = ({ isOpen, onClose }) => {
 
   const memberOptions = useMemo(() => searchableMembers.slice(0, 100), [searchableMembers])
 
+  const attendanceSourceSundays = useMemo(() => {
+    if (!attendanceSourceTable) return []
+    const [monthName, yearStr] = attendanceSourceTable.split('_')
+    const monthObj = months.find(m => m.label === monthName)
+    const yearNum = parseInt(yearStr, 10)
+    if (!monthObj || Number.isNaN(yearNum)) return []
+    return getSundaysInMonth(monthObj.value, yearNum)
+  }, [attendanceSourceTable, months])
+
+  useEffect(() => {
+    if (copyMode !== 'attendance') {
+      setAttendanceSourceTable('')
+      setAttendanceSourceDate('')
+      setAttendanceLoading(false)
+      return
+    }
+    if (!attendanceSourceTable || !attendanceSourceDate) return
+    const [year, month, day] = attendanceSourceDate.split('-').map(Number)
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return
+    const targetDate = new Date(year, month - 1, day)
+    let active = true
+    setAttendanceLoading(true)
+    ;(async () => {
+      const attendanceMap = await fetchAttendanceForDateInTable(targetDate, attendanceSourceTable)
+      if (!active) return
+      const presentIds = Object.keys(attendanceMap).filter(id => attendanceMap[id] === true)
+      setSelectedMemberIds(presentIds)
+      setAttendanceLoading(false)
+    })()
+    return () => {
+      active = false
+    }
+  }, [copyMode, attendanceSourceDate, attendanceSourceTable, fetchAttendanceForDateInTable])
+
   const getSundaysInMonth = (month, year) => {
     const sundays = []
     const date = new Date(year, month - 1, 1)
@@ -80,6 +117,10 @@ const MonthModal = ({ isOpen, onClose }) => {
       toast.error('Select at least one member or choose another copy option')
       return
     }
+    if (copyMode === 'attendance' && selectedMemberIds.length === 0) {
+      toast.error('No present members found for that Sunday')
+      return
+    }
 
     setLoading(true)
     try {
@@ -92,7 +133,8 @@ const MonthModal = ({ isOpen, onClose }) => {
         monthName,
         sundays,
         copyMode,
-        selectedMemberIds
+        selectedMemberIds,
+        sourceTableOverride: copyMode === 'attendance' ? attendanceSourceTable : null
       })
 
       // Reset form and close modal
@@ -101,6 +143,8 @@ const MonthModal = ({ isOpen, onClose }) => {
       setCopyMode('all')
       setSelectedMemberIds([])
       setMemberSearch('')
+      setAttendanceSourceTable('')
+      setAttendanceSourceDate('')
       setShowMonthDropdown(false)
       setShowYearDropdown(false)
       onClose()
@@ -354,6 +398,20 @@ const MonthModal = ({ isOpen, onClose }) => {
                 <input
                   type="radio"
                   name="copyMode"
+                  value="attendance"
+                  checked={copyMode === 'attendance'}
+                  onChange={() => setCopyMode('attendance')}
+                  className="mt-1 text-primary-600 focus:ring-primary-500"
+                />
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">Copy present people from a Sunday</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Pick a month and Sunday to copy only those marked Present.</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400 transition-colors cursor-pointer">
+                <input
+                  type="radio"
+                  name="copyMode"
                   value="empty"
                   checked={copyMode === 'empty'}
                   onChange={() => setCopyMode('empty')}
@@ -425,6 +483,54 @@ const MonthModal = ({ isOpen, onClose }) => {
             </div>
           )}
 
+          {copyMode === 'attendance' && (
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select source month and Sunday
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <select
+                    value={attendanceSourceTable}
+                    onChange={(e) => {
+                      setAttendanceSourceTable(e.target.value)
+                      setAttendanceSourceDate('')
+                      setSelectedMemberIds([])
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Select month...</option>
+                    {monthlyTables.map(table => (
+                      <option key={table} value={table}>{table.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={attendanceSourceDate}
+                    onChange={(e) => setAttendanceSourceDate(e.target.value)}
+                    disabled={!attendanceSourceTable}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+                  >
+                    <option value="">Select Sunday...</option>
+                    {attendanceSourceSundays.map((sunday) => {
+                      const value = sunday.toISOString().split('T')[0]
+                      const label = sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      return (
+                        <option key={value} value={value}>{label}</option>
+                      )
+                    })}
+                  </select>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {attendanceLoading
+                  ? 'Loading present members...'
+                  : `${selectedMemberIds.length} present member${selectedMemberIds.length === 1 ? '' : 's'} will be copied.`}
+              </div>
+            </div>
+          )}
+
           {/* Form Actions */}
           <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3 pt-4">
             <button
@@ -435,6 +541,8 @@ const MonthModal = ({ isOpen, onClose }) => {
                 setCopyMode('all')
                 setSelectedMemberIds([])
                 setMemberSearch('')
+                setAttendanceSourceTable('')
+                setAttendanceSourceDate('')
                 onClose()
               }}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors"
@@ -443,7 +551,7 @@ const MonthModal = ({ isOpen, onClose }) => {
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedMonth || !selectedYear || (copyMode === 'custom' && selectedMemberIds.length === 0)}
+              disabled={loading || !selectedMonth || !selectedYear || (copyMode === 'custom' && selectedMemberIds.length === 0) || (copyMode === 'attendance' && (!attendanceSourceTable || !attendanceSourceDate || selectedMemberIds.length === 0))}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
             >
               {loading ? (
