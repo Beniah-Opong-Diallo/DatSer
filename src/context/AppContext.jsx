@@ -2448,25 +2448,22 @@ export const AppProvider = ({ children }) => {
       }
 
       if (resolvedCopyMode === 'custom' && selectedMemberIds.length > 0) {
-        const { data: selectedMembers, error: fetchSelectedError } = await supabase
-          .from(sourceTable)
-          .select('*')
-          .in('id', selectedMemberIds)
+        const { data: insertedCount, error: insertError } = await supabase.rpc(
+          'insert_selected_members',
+          {
+            source_table: sourceTable,
+            target_table: monthIdentifier,
+            member_ids: selectedMemberIds
+          }
+        )
 
-        if (fetchSelectedError) {
-          console.error('Failed fetching selected members:', fetchSelectedError)
-          throw new Error(`Failed to fetch selected members: ${fetchSelectedError.message}`)
+        if (insertError) {
+          console.error('Failed inserting selected members:', insertError)
+          throw new Error(`Failed to insert selected members: ${insertError.message}`)
         }
 
-        if (selectedMembers?.length) {
-          const { error: insertError } = await supabase
-            .from(monthIdentifier)
-            .insert(selectedMembers)
-
-          if (insertError) {
-            console.error('Failed inserting selected members:', insertError)
-            throw new Error(`Failed to insert selected members: ${insertError.message}`)
-          }
+        if (insertedCount === 0) {
+          throw new Error('No members were inserted. Please confirm your selection.')
         }
       }
 
