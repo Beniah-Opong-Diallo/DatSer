@@ -134,8 +134,7 @@ function AppContent({ isMobile }) {
       setShowSetPassword(false)
     } else {
       setNeedsPasswordSetup(true)
-      // Show the modal after a short delay so the app loads first
-      setTimeout(() => setShowSetPassword(true), 1500)
+      setShowSetPassword(false)
     }
   }, [appLoading, isCollaborator])
 

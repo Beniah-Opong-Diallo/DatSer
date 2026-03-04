@@ -288,7 +288,12 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
                 >
                   <Building2 className="w-5 h-5 md:w-4 md:h-4" />
                   <span>Settings</span>
-                  <span className="ml-auto text-sm md:text-xs text-gray-400">Account, Team, Data</span>
+                  {window.__needsPasswordSetup && (
+                    <span className="ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold">
+                      1
+                    </span>
+                  )}
+                  <span className="text-sm md:text-xs text-gray-400">Account, Team, Data</span>
                 </button>
               </div>
             </div>

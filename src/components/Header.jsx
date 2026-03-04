@@ -221,9 +221,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               >
                 <HelpCircle className="w-4 h-4" />
                 {window.__needsPasswordSetup && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex items-center justify-center h-3.5 w-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold">1</span>
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center h-3.5 min-w-3.5 px-0.5 rounded-full bg-red-500 text-white text-[8px] font-bold">
+                    1
                   </span>
                 )}
               </button>
