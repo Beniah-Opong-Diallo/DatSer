@@ -708,7 +708,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
 
           {/* Ministry/Groups Section */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
               Ministry/Groups (Optional)
             </label>
             <div className="flex flex-wrap gap-2">

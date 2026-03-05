@@ -25,24 +25,33 @@ const useHapticFeedback = () => {
       const now = context.currentTime
       const oscillator = context.createOscillator()
       const gainNode = context.createGain()
-      oscillator.type = 'sine'
+      oscillator.type = tone === 'error' ? 'triangle' : 'sine'
       if (tone === 'success') {
         oscillator.frequency.setValueAtTime(760, now)
         oscillator.frequency.exponentialRampToValueAtTime(980, now + 0.06)
+      } else if (tone === 'error') {
+        oscillator.frequency.setValueAtTime(420, now)
+        oscillator.frequency.exponentialRampToValueAtTime(300, now + 0.08)
       } else {
         oscillator.frequency.setValueAtTime(640, now)
       }
       gainNode.gain.setValueAtTime(0.0001, now)
-      gainNode.gain.exponentialRampToValueAtTime(0.018, now + 0.01)
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + (tone === 'success' ? 0.1 : 0.06))
+      gainNode.gain.exponentialRampToValueAtTime(tone === 'error' ? 0.03 : 0.024, now + 0.01)
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + (tone === 'success' ? 0.1 : tone === 'error' ? 0.11 : 0.06))
       oscillator.connect(gainNode)
       gainNode.connect(context.destination)
       oscillator.start(now)
-      oscillator.stop(now + (tone === 'success' ? 0.11 : 0.07))
+      oscillator.stop(now + (tone === 'success' ? 0.11 : tone === 'error' ? 0.12 : 0.07))
     } catch { }
   }, [createAudioContext])
 
   const shouldUseSoundFallback = useCallback(() => {
+    const isDesktopPointer = typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: fine)').matches
+    if (isDesktopPointer) {
+      return true
+    }
     if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') {
       return true
     }
@@ -53,37 +62,41 @@ const useHapticFeedback = () => {
     }
   }, [])
 
-  const tap = useCallback((pattern = null, tone = 'tap') => {
-    const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'
+  const tap = useCallback((pattern = 'nudge', tone = 'tap') => {
+    const useSoundFallback = shouldUseSoundFallback()
     try {
-      if (pattern) {
+      if (pattern === null) {
+        trigger()
+      } else if (pattern) {
         trigger(pattern)
       } else {
         trigger()
       }
-      if (!canVibrate) {
+    } catch {
+    } finally {
+      if (useSoundFallback) {
         playClick(tone)
       }
-    } catch {
-      playClick(tone)
     }
   }, [playClick, shouldUseSoundFallback, trigger])
 
   const selection = useCallback(() => {
-    tap(null, 'tap')
+    tap('nudge', 'tap')
   }, [tap])
 
   const success = useCallback(() => {
-    tap([
-      { duration: 30 },
-      { delay: 60, duration: 40, intensity: 1 }
-    ], 'success')
+    tap('success', 'success')
+  }, [tap])
+
+  const error = useCallback(() => {
+    tap('error', 'error')
   }, [tap])
 
   return {
     tap,
     selection,
-    success
+    success,
+    error
   }
 }
 

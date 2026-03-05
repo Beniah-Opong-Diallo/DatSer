@@ -77,7 +77,7 @@ const Dashboard = ({ isAdmin = false }) => {
     isCollaborator
   } = useApp()
   const { isDarkMode } = useTheme()
-  const { selection, success } = useHapticFeedback()
+  const { selection, success, error: errorHaptic } = useHapticFeedback()
   const [editingMember, setEditingMember] = useState(null)
   const [attendanceLoading, setAttendanceLoading] = useState({})
   const [expandedMembers, setExpandedMembers] = useState({})
@@ -233,9 +233,12 @@ const Dashboard = ({ isAdmin = false }) => {
         actionTimestampsRef.current[`${id}_${dateKey}`] = now
       })
       toast.success(`Marked ${memberIds.length} member${memberIds.length !== 1 ? 's' : ''} as ${present ? 'present' : 'absent'}!`)
+      if (present) success()
+      else errorHaptic()
       clearSelection()
     } catch (error) {
       console.error('Bulk action error:', error)
+      errorHaptic()
       toast.error('Failed to update attendance')
     } finally {
       setIsBulkApplying(false)
@@ -872,7 +875,6 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendance = async (memberId, present) => {
-    selection()
     // Check for missing data before marking attendance
     const member = members.find(m => m.id === memberId)
     if (member && checkMissingDataBeforeAttendance(member, present)) {
@@ -897,6 +899,7 @@ const Dashboard = ({ isAdmin = false }) => {
         await markAttendance(memberId, new Date(targetDate), null)
         // Record action timestamp for chronological sorting
         actionTimestampsRef.current[`${memberId}_${targetDate}`] = Date.now()
+        selection()
         toast.success(`Attendance cleared for: ${memberName}`, {
           style: {
             background: '#f3f4f6',
@@ -907,6 +910,8 @@ const Dashboard = ({ isAdmin = false }) => {
         await markAttendance(memberId, new Date(targetDate), present)
         // Record action timestamp for chronological sorting
         actionTimestampsRef.current[`${memberId}_${targetDate}`] = Date.now()
+        if (present) success()
+        else errorHaptic()
         toast.success(`Marked ${present ? 'present' : 'absent'} for ${dateLabel}: ${memberName}`, {
           style: {
             background: present ? '#10b981' : '#ef4444',
@@ -916,6 +921,7 @@ const Dashboard = ({ isAdmin = false }) => {
       }
     } catch (error) {
       console.error('Error marking attendance:', error)
+      errorHaptic()
       toast.error('Failed to update attendance. Please try again.')
     } finally {
       setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
@@ -923,7 +929,6 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendanceForDate = async (memberId, present, specificDate) => {
-    selection()
     const loadingKey = `${memberId}_${specificDate}`
     setAttendanceLoading(prev => ({ ...prev, [loadingKey]: true }))
     try {
@@ -935,17 +940,19 @@ const Dashboard = ({ isAdmin = false }) => {
         await markAttendance(memberId, new Date(specificDate), null)
         // Record action timestamp for chronological sorting
         actionTimestampsRef.current[`${memberId}_${specificDate}`] = Date.now()
-        success()
+        selection()
         toast.success(`Attendance cleared for ${new Date(specificDate).toLocaleDateString()}`)
       } else {
         await markAttendance(memberId, new Date(specificDate), present)
         // Record action timestamp for chronological sorting
         actionTimestampsRef.current[`${memberId}_${specificDate}`] = Date.now()
-        success()
+        if (present) success()
+        else errorHaptic()
         toast.success(`Marked as ${present ? 'present' : 'absent'} for ${new Date(specificDate).toLocaleDateString()}`)
       }
     } catch (error) {
       console.error('Error marking attendance:', error)
+      errorHaptic()
       toast.error('Failed to update attendance. Please try again.')
     } finally {
       setAttendanceLoading(prev => ({ ...prev, [loadingKey]: false }))
@@ -974,12 +981,14 @@ const Dashboard = ({ isAdmin = false }) => {
           memberIds.forEach(id => {
             actionTimestampsRef.current[`${id}_${bulkDateKey}`] = bulkNow
           })
-          success()
+          if (present) success()
+          else errorHaptic()
           toast.success(`All members marked as ${present ? 'present' : 'absent'} successfully!`, {
             style: { background: present ? '#10b981' : '#ef4444', color: '#ffffff' }
           })
         } catch (error) {
           console.error('Error with bulk attendance:', error)
+          errorHaptic()
           toast.error('Error updating attendance. Please try again.', {
             style: { background: '#ef4444', color: '#ffffff' }
           })
@@ -1848,7 +1857,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               return (
                                 <>
                                   <button
-                                    onClick={() => { selection(); handleAttendance(member.id, true) }}
+                                    onClick={() => handleAttendance(member.id, true)}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isPresentSelected
                                       ? 'bg-green-600 dark:bg-green-700 text-white shadow ring-1 ring-green-300 dark:ring-green-500'
@@ -1861,7 +1870,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     {attendanceLoading[member.id] ? '...' : 'Present'}
                                   </button>
                                   <button
-                                    onClick={() => { selection(); handleAttendance(member.id, false) }}
+                                    onClick={() => handleAttendance(member.id, false)}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isAbsentSelected
                                       ? 'bg-red-600 dark:bg-red-700 text-white shadow ring-1 ring-red-300 dark:ring-red-500'
@@ -2011,7 +2020,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Ministry</h4>
                                     <div className="flex flex-wrap gap-1.5">
                                       {ministries.map(m => (
-                                        <span key={m} className="px-2.5 py-1 rounded-full text-[200px] font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
+                                        <span key={m} className="px-2.5 py-1 rounded-full text-xs font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
                                           {m.length > 22 ? m.slice(0, 20) + '…' : m}
                                         </span>
                                       ))}
@@ -2126,7 +2135,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                       </div>
                                       <div className="flex space-x-1">
                                         <button
-                                          onClick={() => { selection(); handleAttendanceForDate(member.id, true, date) }}
+                                          onClick={() => handleAttendanceForDate(member.id, true, date)}
                                           disabled={isLoading}
                                           className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-colors duration-150 ${isPresent
                                             ? 'bg-green-800 dark:bg-green-700 text-white shadow-lg ring-2 ring-green-300 dark:ring-green-400 border border-green-900 dark:border-green-300 font-extrabold'
@@ -2138,7 +2147,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                           {isLoading ? '...' : 'P'}
                                         </button>
                                         <button
-                                          onClick={() => { selection(); handleAttendanceForDate(member.id, false, date) }}
+                                          onClick={() => handleAttendanceForDate(member.id, false, date)}
                                           disabled={isLoading}
                                           className={`flex-1 px-2 py-1 rounded text-xs font-bold transition-colors duration-150 ${isAbsent
                                             ? 'bg-red-800 dark:bg-red-700 text-white shadow-lg ring-2 ring-red-300 dark:ring-red-400 border border-red-900 dark:border-red-300 font-extrabold'

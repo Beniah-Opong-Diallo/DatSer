@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Calendar, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -9,10 +9,10 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
     const { selection } = useHapticFeedback()
     const popupRef = useRef(null)
 
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
         selection()
         onClose()
-    }
+    }, [selection, onClose])
 
     // Close on outside click
     useEffect(() => {
@@ -26,18 +26,18 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
             document.addEventListener('mousedown', handleClickOutside)
             return () => document.removeEventListener('mousedown', handleClickOutside)
         }
-    }, [isOpen, onClose, anchorRef])
+    }, [isOpen, anchorRef, handleClose])
 
     // Close on escape
     useEffect(() => {
         const handleEsc = (e) => {
-            if (e.key === 'Escape') onClose()
+            if (e.key === 'Escape') handleClose()
         }
         if (isOpen) {
             document.addEventListener('keydown', handleEsc)
             return () => document.removeEventListener('keydown', handleEsc)
         }
-    }, [isOpen, onClose])
+    }, [isOpen, handleClose])
 
     const handleSelectMonth = (table) => {
         selection()
@@ -71,7 +71,7 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
             {/* Backdrop with blur - very high z-index to cover everything */}
             <div
                 className="fixed inset-0 bg-black/50 z-[9998] backdrop-blur-sm"
-                onClick={onClose}
+                onClick={handleClose}
             />
 
             {/* Popup */}
@@ -89,7 +89,7 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef }) => {
                         </span>
                     </div>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors btn-press"
                     >
                         <X className="w-4 h-4 text-gray-500" />
