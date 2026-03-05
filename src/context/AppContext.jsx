@@ -46,6 +46,12 @@ const DEFAULT_ATTENDANCE_DATES = {
   'November_2025': '2025-11-23',
   'January_2026': '2026-01-11'
 }
+const shouldLogAppContext = import.meta.env.MODE !== 'test'
+const appContextLog = (...args) => {
+  if (shouldLogAppContext) {
+    console.log(...args)
+  }
+}
 
 // Helper function for timezone-safe date string formatting (YYYY-MM-DD)
 const getLocalDateString = (date) => {
@@ -149,7 +155,7 @@ export const AppProvider = ({ children }) => {
         // Try to load from Supabase preferences first (persisted across devices)
         if (authContext?.preferences?.current_month_table) {
           const savedMonth = authContext.preferences.current_month_table
-          console.log('[MONTH] Loaded saved month from Supabase preferences:', savedMonth)
+          appContextLog('[MONTH] Loaded saved month from Supabase preferences:', savedMonth)
           setCurrentTable(savedMonth)
           localStorage.setItem(storageKey, savedMonth)
           return
@@ -157,13 +163,13 @@ export const AppProvider = ({ children }) => {
 
         // Fallback to localStorage if preferences not yet synced
         if (localSaved) {
-          console.log('[MONTH] Loaded month from localStorage:', localSaved)
+          appContextLog('[MONTH] Loaded month from localStorage:', localSaved)
           setCurrentTable(localSaved)
           return
         }
 
         // Default to DEFAULT_TABLE if nothing is saved
-        console.log('[MONTH] No saved month found, using default:', DEFAULT_TABLE)
+        appContextLog('[MONTH] No saved month found, using default:', DEFAULT_TABLE)
         localStorage.setItem(storageKey, DEFAULT_TABLE)
       } catch (error) {
         console.error('[MONTH] Error loading saved month:', error)
@@ -452,14 +458,16 @@ export const AppProvider = ({ children }) => {
           }, {
             onConflict: 'user_id'
           })
-        adminRealtimeChannelRef.current?.send({
-          type: 'broadcast',
-          event: 'admin_period_change',
-          payload: {
-            targetTable: currentTable,
-            targetDate: null
-          }
-        })
+        if (typeof adminRealtimeChannelRef.current?.send === 'function') {
+          adminRealtimeChannelRef.current.send({
+            type: 'broadcast',
+            event: 'admin_period_change',
+            payload: {
+              targetTable: currentTable,
+              targetDate: null
+            }
+          })
+        }
       } catch (err) {
         console.error('Error broadcasting admin month change:', err)
       }
@@ -485,14 +493,16 @@ export const AppProvider = ({ children }) => {
           }, {
             onConflict: 'user_id'
           })
-        adminRealtimeChannelRef.current?.send({
-          type: 'broadcast',
-          event: 'admin_period_change',
-          payload: {
-            targetTable: currentTable,
-            targetDate: dateStr
-          }
-        })
+        if (typeof adminRealtimeChannelRef.current?.send === 'function') {
+          adminRealtimeChannelRef.current.send({
+            type: 'broadcast',
+            event: 'admin_period_change',
+            payload: {
+              targetTable: currentTable,
+              targetDate: dateStr
+            }
+          })
+        }
       } catch (err) {
         console.error('Error broadcasting admin date change:', err)
       }
@@ -501,13 +511,13 @@ export const AppProvider = ({ children }) => {
 
   // Check if current user is a collaborator and get the owner's ID
   const checkCollaboratorStatus = async () => {
-    console.log('=== checkCollaboratorStatus STARTED ===')
-    console.log('User email:', user?.email)
-    console.log('User ID:', user?.id)
-    console.log('Supabase configured?', isSupabaseConfigured())
+    appContextLog('=== checkCollaboratorStatus STARTED ===')
+    appContextLog('User email:', user?.email)
+    appContextLog('User ID:', user?.id)
+    appContextLog('Supabase configured?', isSupabaseConfigured())
 
     if (!user?.id || !isSupabaseConfigured()) {
-      console.log('Skipping collaborator check - no user ID or Supabase not configured')
+      appContextLog('Skipping collaborator check - no user ID or Supabase not configured')
       setIsCollaborator(false)
       setDataOwnerId(null)
       setOwnerEmail(null)
@@ -519,33 +529,46 @@ export const AppProvider = ({ children }) => {
       let data = null
       let error = null
 
-      const userLookup = await supabase
+      const collaboratorQuery = supabase
         .from('collaborators')
         .select('owner_id, status, email')
         .eq('collaborator_user_id', user.id)
         .in('status', ['pending', 'accepted', 'active'])
-        .maybeSingle()
+      const userLookup = await (
+        typeof collaboratorQuery.maybeSingle === 'function'
+          ? collaboratorQuery.maybeSingle()
+          : collaboratorQuery.single()
+      )
 
       data = userLookup.data
       error = userLookup.error
 
       if (!data && normalizedEmail) {
-        console.log('Collaborator lookup by user id returned no match. Falling back to email lookup:', normalizedEmail)
-        const emailLookup = await supabase
+        appContextLog('Collaborator lookup by user id returned no match. Falling back to email lookup:', normalizedEmail)
+        const emailQueryBase = supabase
           .from('collaborators')
           .select('owner_id, status, email')
-          .ilike('email', normalizedEmail)
-          .in('status', ['pending', 'accepted', 'active'])
-          .maybeSingle()
+        const emailQuery = typeof emailQueryBase.ilike === 'function'
+          ? emailQueryBase.ilike('email', normalizedEmail)
+          : emailQueryBase.eq('email', normalizedEmail)
+        const emailLookup = await (
+          typeof emailQuery.maybeSingle === 'function'
+            ? emailQuery
+              .in('status', ['pending', 'accepted', 'active'])
+              .maybeSingle()
+            : emailQuery
+              .in('status', ['pending', 'accepted', 'active'])
+              .single()
+        )
         data = emailLookup.data
         error = emailLookup.error
       }
 
-      console.log('Collaborators query result:', { data, error })
+      appContextLog('Collaborators query result:', { data, error })
 
       if (error || !data) {
         // Not a collaborator - verify they are an actual owner with data
-        console.log('User is NOT a collaborator. Checking if they are an owner...')
+        appContextLog('User is NOT a collaborator. Checking if they are an owner...')
 
         // Check if this user has any month tables (i.e., they are a real owner)
         const { data: ownerTables, error: ownerError } = await supabase
@@ -565,7 +588,7 @@ export const AppProvider = ({ children }) => {
 
         if (!isRealOwner) {
           // Random user with no data and not a collaborator - DENY ACCESS
-          console.log('❌ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
+          appContextLog('❌ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
           setIsCollaborator(false)
           setDataOwnerId(null)
           setOwnerEmail(null)
@@ -573,7 +596,7 @@ export const AppProvider = ({ children }) => {
           return null
         }
 
-        console.log('✅ User is a verified owner')
+        appContextLog('✅ User is a verified owner')
         setIsCollaborator(false)
         setDataOwnerId(user.id)
         setOwnerEmail(null)
@@ -586,9 +609,9 @@ export const AppProvider = ({ children }) => {
       }
 
       // User is a collaborator - they should see the owner's data
-      console.log('✅ User IS a collaborator!')
-      console.log('Owner ID:', data.owner_id)
-      console.log('Status:', data.status)
+      appContextLog('✅ User IS a collaborator!')
+      appContextLog('Owner ID:', data.owner_id)
+      appContextLog('Status:', data.status)
       setIsCollaborator(true)
       setDataOwnerId(data.owner_id)
       setHasAccess(true)
@@ -603,7 +626,7 @@ export const AppProvider = ({ children }) => {
         if (!wsError && ownerWsName) {
           const currentWs = authContext.preferences?.workspace_name
           if (currentWs !== ownerWsName) {
-            console.log('Syncing workspace name from owner:', ownerWsName)
+            appContextLog('Syncing workspace name from owner:', ownerWsName)
             authContext.updatePreference('workspace_name', ownerWsName)
           }
         }
@@ -622,7 +645,7 @@ export const AppProvider = ({ children }) => {
       // Fetch the owner's locked default date for this collaborator
       fetchLockedDefaultDate(data.owner_id)
 
-      console.log('=== checkCollaboratorStatus COMPLETE - User is COLLABORATOR ===')
+      appContextLog('=== checkCollaboratorStatus COMPLETE - User is COLLABORATOR ===')
       return data.owner_id
     } catch (err) {
       console.error('ERROR in checkCollaboratorStatus:', err)
@@ -732,10 +755,10 @@ export const AppProvider = ({ children }) => {
     }
     try {
       setLoading(true)
-      console.log(`Fetching members from table: ${tableName} for user: ${user?.id}`)
+      appContextLog(`Fetching members from table: ${tableName} for user: ${user?.id}`)
 
       if (!isSupabaseConfigured()) {
-        console.log('Using mock data - Supabase not configured')
+        appContextLog('Using mock data - Supabase not configured')
         setMembers(mockMembers)
         setLoading(false)
         return
@@ -743,7 +766,7 @@ export const AppProvider = ({ children }) => {
 
       // Check if we have a valid session
       const { data: { session } } = await supabase.auth.getSession()
-      console.log('Current session:', session ? `authenticated as ${session.user?.id}` : 'not authenticated')
+      appContextLog('Current session:', session ? `authenticated as ${session.user?.id}` : 'not authenticated')
       if (!session) {
         console.warn('No active session - user may need to log in again')
         toast.error('Session expired. Please refresh and log in again.')
@@ -758,14 +781,14 @@ export const AppProvider = ({ children }) => {
       const now = Date.now()
       const TTL_MS = 5 * 60 * 1000 // 5 minutes
       if (cached && (now - cached.ts) < TTL_MS) {
-        console.log('Using cached members for', cacheKey)
+        appContextLog('Using cached members for', cacheKey)
         setMembers(cached.data)
         setLoading(false)
         return
       }
 
       // Fetch data - paginate to avoid Supabase default 1000-row cap
-      console.log(`Querying ${tableName} with session user: ${session.user?.id}`)
+      appContextLog(`Querying ${tableName} with session user: ${session.user?.id}`)
 
       let data = []
       let fetchOffset = 0
@@ -784,11 +807,11 @@ export const AppProvider = ({ children }) => {
         fetchOffset += FETCH_PAGE
       }
 
-      console.log(`Query result: ${data?.length || 0} rows, error: ${error?.message || 'none'}`)
+      appContextLog(`Query result: ${data?.length || 0} rows, error: ${error?.message || 'none'}`)
 
       if (error) {
         console.error('Error fetching members:', error)
-        console.log('Error details:', error.message, error.code)
+        appContextLog('Error details:', error.message, error.code)
 
         const missingTable =
           error.code === 'PGRST205' ||
@@ -815,14 +838,14 @@ export const AppProvider = ({ children }) => {
         })
         setMembers(normalizedMembers)
         membersCacheRef.current.set(cacheKey, { data: normalizedMembers, ts: now })
-        console.log(`Successfully loaded ${normalizedMembers.length} members from ${tableName}`)
-        console.log('First few members:', normalizedMembers.slice(0, 3))
-        console.log('Sample member structure:', normalizedMembers[0])
+        appContextLog(`Successfully loaded ${normalizedMembers.length} members from ${tableName}`)
+        appContextLog('First few members:', normalizedMembers.slice(0, 3))
+        appContextLog('Sample member structure:', normalizedMembers[0])
         // Removed automatic toast notification on page load
       }
     } catch (error) {
       console.error('Unexpected error in fetchMembers:', error)
-      console.log(`Setting mock members (${mockMembers.length} members) due to error`)
+      appContextLog(`Setting mock members (${mockMembers.length} members) due to error`)
       setMembers(mockMembers) // Fallback to mock data
     } finally {
       setLoading(false)
@@ -1031,7 +1054,7 @@ export const AppProvider = ({ children }) => {
 
       // Return all Sundays in the month - attendance columns will be created as needed
       const allSundays = getSundaysInMonth(monthName, yearNum)
-      console.log(`Found ${allSundays.length} Sundays in ${monthName} ${yearNum}:`, allSundays.map(d => d.getDate()))
+      appContextLog(`Found ${allSundays.length} Sundays in ${monthName} ${yearNum}:`, allSundays.map(d => d.getDate()))
 
       return allSundays
     } catch (error) {
@@ -1709,7 +1732,7 @@ export const AppProvider = ({ children }) => {
       const attendanceColumn = await findAttendanceColumnForDate(date)
 
       if (!attendanceColumn) {
-        console.log(`No attendance column found for this date in ${currentTable}`)
+        appContextLog(`No attendance column found for this date in ${currentTable}`)
         return {}
       }
 
@@ -1760,7 +1783,7 @@ export const AppProvider = ({ children }) => {
       const attendanceColumn = await findAttendanceColumnForDateInTable(date, tableName)
 
       if (!attendanceColumn) {
-        console.log(`No attendance column found for this date in ${tableName}`)
+        appContextLog(`No attendance column found for this date in ${tableName}`)
         return {}
       }
 
@@ -2234,7 +2257,7 @@ export const AppProvider = ({ children }) => {
         return
       }
 
-      console.log(`Fetching monthly tables for owner: ${ownerId} (Am I collaborator? ${isCollaborator})`)
+      appContextLog(`Fetching monthly tables for owner: ${ownerId} (Am I collaborator? ${isCollaborator})`)
 
       // 3. Fetch tables using RPC to bypass RLS for collaborators
       // We use 'get_available_month_tables' which checks 'collaborators' table for permission
@@ -3125,7 +3148,7 @@ export const AppProvider = ({ children }) => {
       const attendanceColumns = await getAttendanceColumns()
 
       if (attendanceColumns.length === 0) {
-        console.log('No attendance columns found in current table')
+        appContextLog('No attendance columns found in current table')
         return
       }
 
@@ -3217,7 +3240,7 @@ export const AppProvider = ({ children }) => {
         return
       }
 
-      console.log('Loading badge data from Supabase...')
+      appContextLog('Loading badge data from Supabase...')
 
       // Select all columns to be safe, then process locally
       // This avoids errors if specific badge columns don't exist
@@ -3241,7 +3264,7 @@ export const AppProvider = ({ children }) => {
         return
       }
 
-      console.log('Badge data loaded:', data?.slice(0, 3)) // Log first 3 records for debugging
+      appContextLog('Badge data loaded:', data?.slice(0, 3))
 
       // Update members with badge data
       setMembers(prev => prev.map(member => {
