@@ -1992,18 +1992,47 @@ const Dashboard = ({ isAdmin = false }) => {
                                 </div>
 
                                 {/* Ministry Tags */}
-                                {member.ministry && (Array.isArray(member.ministry) ? member.ministry : [member.ministry]).filter(Boolean).length > 0 && (
+                                {(() => {
+                                  const normalizeMinistry = (val) => {
+                                    if (!val) return []
+                                    let arr = []
+                                    if (Array.isArray(val)) {
+                                      arr = val
+                                    } else if (typeof val === 'string') {
+                                      const s = val.trim()
+                                      if ((s.startsWith('[') && s.endsWith(']')) || s.includes('","')) {
+                                        try {
+                                          const parsed = JSON.parse(s)
+                                          arr = Array.isArray(parsed) ? parsed : [s]
+                                        } catch {
+                                          arr = s.split(',').map(x => x.trim()).filter(Boolean)
+                                        }
+                                      } else if (s.includes(',')) {
+                                        arr = s.split(',').map(x => x.trim()).filter(Boolean)
+                                      } else {
+                                        arr = [s]
+                                      }
+                                    }
+                                    const cleaned = arr
+                                      .map(x => typeof x === 'string' ? x.replace(/^\\[\"\\s]*|[\"\\s]*\\]$/g, '').trim() : x)
+                                      .filter(Boolean)
+                                    return Array.from(new Set(cleaned))
+                                  }
+                                  const ministries = normalizeMinistry(member.ministry)
+                                  if (ministries.length === 0) return null
+                                  return (
                                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                                     <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Ministry</h4>
-                                    <div className="flex flex-wrap gap-1">
-                                      {(Array.isArray(member.ministry) ? member.ministry : [member.ministry]).filter(Boolean).map(m => (
-                                        <span key={m} className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
-                                          {m}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {ministries.map(m => (
+                                        <span key={m} className="px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-700/50">
+                                          {m.length > 22 ? m.slice(0, 20) + '…' : m}
                                         </span>
                                       ))}
                                     </div>
                                   </div>
-                                )}
+                                  )
+                                })()}
 
                                 {/* Parent Information (if available) */}
                                 {(member['parent_name_1'] || member['parent_name_2']) && (
