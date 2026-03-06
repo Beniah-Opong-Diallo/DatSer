@@ -3106,6 +3106,14 @@ export const AppProvider = ({ children }) => {
   // Restore saved month or fall back to a valid table on load
   useEffect(() => {
     if (monthlyTables.length > 0) {
+      // If the user is not authenticated locally, prefer a known-safe default table
+      if (!authContext?.user) {
+        if (monthlyTables.includes(DEFAULT_TABLE)) {
+          setCurrentTable(DEFAULT_TABLE)
+          localStorage.setItem('selectedMonthTable', DEFAULT_TABLE)
+          return
+        }
+      }
       // If the current table is valid, keep it
       if (currentTable && monthlyTables.includes(currentTable)) {
         return
