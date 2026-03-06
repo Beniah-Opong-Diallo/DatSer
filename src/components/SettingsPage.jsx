@@ -1182,6 +1182,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                         )}
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={() => setArchiveMonth(table)}
                                         className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
                                     >
@@ -1628,7 +1629,13 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
             description: 'Export and delete old months to save storage',
             keywords: 'archive month delete export csv storage space free cleanup',
             icon: Archive,
-            action: () => setActiveSection('data')
+            action: () => {
+                setActiveSection('data')
+                const preferredMonth = currentTable || oldestMonthTable?.table_name || monthlyTables?.[monthlyTables.length - 1] || null
+                if (preferredMonth) {
+                    setArchiveMonth(preferredMonth)
+                }
+            }
         },
 
         // --- Help & Danger ---
@@ -1651,7 +1658,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
             isDestructive: true,
             action: () => setIsDeleteAccountOpen(true)
         }
-    ], [user, currentTable, handleSignOut, setActiveSection])
+    ], [user, currentTable, oldestMonthTable, monthlyTables, handleSignOut, setActiveSection])
 
     // Filter items based on search query
     const searchResults = useMemo(() => {

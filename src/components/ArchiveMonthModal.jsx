@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
     Archive,
     Download,
@@ -39,7 +40,9 @@ const DEFAULT_COLUMNS = [
     'Age',
     'Current Level',
     'Parent Name',
-    'Parent Phone Number'
+    'Parent Phone Number',
+    'Present',
+    'Absent'
 ]
 
 const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) => {
@@ -51,6 +54,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
     const [csvBlob, setCsvBlob] = useState(null)
     const [downloaded, setDownloaded] = useState(false)
     const [showDetails, setShowDetails] = useState(false)
+    const [showSundayTotals, setShowSundayTotals] = useState(false)
     const [archiveError, setArchiveError] = useState(null)
 
     // Export Center features
@@ -68,6 +72,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         setCsvBlob(null)
         setArchiveError(null)
         setShowPreview(false)
+        setShowSundayTotals(false)
         setColumns(DEFAULT_COLUMNS)
         setLoading(true)
 
@@ -215,6 +220,41 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         return { present, absent, hasAny }
     }, [dateColumns])
 
+    const formatAttendanceColumnLabel = useCallback((col) => {
+        if (col.startsWith('Attendance ')) {
+            return col.replace('Attendance ', '')
+        }
+        if (/^attendance_\d{4}_\d{2}_\d{2}$/i.test(col)) {
+            const parts = col.split('_')
+            const d = new Date(+parts[1], +parts[2] - 1, +parts[3])
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(col)) {
+            const d = new Date(col + 'T00:00:00')
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        }
+        return col
+    }, [])
+
+    const sundayTotals = useMemo(() => {
+        return dateColumns.map((col) => {
+            let present = 0
+            let absent = 0
+            monthData.forEach((row) => {
+                const val = row[col]
+                if (val === 'Present' || val === true) present += 1
+                if (val === 'Absent' || val === false) absent += 1
+            })
+            return {
+                key: col,
+                label: formatAttendanceColumnLabel(col),
+                present,
+                absent,
+                marked: present + absent
+            }
+        })
+    }, [dateColumns, monthData, formatAttendanceColumnLabel])
+
     // Get cell value for display
     const getCellValue = (row, col) => {
         if (col === 'Present') {
@@ -233,7 +273,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
 
     // Generate CSV - clean format optimized for Google Sheets
     const generateCSV = useCallback(() => {
-        const allColumns = [...columns, 'Present', 'Absent', ...dateColumns]
+        const allColumns = [...columns, ...dateColumns]
         const colCount = allColumns.length
 
         const padRow = (cells) => {
@@ -257,6 +297,11 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         lines.push(padRow([`ARCHIVE: ${label}`, '', '', `Archived: ${new Date().toLocaleDateString()}`]))
         lines.push(padRow([]))
         lines.push(padRow(['Total Members', stats.total, '', 'Male', stats.males, '', 'Female', stats.females]))
+        lines.push(padRow([]))
+        lines.push(padRow(['Sunday Totals']))
+        sundayTotals.forEach((item) => {
+            lines.push(padRow([item.label, '', 'Present', item.present, '', 'Absent', item.absent, '', 'Marked', item.marked]))
+        })
         lines.push(padRow([]))
 
         // Column headers
@@ -292,7 +337,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
         setCsvBlob(blob)
         return blob
-    }, [monthData, columns, dateColumns, label, stats, getAttendanceCounts])
+    }, [monthData, columns, dateColumns, label, stats, getAttendanceCounts, sundayTotals])
 
     // Download CSV
     const handleDownload = useCallback(() => {
@@ -331,7 +376,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
 
     if (!isOpen) return null
 
-    return (
+    const modalContent = (
         <>
             <style>{scrollbarHideStyle}</style>
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
@@ -449,6 +494,35 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                         )}
                                     </div>
                                 )}
+
+                                <button
+                                    onClick={() => setShowSundayTotals(!showSundayTotals)}
+                                    className="mt-3 w-full flex items-center justify-between px-3 py-2 bg-white/60 dark:bg-gray-800/60 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <span>Sunday Totals (Present vs Absent)</span>
+                                    {showSundayTotals ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+
+                                {showSundayTotals && (
+                                    <div className="mt-3 space-y-2">
+                                        {sundayTotals.length > 0 ? (
+                                            sundayTotals.map((item) => (
+                                                <div key={item.key} className="flex items-center justify-between rounded-lg bg-white dark:bg-gray-800 px-3 py-2">
+                                                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.label}</span>
+                                                    <div className="flex items-center gap-3 text-xs">
+                                                        <span className="text-green-600 dark:text-green-400 font-semibold">P: {item.present}</span>
+                                                        <span className="text-red-500 dark:text-red-400 font-semibold">A: {item.absent}</span>
+                                                        <span className="text-gray-500 dark:text-gray-400">Total: {item.marked}</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="rounded-lg bg-white dark:bg-gray-800 px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                                                No attendance dates found for this month.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Column Order (drag-and-drop) */}
@@ -521,18 +595,7 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
                                                         <th key={col} className="px-3 py-2 text-left text-gray-700 dark:text-gray-200 font-semibold whitespace-nowrap">{col}</th>
                                                     ))}
                                                     {dateColumns.map(col => {
-                                                        // Format header: "Attendance 7th" → "7th", "attendance_2025_01_07" → "Jan 7", "2025-01-07" → "Jan 7"
-                                                        let label = col
-                                                        if (col.startsWith('Attendance ')) {
-                                                            label = col.replace('Attendance ', '')
-                                                        } else if (/^attendance_\d{4}_\d{2}_\d{2}$/i.test(col)) {
-                                                            const parts = col.split('_')
-                                                            const d = new Date(+parts[1], +parts[2] - 1, +parts[3])
-                                                            label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                                        } else if (/^\d{4}-\d{2}-\d{2}$/.test(col)) {
-                                                            const d = new Date(col + 'T00:00:00')
-                                                            label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                                        }
+                                                        const label = formatAttendanceColumnLabel(col)
                                                         return (
                                                             <th key={col} className="px-3 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap text-xs bg-gray-50 dark:bg-gray-600">
                                                                 {label}
@@ -731,6 +794,9 @@ const ArchiveMonthModal = ({ isOpen, onClose, tableName, onArchiveComplete }) =>
         </div>
         </>
     )
+
+    if (typeof document === 'undefined') return modalContent
+    return createPortal(modalContent, document.body)
 }
 
 export default ArchiveMonthModal

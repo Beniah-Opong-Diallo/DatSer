@@ -968,7 +968,7 @@ export const AppProvider = ({ children }) => {
       logActivity('ADD_MEMBER', `Added new member: ${memberData.full_name || memberData.fullName || memberData['Full Name']}`)
 
       // Return the created member row directly
-      return members.find(m => m.id === id)
+      return data?.[0] || null
     } catch (error) {
       console.error('Error adding member:', error)
       toast.error('Failed to add member')

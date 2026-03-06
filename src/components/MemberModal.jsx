@@ -1,12 +1,15 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
 import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Info, Users, StickyNote } from 'lucide-react'
 import { toast } from 'react-toastify'
 import useHapticFeedback from '../hooks/useHapticFeedback'
+import { supabase } from '../lib/supabase'
 
 const MemberModal = ({ isOpen, onClose }) => {
-  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, updateMember } = useApp()
+  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
+  const { user } = useAuth()
   const { isDarkMode } = useTheme()
   const { selection, success } = useHapticFeedback()
 
@@ -33,19 +36,94 @@ const MemberModal = ({ isOpen, onClose }) => {
 
   // Available ministries - load from localStorage or use defaults
   const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+  const workspaceOwnerId = isCollaborator ? dataOwnerId : user?.id
+  const ministryStorageKey = workspaceOwnerId ? `customMinistries_${workspaceOwnerId}` : 'customMinistries'
+  const preferenceUserId = user?.id
   const [ministries, setMinistries] = React.useState(() => {
-    const saved = localStorage.getItem('customMinistries')
-    return saved ? JSON.parse(saved) : defaultMinistries
+    try {
+      const saved = localStorage.getItem(ministryStorageKey) || localStorage.getItem('customMinistries')
+      return saved ? JSON.parse(saved) : defaultMinistries
+    } catch {
+      return defaultMinistries
+    }
   })
 
   // Listen for ministry updates from Admin Panel
   React.useEffect(() => {
     const handleMinistriesUpdate = (e) => {
-      setMinistries(e.detail)
+      if (Array.isArray(e.detail)) {
+        setMinistries(e.detail)
+        return
+      }
+      if (Array.isArray(e.detail?.ministries)) {
+        if (!e.detail.ownerId || !workspaceOwnerId || e.detail.ownerId === workspaceOwnerId) {
+          setMinistries(e.detail.ministries)
+        }
+      }
     }
     window.addEventListener('ministriesUpdated', handleMinistriesUpdate)
     return () => window.removeEventListener('ministriesUpdated', handleMinistriesUpdate)
-  }, [])
+  }, [workspaceOwnerId])
+
+  React.useEffect(() => {
+    if (!workspaceOwnerId) return
+    const saved = localStorage.getItem(ministryStorageKey) || localStorage.getItem('customMinistries')
+    if (saved) {
+      try {
+        setMinistries(JSON.parse(saved))
+      } catch {
+      }
+    }
+  }, [workspaceOwnerId, ministryStorageKey])
+
+  React.useEffect(() => {
+    if (!isSupabaseConfigured() || !preferenceUserId) return
+    let active = true
+    const fetchMinistries = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('ministry_groups')
+          .eq('user_id', preferenceUserId)
+          .maybeSingle()
+        if (error) throw error
+        if (!active) return
+        if (Array.isArray(data?.ministry_groups)) {
+          setMinistries(data.ministry_groups)
+          localStorage.setItem(ministryStorageKey, JSON.stringify(data.ministry_groups))
+          localStorage.setItem('customMinistries', JSON.stringify(data.ministry_groups))
+        }
+      } catch (error) {
+        console.warn('Could not load shared ministries:', error)
+      }
+    }
+    fetchMinistries()
+
+    const channel = supabase
+      .channel(`member-modal-ministries:${preferenceUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_preferences',
+          filter: `user_id=eq.${preferenceUserId}`
+        },
+        (payload) => {
+          if (!Array.isArray(payload?.new?.ministry_groups)) return
+          const next = payload.new.ministry_groups
+          setMinistries(next)
+          localStorage.setItem(ministryStorageKey, JSON.stringify(next))
+          localStorage.setItem('customMinistries', JSON.stringify(next))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase.removeChannel(channel)
+    }
+  }, [preferenceUserId, ministryStorageKey, isSupabaseConfigured])
 
   // Helper function to generate Sunday dates for the current month/year
   const generateSundayDates = (currentTable) => {

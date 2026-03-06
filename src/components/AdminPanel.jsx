@@ -35,6 +35,23 @@ import {
   ArrowLeft
 } from 'lucide-react'
 
+const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+
+const normalizeMinistryList = (items) => {
+  if (!Array.isArray(items)) return []
+  const seen = new Set()
+  const normalized = []
+  for (const item of items) {
+    const value = String(item || '').replace(/\s+/g, ' ').trim()
+    if (!value) continue
+    const key = value.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(value)
+  }
+  return normalized
+}
+
 const AdminPanel = ({ setCurrentView, onBack }) => {
   const {
     members,
@@ -43,7 +60,10 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     availableSundayDates,
     isMonthAttendanceComplete,
     updateMember,
-    calculateAttendanceRate
+    calculateAttendanceRate,
+    isCollaborator,
+    dataOwnerId,
+    isSupabaseConfigured
   } = useApp()
   const { isDarkMode } = useTheme()
   const { user, signInWithGoogle } = useAuth()
@@ -177,29 +197,152 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false)
 
   // Ministry management state
-  const defaultMinistries = ['Choir', 'Ushers', 'Youth', 'Children', 'Media', 'Welfare', 'Protocol', 'Evangelism']
+  const workspaceOwnerId = isCollaborator ? dataOwnerId : user?.id
+  const ministryStorageKey = workspaceOwnerId ? `customMinistries_${workspaceOwnerId}` : 'customMinistries'
   const [ministries, setMinistries] = useState(() => {
     const saved = localStorage.getItem('customMinistries')
-    return saved ? JSON.parse(saved) : defaultMinistries
+    if (!saved) return defaultMinistries
+    try {
+      const parsed = normalizeMinistryList(JSON.parse(saved))
+      return parsed.length > 0 ? parsed : defaultMinistries
+    } catch {
+      return defaultMinistries
+    }
   })
   const [newMinistry, setNewMinistry] = useState('')
   const [editingMinistry, setEditingMinistry] = useState(null)
   const [editMinistryValue, setEditMinistryValue] = useState('')
+  const normalizedNewMinistry = useMemo(
+    () => newMinistry.replace(/\s+/g, ' ').trim(),
+    [newMinistry]
+  )
+  const canAddMinistry = normalizedNewMinistry.length > 0
+
+  useEffect(() => {
+    if (!workspaceOwnerId) return
+    const scopedSaved = localStorage.getItem(ministryStorageKey)
+    if (scopedSaved) {
+      try {
+        const parsed = normalizeMinistryList(JSON.parse(scopedSaved))
+        setMinistries(parsed.length > 0 ? parsed : defaultMinistries)
+        return
+      } catch {
+      }
+    }
+
+    const legacySaved = localStorage.getItem('customMinistries')
+    if (legacySaved) {
+      try {
+        const normalizedLegacy = normalizeMinistryList(JSON.parse(legacySaved))
+        const legacyMinistries = normalizedLegacy.length > 0 ? normalizedLegacy : defaultMinistries
+        setMinistries(legacyMinistries)
+        localStorage.setItem(ministryStorageKey, JSON.stringify(legacyMinistries))
+        return
+      } catch {
+      }
+    }
+
+    setMinistries(defaultMinistries)
+  }, [workspaceOwnerId, ministryStorageKey])
 
   // Save ministries to localStorage whenever they change
   useEffect(() => {
+    localStorage.setItem(ministryStorageKey, JSON.stringify(ministries))
     localStorage.setItem('customMinistries', JSON.stringify(ministries))
     // Dispatch event so other components can listen for changes
-    window.dispatchEvent(new CustomEvent('ministriesUpdated', { detail: ministries }))
-  }, [ministries])
+    window.dispatchEvent(new CustomEvent('ministriesUpdated', { detail: { ministries, ownerId: workspaceOwnerId } }))
+  }, [ministries, ministryStorageKey, workspaceOwnerId])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !workspaceOwnerId) return
+    let active = true
+
+    const fetchSharedMinistries = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('ministry_groups')
+          .eq('user_id', workspaceOwnerId)
+          .maybeSingle()
+        if (error) throw error
+        if (!active) return
+        if (Array.isArray(data?.ministry_groups)) {
+          const shared = normalizeMinistryList(data.ministry_groups)
+          setMinistries(shared)
+          localStorage.setItem(ministryStorageKey, JSON.stringify(shared))
+        }
+      } catch (error) {
+        console.warn('Could not load shared ministries from Supabase:', error)
+      }
+    }
+
+    fetchSharedMinistries()
+
+    const channel = supabase
+      .channel(`ministries:${workspaceOwnerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_preferences',
+          filter: `user_id=eq.${workspaceOwnerId}`
+        },
+        (payload) => {
+          if (!Array.isArray(payload?.new?.ministry_groups)) return
+          const next = normalizeMinistryList(payload.new.ministry_groups)
+          setMinistries(next)
+          localStorage.setItem(ministryStorageKey, JSON.stringify(next))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      supabase.removeChannel(channel)
+    }
+  }, [workspaceOwnerId, ministryStorageKey, isSupabaseConfigured])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !workspaceOwnerId || isCollaborator) return
+    const syncMinistries = async () => {
+      try {
+        const { error } = await supabase
+          .from('user_preferences')
+          .upsert(
+            {
+              user_id: workspaceOwnerId,
+              ministry_groups: ministries,
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: 'user_id' }
+          )
+        if (error) throw error
+
+        const { error: collabSyncError } = await supabase.rpc('set_collaborators_ministry_groups', {
+          p_owner_id: workspaceOwnerId,
+          p_ministry_groups: ministries
+        })
+        if (collabSyncError) {
+          console.warn('Could not sync ministries to collaborators:', collabSyncError)
+        }
+      } catch (error) {
+        console.warn('Could not save shared ministries to Supabase:', error)
+      }
+    }
+    syncMinistries()
+  }, [ministries, workspaceOwnerId, isSupabaseConfigured, isCollaborator])
 
   const addMinistry = () => {
-    const trimmed = newMinistry.trim()
-    if (trimmed && !ministries.includes(trimmed)) {
-      setMinistries([...ministries, trimmed])
-      setNewMinistry('')
-      toast.success(`Added "${trimmed}" ministry`)
+    if (!canAddMinistry) return
+    const exists = ministries.some(m => m.toLowerCase() === normalizedNewMinistry.toLowerCase())
+    if (exists) {
+      toast.info(`"${normalizedNewMinistry}" already exists`)
+      return
     }
+    setMinistries(prev => [...prev, normalizedNewMinistry])
+    setNewMinistry('')
+    toast.success(`Added "${normalizedNewMinistry}" ministry`)
   }
 
   const deleteMinistry = (ministry) => {
@@ -213,8 +356,17 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   }
 
   const saveEditMinistry = () => {
-    const trimmed = editMinistryValue.trim()
+    const trimmed = editMinistryValue.replace(/\s+/g, ' ').trim()
     if (trimmed && trimmed !== editingMinistry) {
+      const exists = ministries.some(
+        m => m !== editingMinistry && m.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (exists) {
+        toast.info(`"${trimmed}" already exists`)
+        setEditingMinistry(null)
+        setEditMinistryValue('')
+        return
+      }
       setMinistries(ministries.map(m => m === editingMinistry ? trimmed : m))
       toast.success(`Updated ministry to "${trimmed}"`)
     }
@@ -1043,16 +1195,23 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 type="text"
                 value={newMinistry}
                 onChange={(e) => setNewMinistry(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addMinistry()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addMinistry()
+                  }
+                }}
                 placeholder="Add new ministry..."
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               <button
-                onClick={addMinistry}
-                disabled={!newMinistry.trim()}
-                className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors"
+                type="button"
+                onClick={() => addMinistry()}
+                disabled={!canAddMinistry}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
               >
                 <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Add</span>
               </button>
             </div>
             {/* Ministry list */}
