@@ -843,7 +843,10 @@ const Dashboard = ({ isAdmin = false }) => {
   const confirmDelete = async () => {
     if (!memberToDelete) return
     try {
-      await deleteMember(memberToDelete.id)
+      const result = await deleteMember(memberToDelete.id)
+      if (!result?.success) {
+        throw result?.error || new Error('Delete failed')
+      }
       // deleteMember already shows success toast, just close modal and reset state
       setSwipeOpenId(null)
       setIsDeleteConfirmOpen(false)
@@ -851,8 +854,6 @@ const Dashboard = ({ isAdmin = false }) => {
     } catch (error) {
       console.error('Error deleting member:', error)
       toast.error('Failed to delete member. Please try again.')
-      setIsDeleteConfirmOpen(false)
-      setMemberToDelete(null)
     }
   }
 

@@ -1926,6 +1926,25 @@ export const AppProvider = ({ children }) => {
         delete normalized.current_level
       }
 
+      // Normalize ministry to text because monthly tables store it as TEXT
+      const incomingMinistry = normalized.ministry ?? normalized['Ministry']
+      if (incomingMinistry !== undefined) {
+        let ministryText = null
+        if (Array.isArray(incomingMinistry)) {
+          const cleaned = incomingMinistry
+            .map(item => String(item || '').trim())
+            .filter(Boolean)
+          ministryText = cleaned.length > 0 ? cleaned.join(', ') : null
+        } else if (typeof incomingMinistry === 'string') {
+          const trimmed = incomingMinistry.trim()
+          ministryText = trimmed.length > 0 ? trimmed : null
+        } else if (incomingMinistry !== null) {
+          ministryText = String(incomingMinistry)
+        }
+        normalized = { ...normalized, ministry: ministryText }
+        delete normalized['Ministry']
+      }
+
       // Get existing columns from the table to filter out non-existent fields
       let validColumns = null
       try {
@@ -2064,6 +2083,8 @@ export const AppProvider = ({ children }) => {
         return members.find(m => m.id === id)
       }
 
+      const optimisticPatch = { ...updates, ...normalized }
+
       const { data, error } = await supabase
         .from(currentTable)
         .update(normalized)
@@ -2074,18 +2095,36 @@ export const AppProvider = ({ children }) => {
 
       // Update members state with the returned data
       setMembers(prev => {
-        const updatedRow = data[0] || {}
+        const updatedRow = data?.[0] || {}
         const updatedName = (
           typeof updatedRow['full_name'] === 'string' && updatedRow['full_name'].trim()
-        ) ? updatedRow['full_name'] : (typeof updatedRow['Full Name'] === 'string' ? updatedRow['Full Name'] : undefined)
+        ) ? updatedRow['full_name']
+          : (typeof updatedRow['Full Name'] === 'string' ? updatedRow['Full Name']
+            : (typeof updates.full_name === 'string' && updates.full_name.trim() ? updates.full_name
+              : (typeof updates['Full Name'] === 'string' ? updates['Full Name'] : undefined)))
         console.log('Updating member in state:', id, 'with name:', updatedName)
         console.log('Updated row data:', updatedRow)
         const updatedMembers = prev.map(m => {
           if (m.id !== id) return m
-          const merged = { ...m, ...updatedRow }
+          const merged = { ...m, ...optimisticPatch, ...updatedRow }
           if (updatedName !== undefined) {
             merged['full_name'] = updatedName
             merged['Full Name'] = updatedName
+          }
+          const resolvedPhone = updates['Phone Number'] ?? updates.phone_number
+          if (resolvedPhone !== undefined) {
+            merged['Phone Number'] = resolvedPhone
+            merged.phone_number = resolvedPhone
+          }
+          const resolvedAge = updates['Age'] ?? updates.age
+          if (resolvedAge !== undefined) {
+            merged['Age'] = resolvedAge
+            merged.age = resolvedAge
+          }
+          const resolvedLevel = updates['Current Level'] ?? updates.current_level
+          if (resolvedLevel !== undefined) {
+            merged['Current Level'] = resolvedLevel
+            merged.current_level = resolvedLevel
           }
           console.log('Merged member after update:', merged)
           return merged
@@ -2096,6 +2135,16 @@ export const AppProvider = ({ children }) => {
 
       // Update search term to trigger re-filtering
       refreshSearch()
+
+      // Invalidate stale caches and force fresh pull so all views update instantly
+      searchCacheRef.current.clear()
+      const cacheKey = currentTable || 'default'
+      membersCacheRef.current.delete(cacheKey)
+      try {
+        await fetchMembers(currentTable)
+      } catch (refreshErr) {
+        console.warn('[updateMember] Post-update refresh failed, using optimistic state:', refreshErr)
+      }
 
       if (!silent) toast.success(`Member updated successfully in ${currentTable}!`)
 
@@ -2252,6 +2301,11 @@ export const AppProvider = ({ children }) => {
       searchCacheRef.current.clear()
       const cacheKey = currentTable || 'default'
       membersCacheRef.current.delete(cacheKey)
+      try {
+        await fetchMembers(currentTable)
+      } catch (refreshErr) {
+        console.warn('[DELETE] Post-delete refresh failed, keeping optimistic UI state:', refreshErr)
+      }
       console.log(`[DELETE] Member ${memberId} deleted successfully and UI updated`)
       toast.success('Member deleted')
       logActivity('DELETE_MEMBER', `Deleted member ID: ${memberId}`)

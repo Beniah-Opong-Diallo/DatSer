@@ -246,7 +246,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
         Member: selectedTags.includes('member') ? 'Yes' : null,
         Regular: selectedTags.includes('regular') ? 'Yes' : null,
         Newcomer: selectedTags.includes('newcomer') ? 'Yes' : null
-      }, { allowLocalFallback: true })
+      })
 
       // Mark attendance for selected Sunday dates
       for (const [date, attendance] of Object.entries(sundayAttendance)) {

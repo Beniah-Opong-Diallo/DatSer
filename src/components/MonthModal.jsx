@@ -101,14 +101,17 @@ const MonthModal = ({ isOpen, onClose }) => {
     ;(async () => {
       const attendanceMap = await fetchAttendanceForDateInTable(targetDate, attendanceSourceTable)
       if (!active) return
-      const presentIds = Object.keys(attendanceMap).filter(id => attendanceMap[id] === true)
+      const memberIdByKey = new Map(baseMembers.map(member => [String(member.id), member.id]))
+      const presentIds = Object.entries(attendanceMap)
+        .filter(([, status]) => status === true)
+        .map(([id]) => memberIdByKey.get(id) ?? id)
       setSelectedMemberIds(presentIds)
       setAttendanceLoading(false)
     })()
     return () => {
       active = false
     }
-  }, [copyMode, attendanceSourceDate, attendanceSourceTable, fetchAttendanceForDateInTable])
+  }, [baseMembers, copyMode, attendanceSourceDate, attendanceSourceTable, fetchAttendanceForDateInTable])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -201,7 +204,7 @@ const MonthModal = ({ isOpen, onClose }) => {
         ${isOpen ? 'animate-in fade-in' : 'animate-out fade-out'}`}
     >
       <div
-        className={`bg-white dark:bg-gray-800 rounded-2xl w-full max-w-3xl mx-4 overflow-visible no-scrollbar transition-colors duration-200 shadow-2xl
+        className={`bg-white dark:bg-gray-800 rounded-2xl w-full max-w-3xl mx-4 overflow-hidden transition-colors duration-200 shadow-2xl
         ${isOpen ? 'animate-in zoom-in-95' : 'animate-out zoom-out-95'}`}
         style={{
           maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem)'
@@ -223,7 +226,7 @@ const MonthModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-4 py-4 sm:p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="px-4 py-4 sm:p-6 space-y-4 max-h-[calc(100dvh-220px)] overflow-y-auto">
           {/* Month Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
