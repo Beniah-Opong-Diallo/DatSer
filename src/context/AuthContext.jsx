@@ -291,8 +291,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Supabase is not configured')
       }
 
-      // Build the redirect URL - must include the full path
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`
+      const redirectUrl = window.location.origin
       console.log('Redirect URL:', redirectUrl)
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -321,7 +320,7 @@ export const AuthProvider = ({ children }) => {
   const signUpWithEmail = async (email, password, fullName, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = `${window.location.origin}${window.location.pathname}`
+        const redirectUrl = window.location.origin
 
         const signUpOptions = {
           email,
@@ -409,7 +408,7 @@ export const AuthProvider = ({ children }) => {
   const signInWithMagicLink = async (email, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = `${window.location.origin}${window.location.pathname}`
+        const redirectUrl = window.location.origin
         const otpOptions = {
           email,
           options: {
@@ -442,7 +441,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = `${window.location.origin}${window.location.pathname}`
+        const redirectUrl = window.location.origin
 
         const resetOptions = { redirectTo: redirectUrl }
         // Only add captchaToken if it exists
@@ -510,7 +509,8 @@ export const AuthProvider = ({ children }) => {
             email: 'dev@datser.local',
             password: 'GodMode123!',
             options: {
-              data: { full_name: 'God Mode User' }
+              data: { full_name: 'God Mode User' },
+              emailRedirectTo: window.location.origin
             }
           })
 
