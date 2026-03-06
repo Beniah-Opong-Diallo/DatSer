@@ -1,6 +1,6 @@
 {
-  "name": "Datsar — Data Search Hub",
-  "short_name": "Datsar",
+  "name": "Datser — Data Search Hub",
+  "short_name": "Datser",
   "description": "Fast, reliable data search and attendance hub",
   "start_url": "./",
   "display": "standalone",

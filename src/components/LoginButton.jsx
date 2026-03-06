@@ -317,7 +317,7 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
             {/* Footer */}
             <div className="px-4 py-4 md:py-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
               <p className="text-xs md:text-[10px] text-gray-400 text-center">
-                Datsar v1.0 • TMH Teen Ministry
+                Datser v1.0 • TMH Teen Ministry
               </p>
             </div>
           </div>

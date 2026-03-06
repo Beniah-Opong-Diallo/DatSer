@@ -30,7 +30,8 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     selectedAttendanceDate,
     setAndSaveAttendanceDate,
     focusDateSelector,
-    isCollaborator
+    isCollaborator,
+    ownerStickyMonth
   } = useApp()
   const { selection } = useHapticFeedback()
   const [showMonthPicker, setShowMonthPicker] = useState(false)
@@ -139,6 +140,11 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     }
   }, [filteredMembers, attendanceData, sundayDates])
 
+  const hasStickyMonth = Boolean(ownerStickyMonth)
+  const isStickyMonthLive = isCollaborator && hasStickyMonth && currentTable === ownerStickyMonth
+  const isStickyMonthMismatch = isCollaborator && hasStickyMonth && currentTable !== ownerStickyMonth
+  const showLiveState = !isCollaborator || !hasStickyMonth || isStickyMonthLive
+
   // Menu items moved to LoginButton profile dropdown
 
   return (
@@ -152,7 +158,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white hover:underline"
               title="Go to Dashboard"
             >
-              Datsar
+              Datser
             </button>
           </div>
 
@@ -289,41 +295,48 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
       {currentView === 'dashboard' && (
         <div className="md:border-t border-gray-200 dark:border-gray-700">
           <div className="mx-auto px-3 sm:px-4 py-1.5 md:py-1">
-            <div className="flex items-center justify-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-[11px] leading-4 text-gray-700 dark:text-gray-300 shadow-sm w-fit mx-auto">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-4 py-1.5 rounded-full bg-gray-100/95 dark:bg-gray-700/95 text-xs sm:text-sm leading-none text-gray-700 dark:text-gray-300 shadow-sm w-fit mx-auto">
               {selectedAttendanceDate && (
                 <>
-                  <span>{selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                  <span className="text-gray-400">•</span>
+                  <span className="inline-flex items-center font-medium whitespace-nowrap">
+                    {selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                  <span className="text-gray-400/80">•</span>
                 </>
               )}
 
               {/* Only show count for admins/owners, hide for collaborators if requested */}
               {!isCollaborator && (
                 <>
-                  <span>{compactFoundCount} found</span>
-                  <span className="text-gray-400">•</span>
+                  <span className="inline-flex items-center font-medium whitespace-nowrap">{compactFoundCount} found</span>
+                  <span className="text-gray-400/80">•</span>
                 </>
               )}
 
               <button
                 ref={monthButtonRef}
                 onClick={() => { selection(); setShowMonthPicker(true) }}
-                className="flex items-center gap-0.5 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium transition-colors"
+                className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-semibold whitespace-nowrap transition-colors"
                 title={isCollaborator ? "Click to switch month" : "Select Month"}
               >
                 {currentTable ? currentTable.replace('_', ' ') : 'Select Month'}
-                <ChevronDown className="w-3 h-3" />
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
 
-              {/* Hide technical status for collaborators */}
-              {!isCollaborator && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span className={isSupabaseConfigured() ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}>
-                    {isSupabaseConfigured() ? 'Live' : 'Demo'}
-                  </span>
-                </>
-              )}
+              <span className={`inline-flex items-center gap-1.5 -ml-0.5 px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap rounded-full border ${isSupabaseConfigured()
+                ? showLiveState
+                  ? 'text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30'
+                  : 'text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30'
+                : 'text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/30'
+                }`}>
+                <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured()
+                  ? showLiveState
+                    ? 'bg-green-500 animate-pulse'
+                    : 'bg-red-500'
+                  : 'bg-yellow-500'
+                  }`} />
+                <span>{isSupabaseConfigured() ? (isStickyMonthMismatch ? 'Out of Sync' : 'Live') : 'Demo'}</span>
+              </span>
             </div>
           </div>
         </div>

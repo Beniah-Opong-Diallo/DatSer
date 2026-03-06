@@ -1296,7 +1296,7 @@ const Dashboard = ({ isAdmin = false }) => {
                 onClick={() => setSortNewestFirst(!sortNewestFirst)}
                 className={`text-[11px] sm:text-xs px-2 py-1 rounded-full flex items-center gap-1 transition-colors ${sortNewestFirst
                   ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700'
-                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700'
+                  : 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border border-sky-300 dark:border-sky-700'
                   }`}
                 title={sortNewestFirst ? 'Newest to Oldest' : 'Oldest to Newest'}
               >
@@ -1678,7 +1678,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Members List */}
-      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-8 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${searchTerm ? '' : 'transition-colors duration-200'} grid-animate`}>
+      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-10 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${searchTerm ? '' : 'transition-colors duration-200'} grid-animate`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -2766,7 +2766,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
       {/* Bottom Search Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30 safe-area-bottom">
-        <div className="mx-auto px-0 sm:px-4 py-3">
+        <div className="mx-auto px-3 sm:px-4 py-3">
           <div className="flex items-center gap-2">
             {dashboardTab === 'edited' ? (
               /* Marked tab: Search bar that only searches within Present/Absent members */

@@ -1217,7 +1217,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Appearance</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datsar looks</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datser looks</p>
             </div>
 
 
@@ -1712,9 +1712,9 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
 
     // Render main settings list (when no section is active)
     const renderMainList = () => (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="min-h-screen">
             {/* Header */}
-            <div className="fixed top-[90px] sm:top-[76px] md:top-[48px] left-0 right-0 z-50 w-full bg-gray-100/95 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm">
+            <div className="fixed top-[90px] sm:top-[76px] md:top-[48px] left-0 right-0 z-50 w-full bg-white/70 dark:bg-gray-900/55 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
                 <div className="max-w-4xl mx-auto w-full px-4 py-3 sm:py-4 flex items-center gap-3 sm:gap-4 font-[var(--font-family)]">
                     <button
                         onClick={onBack}
@@ -2175,9 +2175,9 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
         const Icon = currentSection?.icon || User
 
         return (
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen">
                 {/* Sticky Header - stays visible when scrolling */}
-                <div className="fixed top-[90px] sm:top-[76px] md:top-[48px] left-0 right-0 z-30 w-full bg-gray-100/95 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 shadow-sm">
+                <div className="fixed top-[90px] sm:top-[76px] md:top-[48px] left-0 right-0 z-30 w-full bg-white/70 dark:bg-gray-900/55 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
                     <div className="max-w-4xl mx-auto w-full px-3 sm:px-4 py-2.5 sm:py-3 font-[var(--font-family)]">
                         <div className="flex items-center gap-2 sm:gap-3">
                             <button

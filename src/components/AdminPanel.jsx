@@ -635,16 +635,16 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   // Password protection screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-3 sm:p-4">
+      <div className="min-h-screen flex items-center justify-center p-3 sm:p-4">
         <div className="w-full max-w-2xl">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-900 px-4 sm:px-6 py-6 sm:py-8 text-center">
+            <div className="bg-gradient-to-br from-orange-600 to-orange-800 dark:from-orange-700 dark:to-orange-900 px-4 sm:px-6 py-6 sm:py-8 text-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border border-white/20">
                 <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
               <h1 className="text-xl sm:text-2xl font-bold text-white">Admin Panel</h1>
-              <p className="text-slate-300 text-xs sm:text-sm mt-1">Secure Access Required</p>
+              <p className="text-orange-100 text-xs sm:text-sm mt-1">Secure Access Required</p>
             </div>
 
             {/* Form */}
@@ -660,7 +660,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   placeholder="Enter your account password"
                   className={`w-full px-4 py-3 rounded-xl border ${passwordError
                     ? 'border-red-400 focus:ring-red-400 bg-red-50 dark:bg-red-900/20'
-                    : 'border-gray-200 dark:border-gray-600 focus:ring-slate-500 bg-gray-50 dark:bg-gray-700'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-orange-500 bg-gray-50 dark:bg-gray-700'
                     } text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all`}
                   autoFocus
                   disabled={isVerifying}
@@ -682,7 +682,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                     onChange={(e) => setStayLoggedIn(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded peer-checked:border-slate-600 peer-checked:bg-slate-600 transition-all flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded peer-checked:border-orange-600 peer-checked:bg-orange-600 transition-all flex items-center justify-center">
                     {stayLoggedIn && <Check className="w-3 h-3 text-white" />}
                   </div>
                 </div>
@@ -695,7 +695,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
               <button
                 type="submit"
                 disabled={isVerifying || !passwordInput}
-                className="w-full py-3 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold rounded-xl transition-all shadow-lg disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-800 hover:from-orange-700 hover:to-orange-900 disabled:from-orange-300 disabled:to-orange-400 text-white font-semibold rounded-xl transition-all shadow-lg disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isVerifying ? (
                   <>
@@ -710,8 +710,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 )}
               </button>
 
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
-                <p className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2">
+              <div className="bg-orange-50/70 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/60 rounded-xl p-4 space-y-3">
+                <p className="text-sm text-orange-700 dark:text-orange-200 flex items-start gap-2">
                   <LogIn className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <span>One-tap Google SSO. We’ll verify your Google profile and unlock admin after the redirect.</span>
                 </p>
@@ -719,11 +719,11 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                   type="button"
                   onClick={handleGoogleAdminAccess}
                   disabled={isGoogleAuthing}
-                  className="w-full py-3 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold rounded-xl transition-all shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="w-full py-3 border border-orange-200 dark:border-orange-700 bg-white dark:bg-orange-900/30 text-orange-700 dark:text-orange-200 font-semibold rounded-xl transition-all shadow-sm hover:bg-orange-50 dark:hover:bg-orange-900/40 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isGoogleAuthing ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
                       Connecting with Google...
                     </>
                   ) : (
@@ -750,9 +750,9 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
+    <div className="min-h-screen pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 w-full bg-gray-50 dark:bg-gray-900 py-3">
+      <div className="sticky top-0 z-20 w-full py-3">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">

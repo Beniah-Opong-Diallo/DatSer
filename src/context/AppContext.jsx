@@ -3661,6 +3661,7 @@ export const AppProvider = ({ children }) => {
     hasAccess,
     isCollaborator,
     dataOwnerId,
+    ownerStickyMonth,
     ownerStickySundays,
     adminSyncNotice,
     acknowledgeAdminSync,
@@ -3683,7 +3684,7 @@ export const AppProvider = ({ children }) => {
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled,
-    hasAccess, isCollaborator, dataOwnerId, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
+    hasAccess, isCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, fetchLockedDefaultDate
   ])
 

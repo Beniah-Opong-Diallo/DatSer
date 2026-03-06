@@ -41,7 +41,7 @@
   
   <!-- App title -->
   <text x="600" y="450" text-anchor="middle" font-family="Inter, Segoe UI, Roboto, system-ui, -apple-system" font-size="64" font-weight="700" fill="#FFFFFF" filter="url(#textShadow)">
-    Datsar
+    Datser
   </text>
   
   <!-- Tagline -->
