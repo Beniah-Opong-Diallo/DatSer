@@ -7,7 +7,7 @@ import useHapticFeedback from '../hooks/useHapticFeedback'
 import { normalizeMinistry } from '../utils/dataUtils'
 
 const EditMemberModal = ({ isOpen, onClose, member }) => {
-  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, members, memberHasBadge } = useApp()
+  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, members } = useApp()
   const { selection, success } = useHapticFeedback()
 
   // Get the latest member data from the members array to ensure we have up-to-date info
@@ -99,45 +99,46 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
     'COMPLETED', 'UNIVERSITY'
   ]
 
-  // Initialize form data when member changes
+  // Initialize form data only when modal opens or target member changes
   useEffect(() => {
-    if (latestMember) {
+    if (!isOpen || !member?.id) return
+    const sourceMember = member
+    if (sourceMember) {
       // Normalize gender to lowercase to match radio button values
-      const rawGender = latestMember['Gender'] || ''
+      const rawGender = sourceMember['Gender'] || ''
       const normalizedGender = typeof rawGender === 'string' ? rawGender.toLowerCase() : ''
       setFormData({
-        full_name: (latestMember['full_name'] || latestMember['Full Name'] || ''),
-        gender: normalizedGender || (typeof latestMember.gender === 'string' ? latestMember.gender.toLowerCase() : ''),
-        phone_number: latestMember['Phone Number'] || latestMember.phone_number || '',
-        age: latestMember['Age'] || latestMember.age || '',
-        current_level: latestMember['Current Level'] || latestMember.current_level || '',
-        notes: latestMember['notes'] || '',
-        ministry: normalizeMinistry(latestMember['ministry'] ?? latestMember['Ministry']),
-        is_visitor: latestMember['is_visitor'] || false
+        full_name: (sourceMember['full_name'] || sourceMember['Full Name'] || ''),
+        gender: normalizedGender || (typeof sourceMember.gender === 'string' ? sourceMember.gender.toLowerCase() : ''),
+        phone_number: sourceMember['Phone Number'] || sourceMember.phone_number || '',
+        age: sourceMember['Age'] || sourceMember.age || '',
+        current_level: sourceMember['Current Level'] || sourceMember.current_level || '',
+        notes: sourceMember['notes'] || '',
+        ministry: normalizeMinistry(sourceMember['ministry'] ?? sourceMember['Ministry']),
+        is_visitor: sourceMember['is_visitor'] || false
       })
       const resolvedTags = badgeTags.filter(tag => {
-        if (typeof memberHasBadge === 'function') {
-          return memberHasBadge(latestMember, tag)
-        }
-        if (tag === 'member') return latestMember['Member'] === 'Yes'
-        if (tag === 'regular') return latestMember['Regular'] === 'Yes'
-        if (tag === 'newcomer') return latestMember['Newcomer'] === 'Yes'
+        if (tag === 'member') return sourceMember['Member'] === 'Yes'
+        if (tag === 'regular') return sourceMember['Regular'] === 'Yes'
+        if (tag === 'newcomer') return sourceMember['Newcomer'] === 'Yes'
         return false
       })
       setSelectedTags(resolvedTags)
       // Initialize parent info from member
       setParentInfo({
-        parent_name_1: latestMember['parent_name_1'] || '',
-        parent_phone_1: latestMember['parent_phone_1'] || '',
-        parent_name_2: latestMember['parent_name_2'] || '',
-        parent_phone_2: latestMember['parent_phone_2'] || ''
+        parent_name_1: sourceMember['parent_name_1'] || '',
+        parent_phone_1: sourceMember['parent_phone_1'] || '',
+        parent_name_2: sourceMember['parent_name_2'] || '',
+        parent_phone_2: sourceMember['parent_phone_2'] || ''
       })
       // Auto-expand parent section if parent data exists
-      if (latestMember['parent_name_1'] || latestMember['parent_phone_1']) {
+      if (sourceMember['parent_name_1'] || sourceMember['parent_phone_1']) {
         setShowParentSection(true)
+      } else {
+        setShowParentSection(false)
       }
     }
-  }, [latestMember, memberHasBadge])
+  }, [isOpen, member?.id, member])
 
   // Initialize attendance snapshot when modal opens (stable deps, no loop)
   useEffect(() => {

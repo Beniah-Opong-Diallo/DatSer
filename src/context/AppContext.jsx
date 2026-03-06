@@ -311,9 +311,9 @@ export const AppProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('user_preferences')
-        .select('admin_sticky_month, admin_sticky_sundays')
+        .select('*')
         .eq('user_id', ownerId)
-        .single()
+        .maybeSingle()
 
       if (!error && data) {
         setOwnerStickyMonth(data.admin_sticky_month || null)
@@ -699,13 +699,9 @@ export const AppProvider = ({ children }) => {
         refreshStickyDefaults()
       }
     }
-    const intervalId = setInterval(() => {
-      refreshStickyDefaults()
-    }, 5000)
     window.addEventListener('focus', refreshStickyDefaults)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
-      clearInterval(intervalId)
       window.removeEventListener('focus', refreshStickyDefaults)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
@@ -774,20 +770,25 @@ export const AppProvider = ({ children }) => {
   }, [user, isCollaborator, dataOwnerId])
 
   // Fetch members from current monthly table or use mock data
-  const fetchMembers = async (tableName = currentTable) => {
+  const fetchMembers = async (tableName = currentTable, options = {}) => {
+    const { forceRefresh = false, background = false } = options
     if (!tableName) {
       console.warn('fetchMembers called with null/undefined tableName, skipping')
       setMembers([])
       return
     }
     try {
-      setLoading(true)
+      if (!background) {
+        setLoading(true)
+      }
       appContextLog(`Fetching members from table: ${tableName} for user: ${user?.id}`)
 
       if (!isSupabaseConfigured()) {
         appContextLog('Using mock data - Supabase not configured')
         setMembers(mockMembers)
-        setLoading(false)
+        if (!background) {
+          setLoading(false)
+        }
         return
       }
 
@@ -796,9 +797,13 @@ export const AppProvider = ({ children }) => {
       appContextLog('Current session:', session ? `authenticated as ${session.user?.id}` : 'not authenticated')
       if (!session) {
         console.warn('No active session - user may need to log in again')
-        toast.error('Session expired. Please refresh and log in again.')
+        if (!background) {
+          toast.error('Session expired. Please refresh and log in again.')
+        }
         setMembers([])
-        setLoading(false)
+        if (!background) {
+          setLoading(false)
+        }
         return
       }
 
@@ -807,10 +812,12 @@ export const AppProvider = ({ children }) => {
       const cached = membersCacheRef.current.get(cacheKey)
       const now = Date.now()
       const TTL_MS = 5 * 60 * 1000 // 5 minutes
-      if (cached && (now - cached.ts) < TTL_MS) {
+      if (!forceRefresh && cached && (now - cached.ts) < TTL_MS) {
         appContextLog('Using cached members for', cacheKey)
         setMembers(cached.data)
-        setLoading(false)
+        if (!background) {
+          setLoading(false)
+        }
         return
       }
 
@@ -852,7 +859,9 @@ export const AppProvider = ({ children }) => {
           return
         }
 
-        toast.error(`Database error: ${error.message}`, { autoClose: 10000 })
+        if (!background) {
+          toast.error(`Database error: ${error.message}`, { autoClose: 10000 })
+        }
         console.warn('Fetch members failed; preserving current member list.')
       } else {
         // Filter out records with null name, then normalize both name keys
@@ -875,7 +884,9 @@ export const AppProvider = ({ children }) => {
       appContextLog(`Setting mock members (${mockMembers.length} members) due to error`)
       setMembers(mockMembers) // Fallback to mock data
     } finally {
-      setLoading(false)
+      if (!background) {
+        setLoading(false)
+      }
     }
   }
 
@@ -951,7 +962,7 @@ export const AppProvider = ({ children }) => {
       logActivity('ADD_MEMBER', `Added new member: ${memberData.full_name || memberData.fullName || memberData['Full Name']}`)
 
       // Return the created member row directly
-      return data[0]
+      return members.find(m => m.id === id)
     } catch (error) {
       console.error('Error adding member:', error)
       toast.error('Failed to add member')
@@ -2085,17 +2096,16 @@ export const AppProvider = ({ children }) => {
 
       const optimisticPatch = { ...updates, ...normalized }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from(currentTable)
         .update(normalized)
         .eq('id', id)
-        .select()
 
       if (error) throw error
 
-      // Update members state with the returned data
+      // Update members state with optimistic patch
       setMembers(prev => {
-        const updatedRow = data?.[0] || {}
+        const updatedRow = {}
         const updatedName = (
           typeof updatedRow['full_name'] === 'string' && updatedRow['full_name'].trim()
         ) ? updatedRow['full_name']
@@ -2141,7 +2151,7 @@ export const AppProvider = ({ children }) => {
       const cacheKey = currentTable || 'default'
       membersCacheRef.current.delete(cacheKey)
       try {
-        await fetchMembers(currentTable)
+        await fetchMembers(currentTable, { forceRefresh: true })
       } catch (refreshErr) {
         console.warn('[updateMember] Post-update refresh failed, using optimistic state:', refreshErr)
       }
@@ -2152,7 +2162,7 @@ export const AppProvider = ({ children }) => {
       const memberName = members.find(m => m.id === id)?.['full_name'] || members.find(m => m.id === id)?.['Full Name'] || 'Unknown'
       logActivity('UPDATE_MEMBER', `Updated member: ${memberName}`)
 
-      return data[0]
+      return members.find(m => m.id === id)
     } catch (error) {
       console.error('Error updating member:', error)
       if (allowLocalFallback) {
