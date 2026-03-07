@@ -42,10 +42,7 @@ const DEFAULT_COLLAB_TABLE = 'January_2026'
 const COLLAB_FALLBACK_TABLES = [DEFAULT_COLLAB_TABLE]
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
-const DEFAULT_ATTENDANCE_DATES = {
-  'November_2025': '2025-11-23',
-  'January_2026': '2026-01-11'
-}
+
 const shouldLogAppContext = import.meta.env.MODE !== 'test'
 const appContextLog = (...args) => {
   if (shouldLogAppContext) {
@@ -59,6 +56,78 @@ const getLocalDateString = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+const toLocalStartOfDay = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+const parseMonthTable = (tableName) => {
+  if (!tableName || typeof tableName !== 'string') return null
+  const [monthName, yearStr] = tableName.split('_')
+  const monthIndex = MONTHS_IN_YEAR.indexOf(monthName)
+  const yearNum = parseInt(yearStr, 10)
+  if (monthIndex < 0 || Number.isNaN(yearNum)) return null
+  return { monthName, monthIndex, yearNum }
+}
+
+const getSundaysForMonth = (monthIndex, yearNum) => {
+  const sundays = []
+  const date = new Date(yearNum, monthIndex, 1)
+  while (date.getMonth() === monthIndex && date.getDay() !== 0) {
+    date.setDate(date.getDate() + 1)
+  }
+  while (date.getMonth() === monthIndex) {
+    sundays.push(new Date(date.getFullYear(), date.getMonth(), date.getDate()))
+    date.setDate(date.getDate() + 7)
+  }
+  return sundays
+}
+
+const getSundayDefaultForTable = (tableName, referenceDate = new Date()) => {
+  const parsed = parseMonthTable(tableName)
+  const referenceDay = toLocalStartOfDay(referenceDate)
+  if (!parsed || !referenceDay) return null
+
+  const sundays = getSundaysForMonth(parsed.monthIndex, parsed.yearNum)
+  if (sundays.length === 0) return null
+
+  const isReferenceInTableMonth =
+    referenceDay.getFullYear() === parsed.yearNum &&
+    referenceDay.getMonth() === parsed.monthIndex
+
+  if (isReferenceInTableMonth) {
+    const sundaysUpToReference = sundays.filter((sunday) => sunday.getTime() <= referenceDay.getTime())
+    return sundaysUpToReference.length > 0
+      ? sundaysUpToReference[sundaysUpToReference.length - 1]
+      : sundays[0]
+  }
+
+  if (referenceDay.getTime() < sundays[0].getTime()) return sundays[0]
+  if (referenceDay.getTime() > sundays[sundays.length - 1].getTime()) return sundays[sundays.length - 1]
+
+  const sundaysUpToReference = sundays.filter((sunday) => sunday.getTime() <= referenceDay.getTime())
+  return sundaysUpToReference.length > 0 ? sundaysUpToReference[sundaysUpToReference.length - 1] : sundays[0]
+}
+
+const normalizeDateToSundayForTable = (date, tableName) => {
+  const parsed = parseMonthTable(tableName)
+  const normalizedDate = toLocalStartOfDay(date)
+  const fallbackSunday = getSundayDefaultForTable(tableName, new Date())
+
+  if (!parsed) return normalizedDate || fallbackSunday
+  if (!normalizedDate) return fallbackSunday
+
+  const isInTableMonth =
+    normalizedDate.getFullYear() === parsed.yearNum &&
+    normalizedDate.getMonth() === parsed.monthIndex
+
+  if (isInTableMonth && normalizedDate.getDay() === 0) {
+    return normalizedDate
+  }
+
+  return getSundayDefaultForTable(tableName, normalizedDate) || fallbackSunday
 }
 
 const normalizeMemberRecord = (member) => {
@@ -149,6 +218,7 @@ export const AppProvider = ({ children }) => {
   const adminRealtimeChannelRef = useRef(null)
   const adminRealtimeStatusRef = useRef('CLOSED')
   const pendingAdminBroadcastRef = useRef(null)
+  const liveCalendarBroadcastRef = useRef({ table: null, date: null })
 
   // Load saved month from user preferences on app startup
   useEffect(() => {
@@ -213,7 +283,7 @@ export const AppProvider = ({ children }) => {
     return localStorage.getItem('autoAllDatesEnabled') === 'true'
   })
 
-  // Admin-locked default date — forces collaborators to a specific date
+  // Admin-locked default date ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â forces collaborators to a specific date
   const [lockedDefaultDate, setLockedDefaultDate] = useState(null)
   const suppressDateBroadcastRef = useRef(false)
 
@@ -248,7 +318,10 @@ export const AppProvider = ({ children }) => {
       try {
         const [year, month, day] = dateStr.split('-')
         const newDate = new Date(year, parseInt(month) - 1, parseInt(day))
-        setSelectedAttendanceDate(newDate)
+        const normalizedDate = normalizeDateToSundayForTable(newDate, currentTable)
+        if (normalizedDate) {
+          setSelectedAttendanceDate(normalizedDate)
+        }
       } catch (e) {
         console.error('Error parsing locked date:', e)
       }
@@ -274,7 +347,7 @@ export const AppProvider = ({ children }) => {
       setLockedDefaultDate(previousDateStr)
       return false
     }
-  }, [user?.id, isCollaborator, lockedDefaultDate])
+  }, [user?.id, isCollaborator, lockedDefaultDate, currentTable])
 
   const getMonthStorageKey = useCallback(() => {
     if (isCollaborator && dataOwnerId) {
@@ -320,25 +393,33 @@ export const AppProvider = ({ children }) => {
   const fetchOwnerStickyDefaults = useCallback(async (ownerId) => {
     if (!isSupabaseConfigured() || !ownerId) return null
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from('user_preferences')
         .select('*')
         .eq('user_id', ownerId)
-        .maybeSingle()
+
+      const { data, error } = await (
+        typeof query.maybeSingle === 'function'
+          ? query.maybeSingle()
+          : query.single()
+      )
 
       if (!error && data) {
         setOwnerStickyMonth(data.admin_sticky_month || null)
         setOwnerStickySundays(Array.isArray(data.admin_sticky_sundays) ? data.admin_sticky_sundays : [])
+        setLockedDefaultDate(data.locked_default_date || null)
         return data
       }
 
       setOwnerStickyMonth(null)
       setOwnerStickySundays([])
+      setLockedDefaultDate(null)
       return null
     } catch (err) {
       console.error('Error fetching owner sticky defaults:', err)
       setOwnerStickyMonth(null)
       setOwnerStickySundays([])
+      setLockedDefaultDate(null)
       return null
     }
   }, [isSupabaseConfigured])
@@ -369,17 +450,25 @@ export const AppProvider = ({ children }) => {
 
   const applyAdminTargetForCollaborator = useCallback((targetTable, targetDateKey) => {
     if (!isCollaborator) return
+
+    const effectiveTable = targetTable || currentTable
     if (targetTable && targetTable !== currentTable) {
       changeCurrentTable(targetTable)
     }
+
     if (!targetDateKey) return
-    const currentDateKey = selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null
-    if (currentDateKey === targetDateKey) return
     const [y, m, d] = targetDateKey.split('-').map(Number)
     if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return
-    const dateObj = new Date(y, m - 1, d)
-    setSelectedAttendanceDate(dateObj)
-    localStorage.setItem(`selectedAttendanceDate_${targetTable || currentTable}`, dateObj.toISOString())
+
+    const normalizedDate = normalizeDateToSundayForTable(new Date(y, m - 1, d), effectiveTable)
+    if (!normalizedDate) return
+
+    const currentDateKey = selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null
+    const normalizedDateKey = getLocalDateString(normalizedDate)
+    if (currentDateKey === normalizedDateKey) return
+
+    setSelectedAttendanceDate(normalizedDate)
+    localStorage.setItem(`selectedAttendanceDate_${effectiveTable}`, normalizedDate.toISOString())
   }, [isCollaborator, currentTable, changeCurrentTable, selectedAttendanceDate])
 
   const updateAdminSyncNotice = useCallback((stickyMonth, stickySundays) => {
@@ -471,6 +560,7 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     if (isCollaborator || !isSupabaseConfigured() || !user?.id || !currentTable) return
+    if (!lockedDefaultDate) return
     if (adminBroadcastRef.current.month === currentTable) return
 
     const [monthName, yearStr] = currentTable.split('_')
@@ -498,14 +588,20 @@ export const AppProvider = ({ children }) => {
         console.error('Error broadcasting admin month change:', err)
       }
     })()
-  }, [isCollaborator, isSupabaseConfigured, user?.id, currentTable, sendAdminPeriodBroadcast])
+  }, [isCollaborator, isSupabaseConfigured, user?.id, currentTable, lockedDefaultDate, sendAdminPeriodBroadcast])
 
   useEffect(() => {
     if (isCollaborator || !isSupabaseConfigured() || !user?.id || !selectedAttendanceDate) return
+    if (!lockedDefaultDate) return
     if (suppressDateBroadcastRef.current) return
+    if (selectedAttendanceDate.getDay() !== 0) return
 
     const dateStr = getLocalDateString(selectedAttendanceDate)
-    if (!dateStr || adminBroadcastRef.current.date === dateStr) return
+    if (!dateStr) return
+    if (lockedDefaultDate !== dateStr) {
+      setLockedDefaultDate(dateStr)
+    }
+    if (adminBroadcastRef.current.date === dateStr) return
 
     adminBroadcastRef.current.date = dateStr
     ;(async () => {
@@ -519,12 +615,19 @@ export const AppProvider = ({ children }) => {
             const [y, m] = savedDate.split('-').map(Number)
             return y !== currentYear || m !== currentMonthIndex
           })
-        ]
+        ].filter((savedDate) => {
+          const [y, m, d] = savedDate.split('-').map(Number)
+          const dateObj = new Date(y, m - 1, d)
+          return !Number.isNaN(dateObj.getTime()) && dateObj.getDay() === 0
+        })
         await supabase
           .from('user_preferences')
           .upsert({
             user_id: user.id,
+            admin_sticky_month: currentTable,
+            admin_sticky_year: currentYear,
             admin_sticky_sundays: nextStickySundays,
+            locked_default_date: dateStr,
             updated_at: new Date().toISOString()
           }, {
             onConflict: 'user_id'
@@ -537,7 +640,7 @@ export const AppProvider = ({ children }) => {
         console.error('Error broadcasting admin date change:', err)
       }
     })()
-  }, [isCollaborator, isSupabaseConfigured, user?.id, selectedAttendanceDate, currentTable, ownerStickySundays, sendAdminPeriodBroadcast])
+  }, [isCollaborator, isSupabaseConfigured, user?.id, selectedAttendanceDate, currentTable, ownerStickySundays, lockedDefaultDate, sendAdminPeriodBroadcast])
 
   // Check if current user is a collaborator and get the owner's ID
   const checkCollaboratorStatus = async () => {
@@ -618,7 +721,7 @@ export const AppProvider = ({ children }) => {
 
         if (!isRealOwner) {
           // Random user with no data and not a collaborator - DENY ACCESS
-          appContextLog('❌ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
+          appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
           setIsCollaborator(false)
           setDataOwnerId(null)
           setOwnerEmail(null)
@@ -626,7 +729,7 @@ export const AppProvider = ({ children }) => {
           return null
         }
 
-        appContextLog('✅ User is a verified owner')
+        appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ User is a verified owner')
         setIsCollaborator(false)
         setDataOwnerId(user.id)
         setOwnerEmail(null)
@@ -638,7 +741,7 @@ export const AppProvider = ({ children }) => {
       }
 
       // User is a collaborator - they should see the owner's data
-      appContextLog('✅ User IS a collaborator!')
+      appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ User IS a collaborator!')
       appContextLog('Owner ID:', data.owner_id)
       appContextLog('Status:', data.status)
       setIsCollaborator(true)
@@ -736,8 +839,10 @@ export const AppProvider = ({ children }) => {
           const nextStickySundays = Array.isArray(payload?.new?.admin_sticky_sundays)
             ? payload.new.admin_sticky_sundays
             : []
+          const nextLockedDate = payload?.new?.locked_default_date || null
           setOwnerStickyMonth(nextStickyMonth)
           setOwnerStickySundays(nextStickySundays)
+          setLockedDefaultDate(nextLockedDate)
           updateAdminSyncNotice(nextStickyMonth, nextStickySundays)
         }
       )
@@ -1056,32 +1161,15 @@ export const AppProvider = ({ children }) => {
   }
 
   // Helper function to get all Sundays in a month
-  const getSundaysInMonth = (monthName, year) => {
-    const monthIndex = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ].indexOf(monthName)
+  const getSundaysInMonth = useCallback((monthName, year) => {
+    const monthIndex = MONTHS_IN_YEAR.indexOf(monthName)
 
     if (monthIndex === -1) {
       throw new Error(`Invalid month name: ${monthName}`)
     }
 
-    const sundays = []
-    const date = new Date(year, monthIndex, 1)
-
-    // Find the first Sunday of the month
-    while (date.getDay() !== 0) {
-      date.setDate(date.getDate() + 1)
-    }
-
-    // Collect all Sundays in the month
-    while (date.getMonth() === monthIndex) {
-      sundays.push(new Date(date))
-      date.setDate(date.getDate() + 7)
-    }
-
-    return sundays
-  }
+    return getSundaysForMonth(monthIndex, year)
+  }, [])
 
   // Get available Sunday dates for the current table
   // Shows ALL Sundays in the selected month so users can mark attendance for any Sunday
@@ -1110,6 +1198,7 @@ export const AppProvider = ({ children }) => {
             const [y, m, d] = dateStr.split('-').map(Number)
             return new Date(y, m - 1, d)
           })
+          .filter((dateObj) => dateObj.getDay() === 0)
           .sort((a, b) => a.getTime() - b.getTime())
         if (stickyForMonth.length > 0) {
           return stickyForMonth
@@ -1130,55 +1219,34 @@ export const AppProvider = ({ children }) => {
 
     if (sundays.length > 0) {
       suppressDateBroadcastRef.current = true
-      if (isCollaborator) {
-        setAndSaveAttendanceDate(sundays[0])
+
+      // Sunday-only mode: default to the active Sunday for this month.
+      const autoSunday = getSundayDefaultForTable(currentTable, new Date())
+      if (autoSunday) {
+        setAndSaveAttendanceDate(autoSunday)
         setTimeout(() => { suppressDateBroadcastRef.current = false }, 300)
         return
       }
 
-      // Check if there's a configured default date for this month
-      const configured = DEFAULT_ATTENDANCE_DATES[currentTable]
-      if (configured) {
-        const cfgDate = new Date(configured)
-        const defaultDate = sundays.find(sunday => (
-          sunday.getFullYear() === cfgDate.getFullYear() &&
-          sunday.getMonth() === cfgDate.getMonth() &&
-          sunday.getDate() === cfgDate.getDate()
-        ))
-        if (defaultDate) {
-          setAndSaveAttendanceDate(defaultDate)
-          setTimeout(() => { suppressDateBroadcastRef.current = false }, 300)
-          return
-        }
-      }
-
-      // Try to restore user's last selected date from localStorage
+      // Fallback to a stored Sunday only if it still exists in this month.
       const savedDateKey = `selectedAttendanceDate_${currentTable}`
       const savedDate = localStorage.getItem(savedDateKey)
-
       if (savedDate) {
-        // Check if the saved date is still available in current month
         const savedDateTime = new Date(savedDate)
-        const matchingDate = sundays.find(sunday => {
-          // Compare dates by year, month, and day (ignore time differences)
-          return sunday.getFullYear() === savedDateTime.getFullYear() &&
-            sunday.getMonth() === savedDateTime.getMonth() &&
-            sunday.getDate() === savedDateTime.getDate()
-        })
+        const matchingDate = sundays.find(sunday => (
+          sunday.getFullYear() === savedDateTime.getFullYear() &&
+          sunday.getMonth() === savedDateTime.getMonth() &&
+          sunday.getDate() === savedDateTime.getDate()
+        ))
 
         if (matchingDate) {
-          setSelectedAttendanceDate(matchingDate)
+          setAndSaveAttendanceDate(matchingDate)
           setTimeout(() => { suppressDateBroadcastRef.current = false }, 300)
           return
         }
       }
 
-      const twentyThird = sundays.find(sunday => sunday.getDate() === 23) || null
-      const thirtieth = sundays.find(sunday => sunday.getDate() === 30) || null
-
-      // Prefer 30th if available, then 23rd, then second Sunday, then first
-      const defaultDate = thirtieth || twentyThird || (sundays.length >= 2 ? sundays[1] : sundays[0])
-      setAndSaveAttendanceDate(defaultDate)
+      setAndSaveAttendanceDate(sundays[0])
       setTimeout(() => { suppressDateBroadcastRef.current = false }, 300)
     }
   }
@@ -1518,9 +1586,14 @@ export const AppProvider = ({ children }) => {
   // Mark attendance for a member in monthly table
   const markAttendance = async (memberId, date, present) => {
     try {
+      const effectiveDate = normalizeDateToSundayForTable(date, currentTable)
+      if (!effectiveDate) {
+        return { success: false, error: 'No valid Sunday found for this month' }
+      }
+
       if (!isSupabaseConfigured()) {
         // Demo mode - update local state
-        const dateKey = getLocalDateString(date)
+        const dateKey = getLocalDateString(effectiveDate)
         setAttendanceData(prev => ({
           ...prev,
           [dateKey]: {
@@ -1528,19 +1601,19 @@ export const AppProvider = ({ children }) => {
             [memberId]: present
           }
         }))
-        toast.success(`Attendance marked! (Demo Mode)`)
+        toast.success('Attendance marked! (Demo Mode)')
         return { success: true }
       }
 
-      let attendanceColumn = await findAttendanceColumnForDate(date)
+      let attendanceColumn = await findAttendanceColumnForDate(effectiveDate)
 
       // If column doesn't exist, create it
       if (!attendanceColumn) {
-        console.log(`Attendance column not found for date, creating it...`)
-        const result = await createAttendanceColumn(date)
+        console.log('Attendance column not found for date, creating it...')
+        const result = await createAttendanceColumn(effectiveDate)
 
         if (!result.success) {
-          toast.error(`Failed to create attendance column for this date`)
+          toast.error('Failed to create attendance column for this date')
           return { success: false, error: 'Failed to create column' }
         }
 
@@ -1566,10 +1639,9 @@ export const AppProvider = ({ children }) => {
       ))
 
       // Update local state for attendanceData (for real-time UI updates)
-      // Use local date format to avoid timezone issues
-      const year = date.getFullYear()
-      const month = String(date.getMonth() + 1).padStart(2, '0')
-      const day = String(date.getDate()).padStart(2, '0')
+      const year = effectiveDate.getFullYear()
+      const month = String(effectiveDate.getMonth() + 1).padStart(2, '0')
+      const day = String(effectiveDate.getDate()).padStart(2, '0')
       const dateKey = `${year}-${month}-${day}`
       setAttendanceData(prev => ({
         ...prev,
@@ -1587,7 +1659,7 @@ export const AppProvider = ({ children }) => {
       // Log the attendance action
       const memberName = members.find(m => m.id === memberId)?.['full_name'] || members.find(m => m.id === memberId)?.['Full Name'] || 'Unknown'
       const attendanceStatus = present === null ? 'Cleared' : present ? 'Present' : 'Absent'
-      logActivity('MARK_ATTENDANCE', `Marked ${memberName} as ${attendanceStatus} on ${date.toLocaleDateString()}`)
+      logActivity('MARK_ATTENDANCE', `Marked ${memberName} as ${attendanceStatus} on ${effectiveDate.toLocaleDateString()}`)
 
       return { success: true }
     } catch (error) {
@@ -1682,7 +1754,7 @@ export const AppProvider = ({ children }) => {
       }
 
       if (badgesAssigned > 0) {
-        toast.success(`🎉 End of month: ${badgesAssigned} member${badgesAssigned > 1 ? 's' : ''} earned Regular Member badge!`)
+        toast.success(`ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â° End of month: ${badgesAssigned} member${badgesAssigned > 1 ? 's' : ''} earned Regular Member badge!`)
       }
       processedEndOfMonthRef.current.add(currentTable)
     } catch (error) {
@@ -1693,9 +1765,14 @@ export const AppProvider = ({ children }) => {
   // Bulk attendance marking for monthly table
   const bulkAttendance = async (memberIds, date, present) => {
     try {
+      const effectiveDate = normalizeDateToSundayForTable(date, currentTable)
+      if (!effectiveDate) {
+        return { success: false, error: 'No valid Sunday found for this month' }
+      }
+
       if (!isSupabaseConfigured()) {
         // Demo mode - update local state
-        const dateKey = getLocalDateString(date)
+        const dateKey = getLocalDateString(effectiveDate)
         const updates = {}
         memberIds.forEach(id => {
           updates[id] = present
@@ -1707,11 +1784,11 @@ export const AppProvider = ({ children }) => {
             ...updates
           }
         }))
-        toast.success(`Bulk attendance marked! (Demo Mode)`)
+        toast.success('Bulk attendance marked! (Demo Mode)')
         return { success: true }
       }
 
-      const attendanceColumn = await findAttendanceColumnForDate(date)
+      const attendanceColumn = await findAttendanceColumnForDate(effectiveDate)
 
       if (!attendanceColumn) {
         toast.error(`No attendance column found for this date in ${currentTable}`)
@@ -1744,7 +1821,7 @@ export const AppProvider = ({ children }) => {
       ))
 
       // Update local state for attendanceData (for real-time UI updates)
-      const dateKey = getLocalDateString(date)
+      const dateKey = getLocalDateString(effectiveDate)
       const updates = {}
       memberIds.forEach(id => {
         updates[id] = present
@@ -2287,7 +2364,7 @@ export const AppProvider = ({ children }) => {
 
       console.log(`[DELETE] VERIFIED - member ${memberId} successfully removed from ${currentTable}`)
 
-      // Confirmed deleted — now update local state
+      // Confirmed deleted ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â now update local state
       setMembers(prevMembers => {
         const updated = prevMembers.filter(member => member.id !== memberId)
         console.log(`[DELETE] Members state updated: ${prevMembers.length} -> ${updated.length}`)
@@ -2569,7 +2646,7 @@ export const AppProvider = ({ children }) => {
 
   const handleMissingTable = useCallback(async (tableName) => {
     if (!tableName) return
-    console.warn(`Table ${tableName} missing in Supabase – syncing local state`)
+    console.warn(`Table ${tableName} missing in Supabase ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ syncing local state`)
 
     if (isSupabaseConfigured() && user?.id) {
       try {
@@ -3112,12 +3189,280 @@ export const AppProvider = ({ children }) => {
   }, [attendanceData])
 
   // Wrapper function to set attendance date and save to localStorage
-  const setAndSaveAttendanceDate = useCallback((date) => {
-    setSelectedAttendanceDate(date)
-    // Save to localStorage with current table as key
-    const savedDateKey = `selectedAttendanceDate_${currentTable}`
-    localStorage.setItem(savedDateKey, date.toISOString())
+  const setAndSaveAttendanceDate = useCallback((date, tableName = currentTable) => {
+    const effectiveTable = tableName || currentTable
+    const normalizedDate = normalizeDateToSundayForTable(date, effectiveTable)
+    if (!normalizedDate) return
+
+    setSelectedAttendanceDate(normalizedDate)
+    const savedDateKey = `selectedAttendanceDate_${effectiveTable}`
+    localStorage.setItem(savedDateKey, normalizedDate.toISOString())
   }, [currentTable])
+
+  const syncCalendarToToday = useCallback(async ({ forceAuto = false } = {}) => {
+    if (import.meta.env.MODE === 'test') return
+    if (!currentTable || authLoading) return
+
+    const now = new Date()
+    const currentDateKey = selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null
+
+    // Admin override mode: keep the manually locked date/month for everyone.
+    if (!forceAuto && !isCollaborator && lockedDefaultDate) {
+      const [y, m, d] = lockedDefaultDate.split('-').map(Number)
+      const lockedDate = new Date(y, m - 1, d)
+      const activeLockedSunday = normalizeDateToSundayForTable(lockedDate, currentTable)
+      if (!activeLockedSunday) return
+
+      const lockedDateKey = getLocalDateString(activeLockedSunday)
+      if (currentDateKey !== lockedDateKey) {
+        setAndSaveAttendanceDate(activeLockedSunday, currentTable)
+      }
+
+      if (user?.id && isSupabaseConfigured()) {
+        const shouldPersist =
+          liveCalendarBroadcastRef.current.table !== currentTable ||
+          liveCalendarBroadcastRef.current.date !== lockedDateKey
+
+        if (!shouldPersist) return
+
+        try {
+          const [, yearStr] = currentTable.split('_')
+          await supabase
+            .from('user_preferences')
+            .upsert({
+              user_id: user.id,
+              admin_sticky_month: currentTable,
+              admin_sticky_year: parseInt(yearStr, 10) || now.getFullYear(),
+              admin_sticky_sundays: [lockedDateKey],
+              locked_default_date: lockedDateKey,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            })
+
+          sendAdminPeriodBroadcast({
+            targetTable: currentTable,
+            targetDate: lockedDateKey
+          })
+        } catch (err) {
+          console.error('Error syncing override calendar defaults:', err)
+        }
+
+        liveCalendarBroadcastRef.current = { table: currentTable, date: lockedDateKey }
+      }
+      return
+    }
+
+    const todayTable = `${MONTHS_IN_YEAR[now.getMonth()]}_${now.getFullYear()}`
+    const monthExists = monthlyTables.includes(todayTable)
+    if (!monthExists) return
+
+    const nextTable = todayTable
+    const activeSunday = getSundayDefaultForTable(nextTable, now)
+    if (!activeSunday) return
+
+    const activeSundayKey = getLocalDateString(activeSunday)
+
+    if (currentTable !== nextTable) {
+      changeCurrentTable(nextTable)
+    }
+
+    if (currentDateKey !== activeSundayKey) {
+      setAndSaveAttendanceDate(activeSunday, nextTable)
+    }
+
+    // Owner updates shared "live" Sunday so collaborators stay in sync.
+    if (!isCollaborator && user?.id && isSupabaseConfigured()) {
+      const shouldPersist =
+        liveCalendarBroadcastRef.current.table !== nextTable ||
+        liveCalendarBroadcastRef.current.date !== activeSundayKey
+
+      if (!shouldPersist) return
+
+      try {
+        await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            admin_sticky_month: nextTable,
+            admin_sticky_year: now.getFullYear(),
+            admin_sticky_sundays: [activeSundayKey],
+            locked_default_date: null,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+
+        sendAdminPeriodBroadcast({
+          targetTable: nextTable,
+          targetDate: activeSundayKey
+        })
+      } catch (err) {
+        console.error('Error syncing live calendar defaults:', err)
+      }
+
+      liveCalendarBroadcastRef.current = { table: nextTable, date: activeSundayKey }
+    }
+  }, [
+    authLoading,
+    currentTable,
+    selectedAttendanceDate,
+    lockedDefaultDate,
+    monthlyTables,
+    changeCurrentTable,
+    setAndSaveAttendanceDate,
+    isCollaborator,
+    user?.id,
+    isSupabaseConfigured,
+    sendAdminPeriodBroadcast
+  ])
+
+
+  const setCollaboratorOverride = useCallback(async ({ enabled, tableName = currentTable, date = selectedAttendanceDate } = {}) => {
+    if (isCollaborator || !isSupabaseConfigured() || !user?.id) return false
+
+    const targetTable = tableName || currentTable
+    if (!targetTable) return false
+
+    if (!enabled) {
+      const previousDate = lockedDefaultDate
+      setLockedDefaultDate(null)
+
+      try {
+        const { error } = await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: user.id,
+            locked_default_date: null,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
+
+        if (error) throw error
+
+        liveCalendarBroadcastRef.current = { table: null, date: null }
+        await syncCalendarToToday({ forceAuto: true })
+        return true
+      } catch (err) {
+        console.error('Error disabling collaborator override:', err)
+        setLockedDefaultDate(previousDate)
+        return false
+      }
+    }
+
+    const normalizedDate = normalizeDateToSundayForTable(date || new Date(), targetTable)
+    if (!normalizedDate) return false
+
+    const dateKey = getLocalDateString(normalizedDate)
+    const [, yearStr] = targetTable.split('_')
+    const yearNum = parseInt(yearStr, 10) || normalizedDate.getFullYear()
+
+    const previousDate = lockedDefaultDate
+    setLockedDefaultDate(dateKey)
+    changeCurrentTable(targetTable)
+    setAndSaveAttendanceDate(normalizedDate, targetTable)
+
+    try {
+      const { error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          user_id: user.id,
+          admin_sticky_month: targetTable,
+          admin_sticky_year: yearNum,
+          admin_sticky_sundays: [dateKey],
+          locked_default_date: dateKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        })
+
+      if (error) throw error
+
+      sendAdminPeriodBroadcast({
+        targetTable,
+        targetDate: dateKey
+      })
+
+      liveCalendarBroadcastRef.current = { table: targetTable, date: dateKey }
+      return true
+    } catch (err) {
+      console.error('Error enabling collaborator override:', err)
+      setLockedDefaultDate(previousDate)
+      return false
+    }
+  }, [
+    currentTable,
+    selectedAttendanceDate,
+    lockedDefaultDate,
+    isCollaborator,
+    isSupabaseConfigured,
+    user?.id,
+    changeCurrentTable,
+    setAndSaveAttendanceDate,
+    sendAdminPeriodBroadcast,
+    syncCalendarToToday
+  ])
+
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return
+    if (isCollaborator || !lockedDefaultDate) return
+
+    const [yearNum, monthNum, dayNum] = lockedDefaultDate.split('-').map(Number)
+    if (Number.isNaN(yearNum) || Number.isNaN(monthNum) || Number.isNaN(dayNum)) return
+
+    const overrideEnd = new Date(yearNum, monthNum - 1, dayNum + 1)
+    const noticeKey = `override_notice_${lockedDefaultDate}`
+
+    const checkOverrideWindow = async () => {
+      const now = new Date()
+      if (now.getTime() >= overrideEnd.getTime()) {
+        const ok = await setCollaboratorOverride({ enabled: false })
+        if (ok) {
+          toast.info('Override ended. Auto mode is active again.')
+        }
+        return
+      }
+
+      const todayKey = getLocalDateString(now)
+      if (todayKey !== lockedDefaultDate) {
+        localStorage.removeItem(noticeKey)
+        return
+      }
+
+      if (localStorage.getItem(noticeKey) === 'true') return
+
+      const hoursLeft = Math.max(1, Math.ceil((overrideEnd.getTime() - now.getTime()) / (60 * 60 * 1000)))
+      toast.info(`Override is active for today and will turn off in about ${hoursLeft} hour${hoursLeft === 1 ? '' : 's'}.`)
+      localStorage.setItem(noticeKey, 'true')
+    }
+
+    checkOverrideWindow().catch((err) => {
+      console.error('Error checking override window:', err)
+    })
+
+    const intervalId = setInterval(() => {
+      checkOverrideWindow().catch((err) => {
+        console.error('Error checking override window:', err)
+      })
+    }, 30 * 60 * 1000)
+
+    return () => clearInterval(intervalId)
+  }, [isCollaborator, lockedDefaultDate, setCollaboratorOverride])
+
+  // Auto-sync month/date with the real calendar for all signed-in users.
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return
+    const run = () => {
+      syncCalendarToToday().catch((err) => {
+        console.error('Live calendar sync failed:', err)
+      })
+    }
+
+    run()
+    const intervalId = setInterval(run, 30000)
+    return () => clearInterval(intervalId)
+  }, [syncCalendarToToday])
 
   const acknowledgeAdminSync = useCallback(async () => {
     if (!adminSyncNotice) return
@@ -3128,9 +3473,12 @@ export const AppProvider = ({ children }) => {
       const [y, m, d] = targetDate.split('-').map(Number)
       if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return
       const dateObj = new Date(y, m - 1, d)
-      setAndSaveAttendanceDate(dateObj)
-      const attendanceMap = await fetchAttendanceForDate(dateObj)
-      const dateKey = getLocalDateString(dateObj)
+      const normalizedDate = normalizeDateToSundayForTable(dateObj, targetTable || currentTable)
+      if (!normalizedDate) return
+
+      setAndSaveAttendanceDate(normalizedDate, targetTable || currentTable)
+      const attendanceMap = await fetchAttendanceForDate(normalizedDate)
+      const dateKey = getLocalDateString(normalizedDate)
       setAttendanceData(prev => ({
         ...prev,
         [dateKey]: attendanceMap
@@ -3188,7 +3536,7 @@ export const AppProvider = ({ children }) => {
       if (currentTable && monthlyTables.includes(currentTable)) {
         return
       }
-      // Current table is invalid — try localStorage, then DEFAULT_TABLE, then latest
+      // Current table is invalid ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â try localStorage, then DEFAULT_TABLE, then latest
       const saved = localStorage.getItem('selectedMonthTable')
       // Only override if we have real data from Supabase (not just fallback)
       // If saved month exists and we're still on fallback, wait for real data to load
@@ -3667,6 +4015,7 @@ export const AppProvider = ({ children }) => {
     acknowledgeAdminSync,
     lockedDefaultDate,
     saveLockedDefaultDate,
+    setCollaboratorOverride,
     fetchLockedDefaultDate
   }), [
     members, filteredMembers, loading, searchTerm, serverSearchResults,
@@ -3685,7 +4034,7 @@ export const AppProvider = ({ children }) => {
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled,
     hasAccess, isCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
-    lockedDefaultDate, saveLockedDefaultDate, fetchLockedDefaultDate
+    lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate
   ])
 
   return (
@@ -3694,3 +4043,6 @@ export const AppProvider = ({ children }) => {
     </AppContext.Provider>
   )
 }
+
+
+

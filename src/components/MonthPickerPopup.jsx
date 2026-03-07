@@ -69,6 +69,11 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth }) => {
                     const [y, m] = dateStr.split('-').map(Number)
                     return y === yearNum && m === (new Date(`${monthName} 1, ${yearNum}`)).getMonth() + 1
                 })
+                .filter((dateStr) => {
+                    const [y, m, d] = dateStr.split('-').map(Number)
+                    const dateObj = new Date(y, m - 1, d)
+                    return !Number.isNaN(dateObj.getTime()) && dateObj.getDay() === 0
+                })
                 .sort()
             : []
         if (stickyInMonth.length > 0) return stickyInMonth

@@ -22,7 +22,7 @@ const MONTHS = [
 
 const AdminControlsModal = ({ isOpen, onClose }) => {
     const { user } = useAuth()
-    const { monthlyTables, isSupabaseConfigured, setCurrentTable, setSelectedAttendanceDate } = useApp()
+    const { monthlyTables, isSupabaseConfigured, setCurrentTable, setAndSaveAttendanceDate } = useApp()
 
     const [loading, setLoading] = useState(false)
     const [stickyMonth, setStickyMonth] = useState('')
@@ -212,7 +212,10 @@ const AdminControlsModal = ({ isOpen, onClose }) => {
                 
                 // Apply to admin immediately
                 if (stickySundays.length > 0) {
-                    setSelectedAttendanceDate(stickySundays[0])
+                    const [y, m, d] = stickySundays[0].split('-').map(Number)
+                    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+                        setAndSaveAttendanceDate(new Date(y, m - 1, d))
+                    }
                 }
             } else {
                 toast.success(`Sticky Sundays set (${stickySundays.length} selected) - Demo mode`)

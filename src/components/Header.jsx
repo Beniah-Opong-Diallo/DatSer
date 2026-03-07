@@ -36,6 +36,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   const { selection } = useHapticFeedback()
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const monthButtonRef = useRef(null)
+  const [liveClock, setLiveClock] = useState(() => new Date())
   // Debounced search input for performance on low-end devices
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm)
 
@@ -54,6 +55,10 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     return () => clearTimeout(tid)
   }, [localSearchTerm])
 
+  useEffect(() => {
+    const timer = setInterval(() => setLiveClock(new Date()), 30000)
+    return () => clearInterval(timer)
+  }, [])
 
   const generateSundayDates = (table) => {
     if (!table) return []
@@ -140,15 +145,40 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     }
   }, [filteredMembers, attendanceData, sundayDates])
 
+  const currentMonthTable = `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][liveClock.getMonth()]}_${liveClock.getFullYear()}`
+  const liveSundayDate = (() => {
+    const today = new Date(liveClock.getFullYear(), liveClock.getMonth(), liveClock.getDate())
+    const sunday = new Date(today)
+    if (sunday.getDay() !== 0) {
+      sunday.setDate(sunday.getDate() - sunday.getDay())
+    }
+    if (sunday.getMonth() !== today.getMonth()) {
+      const firstSunday = new Date(today.getFullYear(), today.getMonth(), 1)
+      while (firstSunday.getDay() !== 0) {
+        firstSunday.setDate(firstSunday.getDate() + 1)
+      }
+      return firstSunday
+    }
+    return sunday
+  })()
+  const liveSundayDateKey = `${liveSundayDate.getFullYear()}-${String(liveSundayDate.getMonth() + 1).padStart(2, '0')}-${String(liveSundayDate.getDate()).padStart(2, '0')}`
+  const selectedDateKey = selectedAttendanceDate
+    ? `${selectedAttendanceDate.getFullYear()}-${String(selectedAttendanceDate.getMonth() + 1).padStart(2, '0')}-${String(selectedAttendanceDate.getDate()).padStart(2, '0')}`
+    : null
+  const isCalendarLive = currentTable === currentMonthTable && selectedDateKey === liveSundayDateKey
   const hasStickyMonth = Boolean(ownerStickyMonth)
   const isStickyMonthLive = isCollaborator && hasStickyMonth && currentTable === ownerStickyMonth
   const isStickyMonthMismatch = isCollaborator && hasStickyMonth && currentTable !== ownerStickyMonth
-  const showLiveState = !isCollaborator || !hasStickyMonth || isStickyMonthLive
+  const showStickyState = !isCollaborator || !hasStickyMonth || isStickyMonthLive
+  const showLiveState = showStickyState && isCalendarLive
+  const liveLabel = isSupabaseConfigured()
+    ? (isStickyMonthMismatch ? 'Out of Sync' : (isCalendarLive ? 'Live' : 'Live Off'))
+    : 'Demo'
 
   // Menu items moved to LoginButton profile dropdown
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm md:border-b border-gray-200 dark:border-gray-700 z-[40] w-full safe-area-top fixed top-0 left-0 right-0">
+    <header className="bg-white dark:bg-gray-800 shadow-sm md:border-b border-gray-200 dark:border-gray-700 z-[55] w-full safe-area-top fixed top-0 left-0 right-0">
       <div className="mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-0 md:py-1 w-full">
         <div className="flex items-center justify-center md:justify-between min-h-[36px] md:min-h-[44px]">
           {/* Compact brand label */}
@@ -326,16 +356,16 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               <span className={`inline-flex items-center gap-1.5 -ml-0.5 px-2 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap rounded-full border ${isSupabaseConfigured()
                 ? showLiveState
                   ? 'text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/30'
-                  : 'text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30'
+                  : 'text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 animate-pulse'
                 : 'text-yellow-700 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/30'
                 }`}>
                 <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured()
                   ? showLiveState
                     ? 'bg-green-500 animate-pulse'
-                    : 'bg-red-500'
+                    : 'bg-red-500 animate-pulse'
                   : 'bg-yellow-500'
                   }`} />
-                <span>{isSupabaseConfigured() ? (isStickyMonthMismatch ? 'Out of Sync' : 'Live') : 'Demo'}</span>
+                <span>{liveLabel}</span>
               </span>
             </div>
           </div>
@@ -355,3 +385,4 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
 }
 
 export default memo(Header)
+
