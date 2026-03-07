@@ -437,7 +437,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
 
     if (dashboardTab === 'edited') {
-      const dateKey = selectedSundayDate || (selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null)
+      const dateKey = selectedSundayDate || getDateString(selectedAttendanceDate)
       if (!dateKey) {
         const editedOnly = filteredMembers.filter(member => {
           if (!isEditedMember(member)) return false
@@ -802,7 +802,7 @@ const Dashboard = ({ isAdmin = false }) => {
 
   useEffect(() => {
     if (selectedAttendanceDate) {
-      const key = selectedAttendanceDate.toISOString().split('T')[0]
+      const key = getDateString(selectedAttendanceDate)
       setSelectedSundayDate(key)
     }
   }, [selectedAttendanceDate])
