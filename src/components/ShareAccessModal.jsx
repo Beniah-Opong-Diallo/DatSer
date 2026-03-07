@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { X, UserPlus, Mail, Trash2, Users, AlertCircle, Send, CheckCircle, Clock, RefreshCw, Copy, Link2 } from 'lucide-react'
+import { X, UserPlus, Mail, Trash2, Users, AlertCircle, Send, CheckCircle, Clock, RefreshCw, Copy, Link2, ShieldCheck } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
 
@@ -233,6 +233,26 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
     }
   }
 
+  const handleToggleAdmin = async (collaborator) => {
+    try {
+      const { error } = await supabase
+        .from('collaborators')
+        .update({ is_admin: !collaborator.is_admin })
+        .eq('id', collaborator.id)
+        .eq('owner_id', user.id)
+
+      if (error) throw error
+
+      setCollaborators(prev => prev.map(item => (
+        item.id === collaborator.id ? { ...item, is_admin: !item.is_admin } : item
+      )))
+      toast.success(`${collaborator.email} ${collaborator.is_admin ? 'removed from' : 'granted'} admin access`)
+    } catch (err) {
+      console.error('Error updating admin access:', err)
+      toast.error('Failed to update admin access')
+    }
+  }
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'accepted':
@@ -368,10 +388,31 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
                         </p>
                         <div className="flex items-center space-x-2 mt-0.5">
                           {getStatusBadge(collaborator.status)}
+                          {collaborator.is_admin && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                              <ShieldCheck className="w-3 h-3" />
+                              Admin
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleToggleAdmin(collaborator)}
+                        disabled={collaborator.status === 'pending'}
+                        className={`p-1.5 rounded-lg transition-colors ${collaborator.is_admin
+                          ? 'text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30'
+                          : 'text-gray-400 hover:text-purple-500 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                          } ${collaborator.status === 'pending' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        title={collaborator.status === 'pending'
+                          ? 'Admin access available after invite is accepted'
+                          : collaborator.is_admin
+                            ? 'Remove admin access'
+                            : 'Make admin'}
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                      </button>
                       {collaborator.status === 'pending' && (
                         <>
                           <button

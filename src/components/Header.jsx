@@ -31,6 +31,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     setAndSaveAttendanceDate,
     focusDateSelector,
     isCollaborator,
+    isAdminCollaborator,
     ownerStickyMonth
   } = useApp()
   const { selection } = useHapticFeedback()
@@ -336,7 +337,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
               )}
 
               {/* Only show count for admins/owners, hide for collaborators if requested */}
-              {!isCollaborator && (
+              {(!isCollaborator || isAdminCollaborator) && (
                 <>
                   <span className="inline-flex items-center font-medium whitespace-nowrap">{compactFoundCount} found</span>
                   <span className="text-gray-400/80">•</span>

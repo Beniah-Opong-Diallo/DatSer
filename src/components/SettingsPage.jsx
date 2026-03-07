@@ -59,7 +59,7 @@ import useHapticFeedback from '../hooks/useHapticFeedback'
 const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
     const { user, signOut, preferences, resetPassword } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
-    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate } = useApp()
+    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, isAdminCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate } = useApp()
     const { selection } = useHapticFeedback()
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
@@ -509,6 +509,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
 
     const isOverrideActive = Boolean(lockedDefaultDate)
     const isAutoMode = !isOverrideActive
+    const hasAdminAccess = !isCollaborator || isAdminCollaborator
 
     const getFallbackOverrideDate = useCallback((tableName) => {
         if (!tableName) return null
@@ -521,7 +522,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
 
     const handleEnableOverride = async (tableName = currentTable, sundayDate = selectedAttendanceDate, options = {}) => {
         const { showToast = true } = options
-        if (isCollaborator) return
+        if (!hasAdminAccess) return
         const targetTable = tableName || currentTable
         const targetDate = sundayDate || selectedAttendanceDate || getFallbackOverrideDate(targetTable) || new Date()
         setIsOverrideSaving(true)
@@ -553,7 +554,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
     }, [handleEnableOverride])
 
     const handleDisableOverride = async () => {
-        if (isCollaborator) return
+        if (!hasAdminAccess) return
         setIsOverrideSaving(true)
         try {
             const ok = await setCollaboratorOverride({ enabled: false })
@@ -568,7 +569,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
     }
 
     const handleAdminSundaySelection = async (sunday, table) => {
-        if (isCollaborator || !table) return
+        if (!hasAdminAccess || !table) return
         if (!isOverrideActive) {
             toast.info('Enable Override All to change Sundays for everyone')
             return
@@ -770,14 +771,14 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                             </div>
                             <button
                                 onClick={toggleAutoAllDates}
-                                disabled={isCollaborator && !autoAllDatesEnabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !autoAllDatesEnabled
+                                disabled={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled
                                         ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
                                         : autoAllDatesEnabled
                                             ? 'bg-primary-600'
                                             : 'bg-gray-200 dark:bg-gray-600'
                                     }`}
-                                title={isCollaborator && !autoAllDatesEnabled ? 'Auto-All-Dates is managed by workspace admin' : 'Toggle Auto-All-Dates'}
+                                title={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled ? 'Auto-All-Dates is managed by workspace admin' : 'Toggle Auto-All-Dates'}
                             >
                                 <span
                                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoAllDatesEnabled ? 'translate-x-6' : 'translate-x-1'
@@ -787,7 +788,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                         </div>
 
                         {/* Collaborator Notice */}
-                        {isCollaborator && !autoAllDatesEnabled && (
+                        {isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled && (
                             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                                 <div className="flex items-start gap-2">
                                     <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
@@ -818,7 +819,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                     </button>
 
                     {/* Admin Controls (Sticky Month & Sunday) */}
-                    {!isCollaborator && (
+                    {hasAdminAccess && (
                         <div className="p-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => setIsAdminControlsOpen(true)}>
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
@@ -853,7 +854,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                             </button>
                         </div>
 
-                        {!isCollaborator && (
+                        {hasAdminAccess && (
                             <div className="mb-4 rounded-2xl border border-orange-200/70 dark:border-orange-700/60 bg-gradient-to-r from-orange-50/90 via-amber-50/80 to-white dark:from-orange-900/30 dark:via-orange-900/20 dark:to-gray-900/40 p-3">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
@@ -1086,7 +1087,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                                                 key={`${month}-${i}`}
                                                                 onClick={async (e) => {
                                                                     e.stopPropagation()
-                                                                    if (isCollaborator) return
+                                                                    if (!hasAdminAccess) return
                                                                     if (!exists) return
                                                                     await handleAdminSundaySelection(sunday, table)
                                                                 }}
@@ -1095,8 +1096,8 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                                                         ? 'bg-orange-600 text-white border-2 border-orange-400 ring-2 ring-orange-300/50 shadow-md cursor-pointer'
                                                                         : exists
                                                                             ? isCurrent
-                                                                                ? `bg-white/80 dark:bg-white/10 text-orange-700 dark:text-orange-200 border border-orange-200/60 dark:border-orange-400/30 ${!isCollaborator ? 'cursor-pointer hover:border-orange-400 hover:shadow-md' : ''}`
-                                                                                : `bg-white/80 dark:bg-white/5 text-emerald-700 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-400/30 ${!isCollaborator ? 'cursor-pointer hover:border-emerald-400 hover:shadow-md' : ''}`
+                                                                                ? `bg-white/80 dark:bg-white/10 text-orange-700 dark:text-orange-200 border border-orange-200/60 dark:border-orange-400/30 ${hasAdminAccess ? 'cursor-pointer hover:border-orange-400 hover:shadow-md' : ''}`
+                                                                                : `bg-white/80 dark:bg-white/5 text-emerald-700 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-400/30 ${hasAdminAccess ? 'cursor-pointer hover:border-emerald-400 hover:shadow-md' : ''}`
                                                                             : 'bg-gray-100 dark:bg-gray-800 text-gray-400 border border-dashed border-gray-300 dark:border-gray-600'
                                                                 } ${
                                                                     isSelectedSunday && !isLocked ? 'ring-2 ring-orange-300 dark:ring-orange-400/70 shadow-md' : ''
@@ -1128,7 +1129,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                                 </div>
                                                 <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
                                                     {exists
-                                                        ? isCollaborator
+                                                        ? isCollaborator && !isAdminCollaborator
                                                             ? 'Tap to switch to this month.'
                                                             : 'Tap card to switch month. Turn on Override All, then tap a Sunday to update everyone.'
                                                         : 'Tap to create a fresh month with no data.'}
@@ -1165,7 +1166,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
             </div>
 
             {/* Admin Controls Card - Only for owners - moved to Workspace section */}
-            {!isCollaborator && (
+            {hasAdminAccess && (
                 <div className="hidden bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">

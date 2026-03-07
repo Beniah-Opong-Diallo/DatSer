@@ -200,6 +200,7 @@ export const AppProvider = ({ children }) => {
   // Collaborator state - tracks if current user is viewing someone else's data
   const [dataOwnerId, setDataOwnerId] = useState(null) // The owner whose data we're viewing
   const [isCollaborator, setIsCollaborator] = useState(false)
+  const [isAdminCollaborator, setIsAdminCollaborator] = useState(false)
   const [ownerEmail, setOwnerEmail] = useState(null)
   const [hasAccess, setHasAccess] = useState(true) // Whether user has permission to access the app
   const [searchTerm, setSearchTerm] = useState('')
@@ -664,7 +665,7 @@ export const AppProvider = ({ children }) => {
 
       const collaboratorQuery = supabase
         .from('collaborators')
-        .select('owner_id, status, email')
+        .select('owner_id, status, email, is_admin')
         .eq('collaborator_user_id', user.id)
         .in('status', ['pending', 'accepted', 'active'])
       const userLookup = await (
@@ -680,7 +681,7 @@ export const AppProvider = ({ children }) => {
         appContextLog('Collaborator lookup by user id returned no match. Falling back to email lookup:', normalizedEmail)
         const emailQueryBase = supabase
           .from('collaborators')
-          .select('owner_id, status, email')
+          .select('owner_id, status, email, is_admin')
         const emailQuery = typeof emailQueryBase.ilike === 'function'
           ? emailQueryBase.ilike('email', normalizedEmail)
           : emailQueryBase.eq('email', normalizedEmail)
@@ -722,7 +723,8 @@ export const AppProvider = ({ children }) => {
         if (!isRealOwner) {
           // Random user with no data and not a collaborator - DENY ACCESS
           appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
-          setIsCollaborator(false)
+        setIsCollaborator(false)
+        setIsAdminCollaborator(false)
           setDataOwnerId(null)
           setOwnerEmail(null)
           setHasAccess(false)
@@ -745,6 +747,7 @@ export const AppProvider = ({ children }) => {
       appContextLog('Owner ID:', data.owner_id)
       appContextLog('Status:', data.status)
       setIsCollaborator(true)
+      setIsAdminCollaborator(Boolean(data?.is_admin))
       setDataOwnerId(data.owner_id)
       setHasAccess(true)
       fetchOwnerStickyDefaults(data.owner_id)
@@ -797,6 +800,7 @@ export const AppProvider = ({ children }) => {
       setOwnerStickyMonth(null)
       setOwnerStickySundays([])
       setAdminSyncNotice(null)
+      setIsAdminCollaborator(false)
       return
     }
     fetchOwnerStickyDefaults(dataOwnerId)
@@ -3319,25 +3323,35 @@ export const AppProvider = ({ children }) => {
 
 
   const setCollaboratorOverride = useCallback(async ({ enabled, tableName = currentTable, date = selectedAttendanceDate } = {}) => {
-    if (isCollaborator || !isSupabaseConfigured() || !user?.id) return false
+    const canAdmin = isAdminCollaborator && dataOwnerId
+    if ((isCollaborator && !canAdmin) || !isSupabaseConfigured() || !user?.id) return false
 
     const targetTable = tableName || currentTable
     if (!targetTable) return false
+    const targetOwnerId = canAdmin ? dataOwnerId : user.id
 
     if (!enabled) {
       const previousDate = lockedDefaultDate
       setLockedDefaultDate(null)
 
       try {
-        const { error } = await supabase
-          .from('user_preferences')
-          .upsert({
-            user_id: user.id,
-            locked_default_date: null,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
+        const { error } = canAdmin
+          ? await supabase.rpc('update_owner_admin_override', {
+            p_owner_id: targetOwnerId,
+            p_month_table: null,
+            p_year: null,
+            p_sunday_dates: null,
+            p_locked_date: null
           })
+          : await supabase
+            .from('user_preferences')
+            .upsert({
+              user_id: targetOwnerId,
+              locked_default_date: null,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            })
 
         if (error) throw error
 
@@ -3364,18 +3378,26 @@ export const AppProvider = ({ children }) => {
     setAndSaveAttendanceDate(normalizedDate, targetTable)
 
     try {
-      const { error } = await supabase
-        .from('user_preferences')
-        .upsert({
-          user_id: user.id,
-          admin_sticky_month: targetTable,
-          admin_sticky_year: yearNum,
-          admin_sticky_sundays: [dateKey],
-          locked_default_date: dateKey,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
+      const { error } = canAdmin
+        ? await supabase.rpc('update_owner_admin_override', {
+          p_owner_id: targetOwnerId,
+          p_month_table: targetTable,
+          p_year: yearNum,
+          p_sunday_dates: [dateKey],
+          p_locked_date: dateKey
         })
+        : await supabase
+          .from('user_preferences')
+          .upsert({
+            user_id: targetOwnerId,
+            admin_sticky_month: targetTable,
+            admin_sticky_year: yearNum,
+            admin_sticky_sundays: [dateKey],
+            locked_default_date: dateKey,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          })
 
       if (error) throw error
 
@@ -3396,6 +3418,8 @@ export const AppProvider = ({ children }) => {
     selectedAttendanceDate,
     lockedDefaultDate,
     isCollaborator,
+    isAdminCollaborator,
+    dataOwnerId,
     isSupabaseConfigured,
     user?.id,
     changeCurrentTable,
@@ -4008,6 +4032,7 @@ export const AppProvider = ({ children }) => {
     setAutoAllDatesEnabled,
     hasAccess,
     isCollaborator,
+    isAdminCollaborator,
     dataOwnerId,
     ownerStickyMonth,
     ownerStickySundays,
@@ -4033,7 +4058,7 @@ export const AppProvider = ({ children }) => {
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled,
-    hasAccess, isCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
+    hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate
   ])
 
