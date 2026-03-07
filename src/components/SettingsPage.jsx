@@ -505,6 +505,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
     }
 
     const isOverrideActive = Boolean(lockedDefaultDate)
+    const isAutoMode = !isOverrideActive
 
     const getFallbackOverrideDate = useCallback((tableName) => {
         if (!tableName) return null
@@ -559,6 +560,10 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
 
     const handleAdminSundaySelection = async (sunday, table) => {
         if (isCollaborator || !table) return
+        if (!isOverrideActive) {
+            toast.info('Enable Override All to change Sundays for everyone')
+            return
+        }
         if (table !== currentTable) {
             setCurrentTable(table)
         }
@@ -855,7 +860,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                             onClick={() => handleEnableOverride(currentTable, selectedAttendanceDate)}
                                             disabled={isOverrideSaving}
                                             className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${isOverrideActive
-                                                ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm'
+                                                ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-sm ring-2 ring-orange-300/60'
                                                 : 'border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300 bg-white/80 dark:bg-gray-900/40 hover:bg-orange-50 dark:hover:bg-orange-900/20'
                                             }`}
                                         >
@@ -864,9 +869,9 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                         <button
                                             onClick={handleDisableOverride}
                                             disabled={isOverrideSaving || !isOverrideActive}
-                                            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${isOverrideActive
-                                                ? 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${isAutoMode
+                                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-200/70'
+                                                : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                                             }`}
                                         >
                                             Return To Auto
@@ -1115,7 +1120,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth }) => {
                                                     {exists
                                                         ? isCollaborator
                                                             ? 'Tap to switch to this month.'
-                                                            : 'Tap card to switch month. Tap a Sunday to select it, then use Override All for collaborators.'
+                                                            : 'Tap card to switch month. Turn on Override All, then tap a Sunday to update everyone.'
                                                         : 'Tap to create a fresh month with no data.'}
                                                 </p>
                                             </div>
