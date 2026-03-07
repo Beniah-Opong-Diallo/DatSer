@@ -291,7 +291,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Supabase is not configured')
       }
 
-      const redirectUrl = window.location.origin
+      const redirectUrl = `${window.location.origin}${import.meta.env?.BASE_URL || '/'}`
       console.log('Redirect URL:', redirectUrl)
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -320,7 +320,7 @@ export const AuthProvider = ({ children }) => {
   const signUpWithEmail = async (email, password, fullName, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = window.location.origin
+        const redirectUrl = `${window.location.origin}${import.meta.env?.BASE_URL || '/'}`
 
         const signUpOptions = {
           email,
@@ -408,7 +408,7 @@ export const AuthProvider = ({ children }) => {
   const signInWithMagicLink = async (email, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = window.location.origin
+        const redirectUrl = `${window.location.origin}${import.meta.env?.BASE_URL || '/'}`
         const otpOptions = {
           email,
           options: {
@@ -441,7 +441,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email, captchaToken) => {
     try {
       if (supabase) {
-        const redirectUrl = window.location.origin
+        const redirectUrl = `${window.location.origin}${import.meta.env?.BASE_URL || '/'}`
 
         const resetOptions = { redirectTo: redirectUrl }
         // Only add captchaToken if it exists
