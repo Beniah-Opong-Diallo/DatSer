@@ -37,7 +37,13 @@ Deno.serve(async (req: Request) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Build the redirect URL - where user lands after clicking invite link
-    const redirectTo = appUrl || Deno.env.get('SITE_URL') || 'https://datser.vercel.app/DatSer/';
+    const redirectTo = appUrl || Deno.env.get('SITE_URL') || 'https://datser.vercel.app/';
+    if (!redirectTo) {
+      return new Response(
+        JSON.stringify({ error: 'SITE_URL is not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Check if user already exists in auth
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();

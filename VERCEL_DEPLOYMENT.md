@@ -7,13 +7,13 @@ Before deploying, you MUST update the placeholder URL in `index.html`:
 
 1. Open `index.html` 
 2. Replace ALL instances of `https://your-app-url.vercel.app/` with your actual Vercel URL
-3. Example: If your Vercel URL is `https://datsar-app.vercel.app`, replace with that
+3. Example: `https://datser.vercel.app/`
 
 **Lines to update:**
-- Line 19: `<meta property="og:url" content="https://your-app-url.vercel.app/" />`
-- Line 22: `<meta property="og:image" content="https://your-app-url.vercel.app/og-image.svg" />`
-- Line 29: `<meta property="twitter:url" content="https://your-app-url.vercel.app/" />`
-- Line 32: `<meta property="twitter:image" content="https://your-app-url.vercel.app/og-image.svg" />`
+- Line 19: `<meta property="og:url" content="https://datser.vercel.app/" />`
+- Line 22: `<meta property="og:image" content="https://datser.vercel.app/og-image.svg" />`
+- Line 29: `<meta property="twitter:url" content="https://datser.vercel.app/" />`
+- Line 32: `<meta property="twitter:image" content="https://datser.vercel.app/og-image.svg" />`
 
 ### Step 2: Deploy to Vercel
 1. Push your changes to GitHub
@@ -22,7 +22,7 @@ Before deploying, you MUST update the placeholder URL in `index.html`:
 
 ### Step 3: Verify OG Image is Working
 1. Visit your deployed app
-2. Check that `og-image.svg` loads at: `https://your-app-url.vercel.app/og-image.svg`
+2. Check that `og-image.svg` loads at: `https://datser.vercel.app/og-image.svg`
 3. Use Facebook's debugging tool: https://developers.facebook.com/tools/debug/
 4. Use Twitter's card validator: https://cards-dev.twitter.com/validator
 
@@ -45,7 +45,7 @@ You should see:
 
 ### If OG Image Doesn't Show:
 1. **Check URL**: Make sure the Vercel URL is correct in all meta tags
-2. **Image Access**: Visit `https://your-app-url.vercel.app/og-image.svg` directly
+2. **Image Access**: Visit `https://datser.vercel.app/og-image.svg` directly
 3. **Clear Cache**: Social platforms cache previews - use debug tools to refresh
 4. **Wait 5-10 minutes**: Sometimes takes time for platforms to fetch new images
 
@@ -64,16 +64,16 @@ When someone shares your link, they'll see:
 
 **Before (without OG tags):**
 ```
-🔗 https://your-app-url.vercel.app
+🔗 https://datser.vercel.app
 📄 Generic website preview
 ```
 
 **After (with OG tags):**
 ```
 🖼️ [Your beautiful app icon with DS logo]
-📱 Datsar — Data Search Hub
+📱 Datser
 📝 A fast, reliable data search and attendance hub...
-🔗 https://your-app-url.vercel.app
+🔗 https://datser.vercel.app
 ```
 
 ## 🎯 Pro Tips
