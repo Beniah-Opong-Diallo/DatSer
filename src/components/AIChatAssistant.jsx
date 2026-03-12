@@ -21,7 +21,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 // Initialize Gemini API
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+// Use a multimodal model - gemini-2.5-flash supports text, images, audio, video
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
 
 // Extended FAQ Data with Actions (Fallback and Keywords)
 const getFaqKnowledge = (navigate) => [

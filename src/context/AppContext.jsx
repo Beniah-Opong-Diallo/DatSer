@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 import { useAuth } from './AuthContext'
+import { normalizeMinistry } from '../utils/dataUtils'
 
 const AppContext = createContext()
 
@@ -848,6 +849,17 @@ export const AppProvider = ({ children }) => {
           setOwnerStickySundays(nextStickySundays)
           setLockedDefaultDate(nextLockedDate)
           updateAdminSyncNotice(nextStickyMonth, nextStickySundays)
+          
+          // Also handle ministry_groups sync for collaborators
+          if (Array.isArray(payload?.new?.ministry_groups)) {
+            const ministries = normalizeMinistry(payload.new.ministry_groups)
+            localStorage.setItem(`customMinistries_${dataOwnerId}`, JSON.stringify(ministries))
+            localStorage.setItem('customMinistries', JSON.stringify(ministries))
+            // Dispatch event for other components to update
+            window.dispatchEvent(new CustomEvent('ministriesUpdated', { 
+              detail: { ministries, ownerId: dataOwnerId } 
+            }))
+          }
         }
       )
       .subscribe()
