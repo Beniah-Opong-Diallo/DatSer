@@ -74,7 +74,9 @@ const Dashboard = ({ isAdmin = false }) => {
     validateMemberData,
     getPastSundays,
     getMissingAttendance,
-    isCollaborator
+    isCollaborator,
+    dataOwnerId,
+    user
   } = useApp()
   const { isDarkMode } = useTheme()
   const { selection, success, error: errorHaptic } = useHapticFeedback()
@@ -101,6 +103,11 @@ const Dashboard = ({ isAdmin = false }) => {
   const [showFilters, setShowFilters] = useState(false)
   const [isClosingFilters, setIsClosingFilters] = useState(false)
   const [sortNewestFirst, setSortNewestFirst] = useState(true) // Toggle for Marked tab sort order
+
+  // Tag filter state
+  const [workspaceTags, setWorkspaceTags] = useState([])
+  const [tagFilter, setTagFilter] = useState(null) // Selected tag ID for filtering
+  const [allMemberTags, setAllMemberTags] = useState({}) // memberId -> array of tag IDs
 
 
   // Track the timestamp of each attendance action for chronological sorting (most recent first)
@@ -201,6 +208,63 @@ const Dashboard = ({ isAdmin = false }) => {
     }, 250)
     return () => clearTimeout(tid)
   }, [localSearchTerm])
+
+  // Fetch workspace tags and member tags for filtering
+  useEffect(() => {
+    const fetchTags = async () => {
+      const ownerId = dataOwnerId || user?.id
+      if (!ownerId || !currentTable || !isSupabaseConfigured || !members || members.length === 0) return
+      
+      try {
+        // Fetch workspace tags
+        const { data: tagsData, error: tagsError } = await supabase.rpc('get_workspace_tags', {
+          p_owner_id: ownerId
+        })
+        if (tagsError) {
+          console.error('Error fetching workspace tags:', tagsError)
+          return
+        }
+        setWorkspaceTags(tagsData || [])
+        
+        // Fetch tags for all visible members in this table
+        const memberIds = members.map(m => m.id).filter(Boolean)
+        if (memberIds.length === 0) return
+        
+        // Fetch member_tags for these specific members
+        const { data: memberTagsData, error: memberTagsError } = await supabase
+          .from('member_tags')
+          .select('*')
+          .eq('table_name', currentTable)
+          .in('member_id', memberIds)
+        
+        if (memberTagsError) {
+          console.error('Error fetching member tags:', memberTagsError)
+          return
+        }
+        
+        // Group tags by member_id and fetch full tag details
+        const tagsByMember = {}
+        for (const mt of memberTagsData || []) {
+          if (!tagsByMember[mt.member_id]) {
+            tagsByMember[mt.member_id] = []
+          }
+          // Find the full tag info from workspace tags
+          const fullTag = (tagsData || []).find(t => t.id === mt.tag_id)
+          if (fullTag) {
+            tagsByMember[mt.member_id].push(fullTag)
+          }
+        }
+        
+        // Update the memberTags state for all members
+        setMemberTags(prev => ({ ...prev, ...tagsByMember }))
+        setAllMemberTags(tagsByMember)
+      } catch (error) {
+        console.error('Error fetching tags for filter:', error)
+      }
+    }
+    
+    fetchTags()
+  }, [dataOwnerId, user?.id, currentTable, isSupabaseConfigured, members?.length])
 
   // Handle bulk attendance for long-press selection
   const handleLongPressBulkAction = async (present) => {
@@ -387,6 +451,17 @@ const Dashboard = ({ isAdmin = false }) => {
     if (visitorFilter !== null) {
       filteredMembers = filteredMembers.filter(member => {
         return visitorFilter ? member.is_visitor === true : member.is_visitor !== true
+      })
+    }
+
+    // Tag filter - use existing memberTags state
+    if (tagFilter) {
+      filteredMembers = filteredMembers.filter(member => {
+        // Check if member has any tags in the existing memberTags state
+        const memberTagList = memberTags[member.id]
+        if (!memberTagList || !Array.isArray(memberTagList)) return false
+        // Check if any of the member's tags match the filter tag ID
+        return memberTagList.some(tag => tag && String(tag.id) === String(tagFilter))
       })
     }
 
@@ -2761,6 +2836,31 @@ const Dashboard = ({ isAdmin = false }) => {
                   </button>
                 </div>
               </div>
+
+              {/* Tag Filter */}
+              {workspaceTags.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {workspaceTags.map(tag => (
+                      <button
+                        key={tag.id}
+                        onClick={() => { selection(); setTagFilter(tagFilter === tag.id ? null : tag.id) }}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${tagFilter === tag.id
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        <span 
+                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: tag.color || '#6366f1' }}
+                        />
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -2771,8 +2871,9 @@ const Dashboard = ({ isAdmin = false }) => {
                   setGenderFilter(null)
                   setLevelFilter(null)
                   setVisitorFilter(null)
+                  setTagFilter(null)
                 }}
-                disabled={!genderFilter && !levelFilter && visitorFilter === null}
+                disabled={!genderFilter && !levelFilter && visitorFilter === null && !tagFilter}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Clear All
@@ -2840,14 +2941,14 @@ const Dashboard = ({ isAdmin = false }) => {
             {/* Filter Button */}
             <button
               onClick={() => { selection(); setShowFilters(!showFilters) }}
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${showFilters || genderFilter || levelFilter || visitorFilter !== null
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${showFilters || genderFilter || levelFilter || visitorFilter !== null || tagFilter
                 ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               title="Filters"
             >
               <Filter className="w-4 h-4" />
-              {(genderFilter || levelFilter || visitorFilter !== null) && (
+              {(genderFilter || levelFilter || visitorFilter !== null || tagFilter) && (
                 <span className="w-2 h-2 bg-primary-500 rounded-full" />
               )}
             </button>
