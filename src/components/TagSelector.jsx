@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Tag, Check, X, Loader2 } from 'lucide-react'
+import { toast } from 'react-toastify'
 
 const TagSelector = ({ 
   ownerId, 
@@ -22,10 +23,33 @@ const TagSelector = ({
     }
   }, [ownerId])
 
-  // Initialize selected tags
+  // Initialize selected tags: prefer `currentTags` prop if provided,
+  // otherwise fetch assigned tags for the member from the DB
   useEffect(() => {
-    setSelectedTagIds(new Set(currentTags.map(t => t.id)))
-  }, [currentTags])
+    let cancelled = false
+
+    const fetchMemberAssigned = async () => {
+      if (!memberId || !tableName) return
+      try {
+        const { data, error } = await supabase.rpc('get_member_tags', {
+          p_member_id: memberId,
+          p_table_name: tableName
+        })
+        if (error) throw error
+        if (!cancelled) setSelectedTagIds(new Set((data || []).map(t => t.id)))
+      } catch (err) {
+        console.error('Error fetching member tags in selector:', err)
+      }
+    }
+
+    if (currentTags && currentTags.length > 0) {
+      setSelectedTagIds(new Set(currentTags.map(t => t.id)))
+    } else {
+      fetchMemberAssigned()
+    }
+
+    return () => { cancelled = true }
+  }, [memberId, tableName, currentTags])
 
   const fetchTags = async () => {
     try {
@@ -83,9 +107,15 @@ const TagSelector = ({
       }
     } catch (error) {
       console.error('Error toggling tag:', error)
+      toast.error('Failed to update tag')
     } finally {
       setSaving(false)
     }
+  }
+
+  const deleteSelectedTags = async () => {
+    // bulk delete removed — function retained but noop for safety
+    return
   }
 
   if (loading) {
@@ -106,11 +136,18 @@ const TagSelector = ({
   }
 
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        <Tag className="w-4 h-4 inline mr-1" />
-        Tags
-      </label>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <Tag className="w-4 h-4 inline mr-1" />
+          Tags
+        </label>
+        {selectedTagIds.size > 0 && (
+          <span className="text-xs px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full font-medium">
+            {selectedTagIds.size} selected
+          </span>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2">
         {availableTags.map((tag) => {
           const isSelected = selectedTagIds.has(tag.id)
@@ -119,24 +156,26 @@ const TagSelector = ({
               key={tag.id}
               onClick={() => toggleTag(tag.id)}
               disabled={saving}
-              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
                 isSelected 
-                  ? 'ring-2 ring-offset-1' 
-                  : 'opacity-60 hover:opacity-100'
+                  ? 'shadow-md' 
+                  : 'opacity-50 hover:opacity-70'
               }`}
               style={{ 
-                backgroundColor: tag.color + '20',
-                color: tag.color,
-                border: `1px solid ${tag.color}40`,
-                ringColor: isSelected ? tag.color : 'transparent'
+                backgroundColor: isSelected ? tag.color : tag.color + '15',
+                color: isSelected ? '#ffffff' : tag.color,
+                border: `2px solid ${tag.color}`,
+                boxShadow: isSelected ? `0 0 8px ${tag.color}60` : 'none',
+                fontWeight: isSelected ? '600' : '500'
               }}
             >
-              {isSelected && <Check className="w-3 h-3" />}
+              {isSelected && <Check className="w-4 h-4" />}
               {tag.name}
             </button>
           )
         })}
       </div>
+      {/* Bulk delete button removed per request */}
     </div>
   )
 }

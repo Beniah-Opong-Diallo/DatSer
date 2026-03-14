@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase'
 import DatePicker from './DatePicker'
 import TagSelector from './TagSelector'
 
-const EditMemberModal = ({ isOpen, onClose, member }) => {
+const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
   const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, members, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
   const { user } = useAuth()
   const { selection, success } = useHapticFeedback()
@@ -617,11 +617,12 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
           {/* Tags */}
           <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
             <TagSelector 
-              ownerId={dataOwnerId || user?.id}
-              memberId={member?.id}
-              tableName={currentTable}
-              isDarkMode={isDarkMode}
-            />
+                ownerId={dataOwnerId || user?.id}
+                memberId={member?.id}
+                tableName={currentTable}
+                isDarkMode={isDarkMode}
+                onTagsChange={onTagsChange}
+              />
           </div>
 
           {/* Sunday Attendance */}

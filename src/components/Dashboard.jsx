@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, memo, lazy, Suspense } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { supabase } from '../lib/supabase'
 import { Search, Users, Filter, Edit3, Trash2, Calendar, ChevronDown, ChevronUp, ChevronRight, UserPlus, Award, Star, UserCheck, Check, X, Feather, StickyNote, History, Eye, Shield } from 'lucide-react'
 import DateSelector from './DateSelector'
 import ConfirmModal from './ConfirmModal'
@@ -80,6 +81,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [editingMember, setEditingMember] = useState(null)
   const [attendanceLoading, setAttendanceLoading] = useState({})
   const [expandedMembers, setExpandedMembers] = useState({})
+  const [memberTags, setMemberTags] = useState({}) // memberId -> tags array
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showMonthModal, setShowMonthModal] = useState(false)
 
@@ -957,12 +959,35 @@ const Dashboard = ({ isAdmin = false }) => {
     })
   }
 
+  // Function to fetch tags for a member
+  const fetchMemberTags = async (memberId) => {
+    try {
+      const { data, error } = await supabase.rpc('get_member_tags', {
+        p_member_id: memberId,
+        p_table_name: currentTable
+      })
+
+      if (error) throw error
+      setMemberTags(prev => ({
+        ...prev,
+        [memberId]: data || []
+      }))
+    } catch (error) {
+      console.error('Error fetching member tags:', error)
+    }
+  }
+
   const toggleMemberExpansion = (memberId) => {
     selection()
+    const isExpanding = !expandedMembers[memberId]
     setExpandedMembers(prev => ({
       ...prev,
-      [memberId]: !prev[memberId]
+      [memberId]: isExpanding
     }))
+    // Fetch tags when expanding
+    if (isExpanding) {
+      fetchMemberTags(memberId)
+    }
   }
 
   // Toggle member selection for bulk actions
@@ -1892,6 +1917,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                       </span>
                                     </div>
                                   )}
+                                  
                                   {/* Registration Date/Time Card */}
                                   {(member.inserted_at || member.created_at) && (() => {
                                     const regDate = new Date(member.inserted_at || member.created_at)
@@ -1991,6 +2017,28 @@ const Dashboard = ({ isAdmin = false }) => {
                                       </div>
                                     </div>
                                   </div>
+                                  {/* Tags (moved next to Date of Birth for better desktop layout) */}
+                                  {(memberTags[member.id] && memberTags[member.id].length > 0) && (
+                                    <div className="mt-3">
+                                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Tags</h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {memberTags[member.id].map(tag => (
+                                          <span
+                                            key={tag.id}
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium shadow-sm"
+                                            style={{
+                                              backgroundColor: tag.color + '14',
+                                              color: tag.color,
+                                              border: `1px solid ${tag.color}33`
+                                            }}
+                                          >
+                                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }}></span>
+                                            <span className="whitespace-nowrap">{tag.name}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Guardians (moved from left column) */}
@@ -2260,7 +2308,14 @@ const Dashboard = ({ isAdmin = false }) => {
         <Suspense fallback={null}>
           <EditMemberModal
             isOpen={!!editingMember}
-            onClose={() => setEditingMember(null)}
+            onClose={() => {
+              // Refresh tags for this member after editing
+              if (editingMember.id && expandedMembers[editingMember.id]) {
+                fetchMemberTags(editingMember.id)
+              }
+              setEditingMember(null)
+            }}
+            onTagsChange={() => { if (editingMember?.id) fetchMemberTags(editingMember.id) }}
             member={editingMember}
           />
         </Suspense>
@@ -2804,15 +2859,7 @@ const Dashboard = ({ isAdmin = false }) => {
               <UserPlus className="w-5 h-5" />
               <span className="hidden md:inline text-sm font-medium">Add Member</span>
             </button>
-            {/* Admin Controls Button */}
-            <button
-              onClick={() => { selection(); window.openSettings() }}
-              className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-sm"
-              title="Admin Controls & Tag Management"
-            >
-              <Shield className="w-5 h-5" />
-              <span className="hidden md:inline text-sm font-medium">Admin</span>
-            </button>
+            {/* Admin Controls Button removed per request */}
           </div>
         </div>
       </div>

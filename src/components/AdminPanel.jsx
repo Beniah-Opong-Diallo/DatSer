@@ -8,6 +8,7 @@ import {
   Users,
   Calendar,
   Award,
+  Tag,
   TrendingUp,
   CheckCircle2,
   XCircle,
@@ -30,6 +31,7 @@ import {
   LogIn,
   ArrowLeft
 } from 'lucide-react'
+import TagManager from './TagManager'
 
 
 
@@ -986,7 +988,20 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
           </div>
         </div>
 
-        {/* Top Attendees */}
+          {/* Tag Management */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '350ms' }}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Tag className="w-5 h-5 text-primary-600" />
+                Tag Management
+              </h3>
+            </div>
+            <div className="p-4">
+              <TagManager ownerId={dataOwnerId} isDarkMode={isDarkMode} onTagsChange={() => {}} />
+            </div>
+          </div>
+
+          {/* Top Attendees */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '400ms' }}>
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
