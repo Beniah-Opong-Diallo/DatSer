@@ -73,6 +73,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   const [lastActivity, setLastActivity] = useState(Date.now())
   const AUTO_LOCK_MINUTES = 15 // Auto-lock after 15 minutes of inactivity
   const [isGoogleAuthing, setIsGoogleAuthing] = useState(false)
+  const [showOverview, setShowOverview] = useState(false)
 
   // Auto-lock timer - locks admin panel after inactivity
   useEffect(() => {
@@ -714,7 +715,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     <div className="min-h-screen pb-24">
       {/* Header */}
       <div className="sticky top-0 z-20 w-full py-3">
-        <div className="max-w-4xl mx-auto px-4">
+        <div className="max-w-4xl mx-auto px-4 relative">
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
               <div className="bg-slate-100 dark:bg-slate-700/50 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 flex-shrink-0">
@@ -729,7 +730,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
               <button
                 onClick={() => {
                   handleAdminLogout()
@@ -753,145 +754,93 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 <span className="hidden sm:inline">Back to Dashboard</span>
                 <span className="sm:hidden">Back</span>
               </button>
+              <button
+                onClick={() => setShowOverview(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-2 sm:px-3 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Overview"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">Overview</span>
+              </button>
             </div>
+            {showOverview && (
+              <div className="absolute right-4 top-full mt-2 w-80 z-50">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-lg p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">Overview</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Quick summary</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={printAttendanceSheet} className="px-3 py-1 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200">Print</button>
+                      <button onClick={() => setShowOverview(false)} className="px-2 py-1 text-sm rounded-lg text-gray-500 hover:text-gray-700">Close</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 rounded-lg bg-white/60 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+                      <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalMembers}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Total Members</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/60 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.totalPresent}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Total Present</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/60 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+                      <p className="text-xl font-bold text-red-600 dark:text-red-400">{stats.totalAbsent}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Total Absent</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/60 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
+                      <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.attendanceRate}%</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Attendance Rate</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setShowAdvancedFeatures(prev => !prev)}
+                      className="w-full p-3 flex items-center justify-between rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Award className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        <div className="text-left">
+                          <p className="font-medium text-gray-900 dark:text-white">Advanced Features</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Badge processing & automation</p>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showAdvancedFeatures ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showAdvancedFeatures && (
+                      <div className="mt-3 bg-gradient-to-br from-orange-500 to-purple-600 rounded-xl p-3 text-white">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-bold">Badge Processing</p>
+                            <p className="text-xs text-white/80">Auto-assign badges based on attendance</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold">{stats.sundaysCompleted}/{stats.totalSundays}</div>
+                            <p className="text-xs opacity-80">Sundays</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={processBadges}
+                          disabled={isProcessingBadges || stats.sundaysCompleted < stats.totalSundays}
+                          className={`w-full mt-3 py-2 rounded-lg font-semibold text-sm ${stats.sundaysCompleted < stats.totalSundays ? 'bg-white/20 text-white/50 cursor-not-allowed' : 'bg-white text-orange-600'}`}
+                        >
+                          {isProcessingBadges ? 'Processing...' : stats.sundaysCompleted < stats.totalSundays ? 'Complete Sundays' : 'Process Badges'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* Print Attendance Sheet Button */}
-        <div className="flex justify-end animate-fade-in-up">
-          <button
-            onClick={printAttendanceSheet}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
-          >
-            <Printer className="w-4 h-4" />
-            <span className="text-sm font-medium">Print Attendance Sheet</span>
-          </button>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4 animate-fade-in-up transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
-          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg sm:rounded-xl">
-                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.totalMembers}</p>
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Total Members</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/30 rounded-lg sm:rounded-xl">
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalPresent}</p>
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Total Present</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg sm:rounded-xl">
-                <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">{stats.totalAbsent}</p>
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Total Absent</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg sm:rounded-xl">
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.attendanceRate}%</p>
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Attendance Rate</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Advanced Features - Collapsible */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <button
-            onClick={() => setShowAdvancedFeatures(!showAdvancedFeatures)}
-            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-xl">
-                <Award className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Advanced Features</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Badge processing & automation</p>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedFeatures ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showAdvancedFeatures && (
-            <div className="p-4 pt-0 border-t border-gray-200 dark:border-gray-700">
-              {/* Badge Processing Content */}
-              <div className="bg-gradient-to-br from-orange-500 to-purple-600 rounded-xl p-5 text-white mt-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="w-5 h-5" />
-                      <h4 className="font-bold">Badge Processing</h4>
-                    </div>
-                    <p className="text-white/80 text-sm mb-3">
-                      Auto-assign badges based on attendance
-                    </p>
-                    <div className="space-y-1 text-xs text-white/70">
-                      <p>• <span className="text-orange-200 font-medium">Member</span> = 2+ Sundays</p>
-                      <p>• <span className="text-green-200 font-medium">Regular</span> = 3+ consecutive</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">{stats.sundaysCompleted}/{stats.totalSundays}</div>
-                    <p className="text-xs text-white/70">Sundays</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={processBadges}
-                  disabled={isProcessingBadges || stats.sundaysCompleted < stats.totalSundays}
-                  className={`w-full mt-4 py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-sm ${stats.sundaysCompleted < stats.totalSundays
-                    ? 'bg-white/20 text-white/50 cursor-not-allowed'
-                    : 'bg-white text-orange-600 hover:bg-orange-50 shadow-lg btn-press'
-                    }`}
-                >
-                  {isProcessingBadges ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : stats.sundaysCompleted < stats.totalSundays ? (
-                    <>
-                      <AlertTriangle className="w-4 h-4" />
-                      Complete All Sundays First
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Process Badges
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Badge Results */}
         {badgeResults && showBadgeResults && (
