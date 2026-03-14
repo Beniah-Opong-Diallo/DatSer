@@ -213,10 +213,10 @@ const Dashboard = ({ isAdmin = false }) => {
   useEffect(() => {
     const fetchTags = async () => {
       const ownerId = dataOwnerId || user?.id
-      if (!ownerId || !currentTable || !isSupabaseConfigured || !members || members.length === 0) return
+      if (!ownerId || !isSupabaseConfigured) return
       
       try {
-        // Fetch workspace tags
+        // Fetch workspace tags - do this first and always, regardless of whether members exist
         const { data: tagsData, error: tagsError } = await supabase.rpc('get_workspace_tags', {
           p_owner_id: ownerId
         })
@@ -225,6 +225,9 @@ const Dashboard = ({ isAdmin = false }) => {
           return
         }
         setWorkspaceTags(tagsData || [])
+        
+        // Only fetch member tags if we have members
+        if (!currentTable || !members || members.length === 0) return
         
         // Fetch tags for all visible members in this table
         const memberIds = members.map(m => m.id).filter(Boolean)
@@ -304,6 +307,21 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
+    // If modal is already open, close it first to reset state
+    if (showMissingDataModal) {
+      setShowMissingDataModal(false)
+      setMissingDataMember(null)
+      // Small delay to allow state to reset before re-opening
+      setTimeout(() => {
+        proceedWithAttendanceCheck(member, present)
+      }, 50)
+      return true
+    }
+    
+    return proceedWithAttendanceCheck(member, present)
+  }
+  
+  const proceedWithAttendanceCheck = (member, present) => {
     const fields = validateMemberData(member)
     const pastSundays = getPastSundays()
     const dates = getMissingAttendance(member.id, pastSundays)
