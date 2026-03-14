@@ -244,7 +244,7 @@ const EditMemberModal = ({ isOpen, onClose, member }) => {
         notes: formData.notes || null,
         // Visitor status
         is_visitor: formData.is_visitor || false,
-        Member: selectedTags.includes('member') ? 'Yes' : null,"}}]
+        Member: selectedTags.includes('member') ? 'Yes' : null,
         Regular: selectedTags.includes('regular') ? 'Yes' : null,
         Newcomer: selectedTags.includes('newcomer') ? 'Yes' : null
       }
