@@ -1644,7 +1644,7 @@ export const AppProvider = ({ children }) => {
 
       if (error) throw error
 
-      // Update local state for members
+      // Update local state for members - ensure name is preserved
       setMembers(prev => prev.map(member =>
         member.id === memberId
           ? { ...member, [attendanceColumn]: present === null ? null : (present ? 'Present' : 'Absent') }

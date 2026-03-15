@@ -67,10 +67,14 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
         }
         setFormData(initialData)
 
-        // Initialize attendance data
+        // Initialize attendance data - use consistent date format matching the rest of the app
         const initialAttendance = {}
         missingDates.forEach(date => {
-            initialAttendance[date.toISOString().split('T')[0]] = null
+            const year = date.getFullYear()
+            const month = String(date.getMonth() + 1).padStart(2, '0')
+            const day = String(date.getDate()).padStart(2, '0')
+            const dateKey = `${year}-${month}-${day}`
+            initialAttendance[dateKey] = null
         })
         setAttendanceData(initialAttendance)
     }, [member, missingFields, missingDates])
@@ -186,7 +190,16 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
             }
 
             // Use the locally-selected date if provided by the modal dropdown; fall back to the prop
-            const selectedKey = selectedDateKey || (selectedAttendanceDate ? selectedAttendanceDate.toISOString().split('T')[0] : null)
+            // Use consistent local date formatting
+            const getLocalDateKey = (date) => {
+                if (!date) return null
+                if (typeof date === 'string') return date
+                const year = date.getFullYear()
+                const month = String(date.getMonth() + 1).padStart(2, '0')
+                const day = String(date.getDate()).padStart(2, '0')
+                return `${year}-${month}-${day}`
+            }
+            const selectedKey = selectedDateKey || getLocalDateKey(selectedAttendanceDate)
             if (pendingAttendanceAction && selectedKey) {
                 const actionBool = !!pendingAttendanceAction.present
                 console.log(`Marking pending selected date ${selectedKey}: ${actionBool}`)
@@ -269,24 +282,6 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                             </p>
                         </div>
                     )}
-
-                    <div className="bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg p-4">
-                        <p className="text-sm text-orange-800 dark:text-orange-200 font-medium mb-2">
-                            📋 Complete Missing Information for <strong>{member['Full Name'] || member.full_name}</strong>
-                        </p>
-                        <p className="text-xs text-orange-700 dark:text-orange-300">
-                            {missingDates.length > 0 && (
-                                <span className="block mb-1">
-                                    ✅ <strong>Past Sundays:</strong> If you were in church, select <span className="text-green-600 dark:text-green-400 font-semibold">Present (Green)</span>. If not, select <span className="text-red-600 dark:text-red-400 font-semibold">Absent (Red)</span>.
-                                </span>
-                            )}
-                            {missingFields.length > 0 && (
-                                <span className="block">
-                                    📝 <strong>Required Fields:</strong> Please fill in all missing information below.
-                                </span>
-                            )}
-                        </p>
-                    </div>
 
                     {/* Missing Member Fields */}
                     {missingFields.length > 0 && (
