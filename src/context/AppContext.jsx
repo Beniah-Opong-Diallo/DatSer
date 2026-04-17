@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import { useAuth } from './AuthContext'
 
 const AppContext = createContext()
@@ -48,6 +49,12 @@ const appContextLog = (...args) => {
   if (shouldLogAppContext) {
     console.log(...args)
   }
+}
+
+const invalidateMembersCacheRefs = (membersCacheRef, searchCacheRef, tableName) => {
+  searchCacheRef.current.clear()
+  const cacheKey = tableName || 'default'
+  membersCacheRef.current.delete(cacheKey)
 }
 
 // Helper function for timezone-safe date string formatting (YYYY-MM-DD)
@@ -1000,8 +1007,10 @@ export const AppProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Unexpected error in fetchMembers:', error)
-      appContextLog(`Setting mock members (${mockMembers.length} members) due to error`)
-      setMembers(mockMembers) // Fallback to mock data
+      appContextLog('Preserving current members after unexpected fetch error')
+      if (!background) {
+        toast.error(`Unable to refresh saved data: ${error.message || 'unknown error'}`, { autoClose: 10000 })
+      }
     } finally {
       if (!background) {
         setLoading(false)
@@ -1072,21 +1081,31 @@ export const AppProvider = ({ children }) => {
 
       console.log('[addMember] Transformed data:', JSON.stringify(transformedData))
 
-      const { data, error } = await supabase
-        .from(currentTable)
-        .insert([transformedData])
-        .select()
+      const { data } = await executeSupabaseWrite(
+        () => supabase
+          .from(currentTable)
+          .insert([transformedData])
+          .select(),
+        { action: `Add member to ${currentTable}` }
+      )
 
-      if (error) throw error
+      const createdMember = normalizeMemberRecord(data?.[0] || null)
+      if (!createdMember) {
+        throw new Error('Member was saved but no record was returned from Supabase')
+      }
 
-      setMembers(prev => [data[0], ...prev])
+      invalidateMembersCacheRefs(membersCacheRef, searchCacheRef, currentTable)
+      setMembers(prev => [createdMember, ...prev.filter(existing => existing.id !== createdMember.id)])
+      fetchMembers(currentTable, { forceRefresh: true, background: true }).catch((refreshError) => {
+        console.warn('[addMember] Background refresh failed after save:', refreshError)
+      })
       toast.success(`Member added successfully to ${currentTable}!`)
 
       // Log the action
       logActivity('ADD_MEMBER', `Added new member: ${memberData.full_name || memberData.fullName || memberData['Full Name']}`)
 
       // Return the created member row directly
-      return data?.[0] || null
+      return createdMember
     } catch (error) {
       console.error('Error adding member:', error)
       toast.error('Failed to add member')
@@ -1387,15 +1406,16 @@ export const AppProvider = ({ children }) => {
       console.log('Update data:', updateData)
       console.log('Updating member ID:', memberId)
 
-      const { data, error } = await supabase
-        .from(currentTable)
-        .update(updateData)
-        .eq('id', memberId)
-        .select()
+      const { data } = await executeSupabaseWrite(
+        () => supabase
+          .from(currentTable)
+          .update(updateData)
+          .eq('id', memberId)
+          .select(),
+        { action: `Update ${badgeType} badge in ${currentTable}` }
+      )
 
-      console.log('Supabase update result:', { data, error })
-
-      if (error) throw error
+      console.log('Supabase update result:', { data, error: null })
 
       // Update local state to reflect the change
       setMembers(prev => prev.map(member => {
@@ -1415,6 +1435,8 @@ export const AppProvider = ({ children }) => {
         }
         return member
       }))
+
+      invalidateMembersCacheRefs(membersCacheRef, searchCacheRef, currentTable)
 
       // Show success message like attendance system (unless suppressed)
       if (!suppressToast) {
@@ -1445,7 +1467,7 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Error toggling badge:', error)
       toast.error('Failed to update badge. Please try again.')
-      return { success: false, error }
+      throw error
     }
   }
 
@@ -1635,14 +1657,15 @@ export const AppProvider = ({ children }) => {
         await fetchMembers(currentTable)
       }
 
-      const { data, error } = await supabase
-        .from(currentTable)
-        .update({
-          [attendanceColumn]: present === null ? null : (present ? 'Present' : 'Absent')
-        })
-        .eq('id', memberId)
-
-      if (error) throw error
+      await executeSupabaseWrite(
+        () => supabase
+          .from(currentTable)
+          .update({
+            [attendanceColumn]: present === null ? null : (present ? 'Present' : 'Absent')
+          })
+          .eq('id', memberId),
+        { action: `Save attendance in ${currentTable}` }
+      )
 
       // Update local state for members - ensure name is preserved
       setMembers(prev => prev.map(member =>
@@ -1664,6 +1687,8 @@ export const AppProvider = ({ children }) => {
         }
       }))
 
+      invalidateMembersCacheRefs(membersCacheRef, searchCacheRef, currentTable)
+
       // Check if month is complete and process badges (guarded)
       if (badgeProcessingEnabled) {
         setTimeout(() => processEndOfMonthBadges(), 500)
@@ -1678,7 +1703,7 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error('Error marking attendance:', error)
       toast.error('Failed to mark attendance')
-      return { success: false, error }
+      throw error
     }
   }
 
@@ -2180,12 +2205,15 @@ export const AppProvider = ({ children }) => {
 
       const optimisticPatch = { ...updates, ...normalized }
 
-      const { error } = await supabase
-        .from(currentTable)
-        .update(normalized)
-        .eq('id', id)
-
-      if (error) {
+      try {
+        await executeSupabaseWrite(
+          () => supabase
+            .from(currentTable)
+            .update(normalized)
+            .eq('id', id),
+          { action: `Update member in ${currentTable}` }
+        )
+      } catch (error) {
         const isRlsError =
           error.code === '42501' ||
           error.message?.toLowerCase().includes('row-level security') ||
@@ -2194,13 +2222,15 @@ export const AppProvider = ({ children }) => {
         if (isRlsError) {
           const ownerId = dataOwnerId || user?.id
           if (!ownerId) throw error
-          const { error: rpcError } = await supabase.rpc('update_member_record', {
-            p_table_name: currentTable,
-            p_member_id: id,
-            p_updates: normalized,
-            p_owner_id: ownerId
-          })
-          if (rpcError) throw rpcError
+          await executeSupabaseWrite(
+            () => supabase.rpc('update_member_record', {
+              p_table_name: currentTable,
+              p_member_id: id,
+              p_updates: normalized,
+              p_owner_id: ownerId
+            }),
+            { action: `Update member via RPC in ${currentTable}` }
+          )
         } else {
           throw error
         }
@@ -2264,9 +2294,7 @@ export const AppProvider = ({ children }) => {
       refreshSearch()
 
       // Invalidate stale caches and force fresh pull so all views update instantly
-      searchCacheRef.current.clear()
-      const cacheKey = currentTable || 'default'
-      membersCacheRef.current.delete(cacheKey)
+      invalidateMembersCacheRefs(membersCacheRef, searchCacheRef, currentTable)
       try {
         await fetchMembers(currentTable, { forceRefresh: true })
       } catch (refreshErr) {

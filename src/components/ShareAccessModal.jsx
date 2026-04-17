@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext'
 import { X, UserPlus, Mail, Trash2, Users, AlertCircle, Send, CheckCircle, Clock, RefreshCw, Copy, Link2, ShieldCheck } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 
 const ShareAccessModal = ({ isOpen, onClose }) => {
   const { user, preferences } = useAuth()
@@ -110,19 +111,20 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
       const inviteResult = await sendInvite(collaboratorEmail)
 
       // 2. Add to collaborators table
-      const { data, error } = await supabase
-        .from('collaborators')
-        .insert([{
-          owner_id: user.id,
-          email: collaboratorEmail,
-          status: 'pending',
-          invite_token: inviteResult.inviteLink || null,
-          invited_by_name: preferences?.workspace_name || user?.user_metadata?.full_name || user?.email
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
+      const { data } = await executeSupabaseWrite(
+        () => supabase
+          .from('collaborators')
+          .insert([{
+            owner_id: user.id,
+            email: collaboratorEmail,
+            status: 'pending',
+            invite_token: inviteResult.inviteLink || null,
+            invited_by_name: preferences?.workspace_name || user?.user_metadata?.full_name || user?.email
+          }])
+          .select()
+          .single(),
+        { action: `Add collaborator ${collaboratorEmail}` }
+      )
 
       // Track email send for rate limit display
       if (inviteResult.emailSent) {
@@ -177,10 +179,13 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
       const result = await sendInvite(collaborator.email)
       if (result.inviteLink) {
         // Update the stored invite link
-        await supabase
-          .from('collaborators')
-          .update({ invite_token: result.inviteLink })
-          .eq('id', collaborator.id)
+        await executeSupabaseWrite(
+          () => supabase
+            .from('collaborators')
+            .update({ invite_token: result.inviteLink })
+            .eq('id', collaborator.id),
+          { action: `Update invite link for ${collaborator.email}` }
+        )
         
         // Update local state
         setCollaborators(prev => prev.map(c => 
@@ -217,13 +222,14 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
 
   const handleRemoveCollaborator = async (collaboratorId, collaboratorEmail) => {
     try {
-      const { error } = await supabase
-        .from('collaborators')
-        .delete()
-        .eq('id', collaboratorId)
-        .eq('owner_id', user.id)
-
-      if (error) throw error
+      await executeSupabaseWrite(
+        () => supabase
+          .from('collaborators')
+          .delete()
+          .eq('id', collaboratorId)
+          .eq('owner_id', user.id),
+        { action: `Remove collaborator ${collaboratorEmail}` }
+      )
 
       setCollaborators(prev => prev.filter(c => c.id !== collaboratorId))
       toast.success(`Removed ${collaboratorEmail}`)
@@ -235,13 +241,14 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
 
   const handleToggleAdmin = async (collaborator) => {
     try {
-      const { error } = await supabase
-        .from('collaborators')
-        .update({ is_admin: !collaborator.is_admin })
-        .eq('id', collaborator.id)
-        .eq('owner_id', user.id)
-
-      if (error) throw error
+      await executeSupabaseWrite(
+        () => supabase
+          .from('collaborators')
+          .update({ is_admin: !collaborator.is_admin })
+          .eq('id', collaborator.id)
+          .eq('owner_id', user.id),
+        { action: `Update collaborator admin access for ${collaborator.email}` }
+      )
 
       setCollaborators(prev => prev.map(item => (
         item.id === collaborator.id ? { ...item, is_admin: !item.is_admin } : item

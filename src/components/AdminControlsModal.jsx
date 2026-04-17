@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import TagManager from './TagManager'
 
 const MONTHS = [
@@ -131,31 +132,36 @@ const AdminControlsModal = ({ isOpen, onClose }) => {
 
             // Save to admin preferences in database
             if (isSupabaseConfigured()) {
-                const { error: prefError } = await supabase
-                    .from('user_preferences')
-                    .upsert({
-                        user_id: user.id,
-                        admin_sticky_month: monthIdentifier,
-                        admin_sticky_year: selectedYear,
-                        updated_at: new Date().toISOString()
-                    }, {
-                        onConflict: 'user_id'
-                    })
-
-                if (prefError) {
-                    console.error('Error saving admin preferences:', prefError)
-                    toast.error('Failed to save sticky month')
-                    return
-                }
+                await executeSupabaseWrite(
+                    () => supabase
+                        .from('user_preferences')
+                        .upsert({
+                            user_id: user.id,
+                            admin_sticky_month: monthIdentifier,
+                            admin_sticky_year: selectedYear,
+                            updated_at: new Date().toISOString()
+                        }, {
+                            onConflict: 'user_id'
+                        }),
+                    { action: `Save sticky month ${monthIdentifier}` }
+                )
 
                 // Apply to all collaborators
-                const { error } = await supabase.rpc('set_collaborators_default_month', {
-                    p_owner_id: user.id,
-                    p_month_table: monthIdentifier
-                })
+                let collaboratorMonthError = null
+                try {
+                    await executeSupabaseWrite(
+                        () => supabase.rpc('set_collaborators_default_month', {
+                            p_owner_id: user.id,
+                            p_month_table: monthIdentifier
+                        }),
+                        { action: `Apply sticky month ${monthIdentifier} to collaborators` }
+                    )
+                } catch (error) {
+                    collaboratorMonthError = error
+                }
 
-                if (error) {
-                    console.error('Error setting collaborators default month:', error)
+                if (collaboratorMonthError) {
+                    console.error('Error setting collaborators default month:', collaboratorMonthError)
                     toast.warning('Sticky month saved, but could not apply to all collaborators')
                 } else {
                     toast.success(`Sticky month set to ${monthIdentifier} for all collaborators`)
@@ -190,30 +196,35 @@ const AdminControlsModal = ({ isOpen, onClose }) => {
         try {
             // Save to admin preferences in database
             if (isSupabaseConfigured()) {
-                const { error: prefError } = await supabase
-                    .from('user_preferences')
-                    .upsert({
-                        user_id: user.id,
-                        admin_sticky_sundays: stickySundays,
-                        updated_at: new Date().toISOString()
-                    }, {
-                        onConflict: 'user_id'
-                    })
-
-                if (prefError) {
-                    console.error('Error saving admin preferences:', prefError)
-                    toast.error('Failed to save sticky Sundays')
-                    return
-                }
+                await executeSupabaseWrite(
+                    () => supabase
+                        .from('user_preferences')
+                        .upsert({
+                            user_id: user.id,
+                            admin_sticky_sundays: stickySundays,
+                            updated_at: new Date().toISOString()
+                        }, {
+                            onConflict: 'user_id'
+                        }),
+                    { action: 'Save sticky Sundays' }
+                )
 
                 // Apply to all collaborators
-                const { error } = await supabase.rpc('set_collaborators_default_sundays', {
-                    p_owner_id: user.id,
-                    p_sunday_dates: stickySundays
-                })
+                let collaboratorSundayError = null
+                try {
+                    await executeSupabaseWrite(
+                        () => supabase.rpc('set_collaborators_default_sundays', {
+                            p_owner_id: user.id,
+                            p_sunday_dates: stickySundays
+                        }),
+                        { action: 'Apply sticky Sundays to collaborators' }
+                    )
+                } catch (error) {
+                    collaboratorSundayError = error
+                }
 
-                if (error) {
-                    console.error('Error setting collaborators default Sundays:', error)
+                if (collaboratorSundayError) {
+                    console.error('Error setting collaborators default Sundays:', collaboratorSundayError)
                     toast.warning('Sticky Sundays saved, but could not apply to all collaborators')
                 } else {
                     toast.success(`Sticky Sundays set for all collaborators (${stickySundays.length} selected)`)

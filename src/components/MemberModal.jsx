@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
@@ -6,12 +6,14 @@ import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Info, Users
 import { toast } from 'react-toastify'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 import { supabase } from '../lib/supabase'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import DatePicker from './DatePicker'
+import CombinedDatePicker from './CombinedDatePicker'
 import TagSelector from './TagSelector'
 
 const MemberModal = ({ isOpen, onClose }) => {
-  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
-  const { user } = useAuth()
+  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
+  const { user, preferences } = useAuth()
   const { isDarkMode } = useTheme()
   const { selection, success } = useHapticFeedback()
 
@@ -21,6 +23,7 @@ const MemberModal = ({ isOpen, onClose }) => {
     return tableName.replace('_', ' ')
   }
   const [loading, setLoading] = useState(false)
+  const submitRequestIdRef = useRef(null)
   const [showErrors, setShowErrors] = useState(false)
   const [showParentErrors, setShowParentErrors] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
@@ -109,6 +112,12 @@ const MemberModal = ({ isOpen, onClose }) => {
     setPreviousIsOpen(isOpen)
   }, [isOpen, currentTable])
 
+  React.useEffect(() => {
+    if (!isOpen) {
+      submitRequestIdRef.current = null
+    }
+  }, [isOpen])
+
   // Disable body scroll when modal is open
   React.useEffect(() => {
     if (isOpen) {
@@ -128,7 +137,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   React.useEffect(() => {
     const fetchWorkspaceTags = async () => {
       const ownerId = dataOwnerId || user?.id
-      if (!ownerId || !isSupabaseConfigured) return
+      if (!ownerId || !isSupabaseConfigured()) return
       
       try {
         const { data, error } = await supabase.rpc('get_workspace_tags', {
@@ -216,57 +225,104 @@ const MemberModal = ({ isOpen, onClose }) => {
 
     try {
       console.log('[MemberModal] Submitting formData:', JSON.stringify(formData))
-      const newMember = await addMember({
-        ...formData,
-        ...parentInfo,
-        age: formData.age ? String(formData.age).trim() : null,
-        phone_number: formData.phone_number || null,
-        notes: formData.notes || null,
-        is_visitor: formData.is_visitor || false
-      })
+      const ownerId = dataOwnerId || user?.id
+      let savedMemberId = null
 
-      // Assign selected tags (Member / Regular / Newcomer)
-      if (selectedTags.length > 0 && newMember?.id) {
-        for (const tag of selectedTags) {
-          try {
+      if (!ownerId) {
+        throw new Error('Unable to determine the workspace owner for this save')
+      }
+
+      if (!isSupabaseConfigured()) {
+        const newMember = await addMember({
+          ...formData,
+          ...parentInfo,
+          age: formData.age ? String(formData.age).trim() : null,
+          phone_number: formData.phone_number || null,
+          notes: formData.notes || null,
+          is_visitor: formData.is_visitor || false
+        })
+
+        savedMemberId = newMember?.id || null
+
+        if (selectedTags.length > 0 && newMember?.id) {
+          for (const tag of selectedTags) {
             await toggleMemberBadge(newMember.id, tag, { suppressToast: true })
-          } catch (badgeError) {
-            console.error(`Error assigning ${tag} badge:`, badgeError)
           }
-        }
-        try {
           await updateMemberBadges()
-        } catch (updateError) {
-          console.warn('Badge update recalculation failed:', updateError)
         }
-      }
 
-      // Assign workspace tags (from TagManager)
-      if (selectedTagIds.size > 0 && newMember?.id) {
-        const ownerId = dataOwnerId || user?.id
-        for (const tagId of selectedTagIds) {
-          try {
-            await supabase.rpc('assign_tag_to_member', {
-              p_tag_id: tagId,
-              p_member_id: newMember.id,
-              p_table_name: currentTable,
-              p_owner_id: ownerId
-            })
-          } catch (tagError) {
-            console.error(`Error assigning tag ${tagId}:`, tagError)
-          }
-        }
-      }
-
-      // Mark attendance for selected Sunday dates
-      for (const [date, attendance] of Object.entries(sundayAttendance)) {
-        if (attendance !== null) {
-          try {
+        for (const [date, attendance] of Object.entries(sundayAttendance)) {
+          if (attendance !== null) {
             await markAttendance(newMember.id, new Date(date), attendance)
-          } catch (attendanceError) {
-            console.error(`Error marking attendance for ${date}:`, attendanceError)
           }
         }
+      } else {
+        if (!submitRequestIdRef.current) {
+          submitRequestIdRef.current = window.crypto?.randomUUID?.() || `member-create-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        }
+
+        const normalizedGender = typeof formData.gender === 'string'
+          ? (formData.gender.trim().toLowerCase() === 'male'
+            ? 'Male'
+            : formData.gender.trim().toLowerCase() === 'female'
+              ? 'Female'
+              : formData.gender)
+          : formData.gender
+
+        const attendancePayload = Object.fromEntries(
+          Object.entries(sundayAttendance).filter(([, attendance]) => attendance !== null)
+        )
+
+        const memberPayload = {
+          'Full Name': formData.full_name.trim(),
+          'Gender': normalizedGender,
+          'Phone Number': formData.phone_number || null,
+          'Age': formData.age ? String(formData.age).trim() : null,
+          date_of_birth: formData.date_of_birth ? String(formData.date_of_birth).trim() : null,
+          'Current Level': formData.current_level || null,
+          workspace: preferences?.workspace_name || null,
+          parent_name_1: parentInfo.parent_name_1 || null,
+          parent_phone_1: parentInfo.parent_phone_1 || null,
+          parent_name_2: parentInfo.parent_name_2 || null,
+          parent_phone_2: parentInfo.parent_phone_2 || null,
+          notes: formData.notes || null,
+          is_visitor: formData.is_visitor || false,
+          user_id: user?.id || ownerId
+        }
+
+        const { data: bundleResult } = await executeSupabaseWrite(
+          () => supabase.rpc('save_member_bundle', {
+            p_table_name: currentTable,
+            p_owner_id: ownerId,
+            p_request_id: submitRequestIdRef.current,
+            p_member: memberPayload,
+            p_badges: selectedTags,
+            p_tag_ids: Array.from(selectedTagIds),
+            p_attendance: attendancePayload
+          }),
+          { action: `Create member bundle in ${currentTable}` }
+        )
+
+        if (!bundleResult?.success) {
+          throw new Error(bundleResult?.error_message || 'Backend member save failed')
+        }
+
+        savedMemberId = bundleResult?.member_id || null
+        if (bundleResult?.receipt?.request_id) {
+          localStorage.setItem('lastMemberSaveReceipt', JSON.stringify(bundleResult.receipt))
+        }
+
+        try {
+          await forceRefreshMembersSilent()
+          await Promise.all([loadAllAttendanceData(), loadAllBadgeData()])
+          refreshSearch()
+        } catch (refreshError) {
+          console.warn('Member saved but refresh failed:', refreshError)
+          toast.warning('Member was saved, but the local view could not refresh automatically.')
+        }
+
+        submitRequestIdRef.current = null
+        toast.success(`Member saved successfully to ${currentTable}! Receipt: ${bundleResult?.receipt?.request_id || 'saved'}`)
       }
 
       // Reset form and open Parent Info popup to complete mandatory details
@@ -283,15 +339,13 @@ const MemberModal = ({ isOpen, onClose }) => {
       setSelectedTagIds(new Set())
       setParentInfo({ parent_name_1: '', parent_phone_1: '', parent_name_2: '', parent_phone_2: '' })
       setShowErrors(false)
-      setNewlyAddedMemberId(newMember.id)
+      setNewlyAddedMemberId(savedMemberId)
       onClose()
       setIsOverrideMode(false)
       success()
-
-      // Success toast handled in global state
     } catch (error) {
       console.error('Error adding member:', error)
-      // Error toast handled in global state
+      toast.error(error.message || 'Failed to save member')
     } finally {
       setLoading(false)
     }
@@ -473,7 +527,7 @@ const MemberModal = ({ isOpen, onClose }) => {
               <div className="grid grid-cols-2 gap-3">
                 {/* Date of Birth */}
                 <div>
-                  <DatePicker
+                  <CombinedDatePicker
                     name="date_of_birth"
                     label="Date of Birth"
                     value={formData.date_of_birth}

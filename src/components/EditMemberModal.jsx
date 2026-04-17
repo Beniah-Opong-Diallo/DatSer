@@ -6,11 +6,13 @@ import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users, Stic
 import { toast } from 'react-toastify'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 import { supabase } from '../lib/supabase'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import DatePicker from './DatePicker'
+import CombinedDatePicker from './CombinedDatePicker'
 import TagSelector from './TagSelector'
 
 const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
-  const { updateMember, markAttendance, refreshSearch, currentTable, attendanceData, members, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
+  const { updateMember, markAttendance, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, currentTable, attendanceData, members, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
   const { user } = useAuth()
   const { selection, success } = useHapticFeedback()
   const { isDarkMode } = useTheme()
@@ -32,6 +34,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
   const hydratedMemberIdRef = useRef(null)
   const stableMemberRef = useRef(null)
   const isDirtyRef = useRef(false)
+  const submitRequestIdRef = useRef(null)
   const [formData, setFormData] = useState({
     full_name: '',
     gender: '',
@@ -83,6 +86,8 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
   const sundayDates = useMemo(() => generateSundayDates(currentTable), [currentTable])
   const [sundayAttendance, setSundayAttendance] = useState({})
   const [selectedTags, setSelectedTags] = useState([])
+  const [selectedWorkspaceTagIds, setSelectedWorkspaceTagIds] = useState(new Set())
+  const [initialWorkspaceTagIds, setInitialWorkspaceTagIds] = useState(new Set())
   const badgeTags = ['member', 'regular', 'newcomer']
 
   const levels = [
@@ -141,8 +146,40 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
       hydratedMemberIdRef.current = null
       stableMemberRef.current = null
       isDirtyRef.current = false
+      submitRequestIdRef.current = null
+      setSelectedWorkspaceTagIds(new Set())
+      setInitialWorkspaceTagIds(new Set())
     }
   }, [isOpen])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchMemberTags = async () => {
+      if (!isOpen || !latestMember?.id || !currentTable) return
+      try {
+        const { data, error } = await supabase.rpc('get_member_tags', {
+          p_member_id: latestMember.id,
+          p_table_name: currentTable
+        })
+        if (error) throw error
+
+        if (!cancelled) {
+          const nextIds = new Set((data || []).map(tag => tag.id))
+          setSelectedWorkspaceTagIds(nextIds)
+          setInitialWorkspaceTagIds(new Set(nextIds))
+        }
+      } catch (error) {
+        console.error('Error loading member tags for edit form:', error)
+      }
+    }
+
+    fetchMemberTags()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, latestMember?.id, currentTable])
 
   // Initialize attendance snapshot when modal opens (stable deps, no loop)
   useEffect(() => {
@@ -283,22 +320,111 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
       const changedPayload = Object.fromEntries(changedEntries)
       console.log('[EditMemberModal] changedPayload:', JSON.stringify(changedPayload))
 
-      if (Object.keys(changedPayload).length > 0) {
-        await updateMember(latestMember.id, changedPayload)
-      }
-
       const attendanceUpdates = Object.entries(sundayAttendance).filter(([date, attendance]) => {
         if (attendance === null || attendance === undefined) return false
         const currentAttendance = attendanceData[date]?.[latestMember.id]
         return currentAttendance !== attendance
       })
 
-      if (attendanceUpdates.length > 0) {
-        await Promise.all(
-          attendanceUpdates.map(([date, attendance]) =>
-            markAttendance(latestMember.id, new Date(date), attendance)
+      const existingBadgeTags = badgeTags.filter(tag => {
+        if (tag === 'member') return currentSnapshot?.Member === 'Yes'
+        if (tag === 'regular') return currentSnapshot?.Regular === 'Yes'
+        if (tag === 'newcomer') return currentSnapshot?.Newcomer === 'Yes'
+        return false
+      })
+      const normalizeTagSet = (tags) => [...tags].sort().join('|')
+      const badgeSelectionChanged = normalizeTagSet(selectedTags) !== normalizeTagSet(existingBadgeTags)
+      const tagSelectionChanged = normalizeTagSet(Array.from(selectedWorkspaceTagIds)) !== normalizeTagSet(Array.from(initialWorkspaceTagIds))
+
+      if (Object.keys(changedPayload).length === 0 && attendanceUpdates.length === 0 && !badgeSelectionChanged && !tagSelectionChanged) {
+        toast.info('No changes to save')
+        setLoading(false)
+        return
+      }
+
+      if (!isSupabaseConfigured()) {
+        if (Object.keys(changedPayload).length > 0) {
+          await updateMember(latestMember.id, changedPayload)
+        }
+
+        if (attendanceUpdates.length > 0) {
+          await Promise.all(
+            attendanceUpdates.map(([date, attendance]) =>
+              markAttendance(latestMember.id, new Date(date), attendance)
+            )
           )
+        }
+      } else {
+        if (!submitRequestIdRef.current) {
+          submitRequestIdRef.current = window.crypto?.randomUUID?.() || `member-update-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        }
+
+        const backendUpdates = { ...changedPayload }
+        const normalizedGender = typeof formData.gender === 'string'
+          ? (formData.gender.trim().toLowerCase() === 'male'
+            ? 'Male'
+            : formData.gender.trim().toLowerCase() === 'female'
+              ? 'Female'
+              : formData.gender)
+          : formData.gender
+
+        delete backendUpdates.Member
+        delete backendUpdates.Regular
+        delete backendUpdates.Newcomer
+
+        if (Object.prototype.hasOwnProperty.call(backendUpdates, 'full_name')) {
+          const targetNameKey = Object.prototype.hasOwnProperty.call(currentSnapshot || {}, 'full_name') ? 'full_name' : 'Full Name'
+          backendUpdates[targetNameKey] = backendUpdates.full_name
+          delete backendUpdates.full_name
+        }
+
+        if (Object.prototype.hasOwnProperty.call(backendUpdates, 'Gender')) {
+          backendUpdates.Gender = normalizedGender
+        }
+
+        const attendancePayload = Object.fromEntries(attendanceUpdates)
+        const ownerId = dataOwnerId || user?.id
+
+        if (!ownerId) {
+          throw new Error('Unable to determine the workspace owner for this save')
+        }
+
+        const { data: bundleResult } = await executeSupabaseWrite(
+          () => supabase.rpc('update_member_bundle', {
+            p_table_name: currentTable,
+            p_owner_id: ownerId,
+            p_member_id: latestMember.id,
+            p_request_id: submitRequestIdRef.current,
+            p_updates: backendUpdates,
+            p_badges: selectedTags,
+            p_tag_ids: tagSelectionChanged ? Array.from(selectedWorkspaceTagIds) : null,
+            p_attendance: attendancePayload
+          }),
+          { action: `Update member bundle in ${currentTable}` }
         )
+
+        if (!bundleResult?.success) {
+          throw new Error(bundleResult?.error_message || 'Backend member update failed')
+        }
+
+        if (bundleResult?.receipt?.request_id) {
+          localStorage.setItem('lastMemberSaveReceipt', JSON.stringify(bundleResult.receipt))
+        }
+
+        try {
+          await forceRefreshMembersSilent()
+          await Promise.all([loadAllAttendanceData(), loadAllBadgeData()])
+          refreshSearch()
+        } catch (refreshError) {
+          console.warn('Member updated but refresh failed:', refreshError)
+          toast.warning('Member was saved, but the local view could not refresh automatically.')
+        }
+
+        submitRequestIdRef.current = null
+        if (onTagsChange) {
+          onTagsChange()
+        }
+        toast.success(`Member saved successfully in ${currentTable}! Receipt: ${bundleResult?.receipt?.request_id || 'saved'}`)
       }
 
       success()
@@ -310,11 +436,9 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
 
       // Refresh search results to show updated information
       setTimeout(() => refreshSearch(), 100)
-
-      // Success toast handled in global state
     } catch (error) {
       console.error('Error updating member:', error)
-      // Error toast handled in global state
+      toast.error(error.message || 'Failed to update member')
     } finally {
       setLoading(false)
     }
@@ -529,7 +653,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           <div className="grid grid-cols-2 gap-3">
             {/* Date of Birth */}
             <div>
-              <DatePicker
+              <CombinedDatePicker
                 name="date_of_birth"
                 label="Date of Birth"
                 value={formData.date_of_birth}
@@ -621,7 +745,9 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 memberId={member?.id}
                 tableName={currentTable}
                 isDarkMode={isDarkMode}
-                onTagsChange={onTagsChange}
+                selectedTagIds={selectedWorkspaceTagIds}
+                onSelectionChange={setSelectedWorkspaceTagIds}
+                deferSave={true}
               />
           </div>
 

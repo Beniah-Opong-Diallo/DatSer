@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom scrollbar styles for dropdowns */
+@layer utilities {
+  /* Thin scrollbar for all overflow elements */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #9ca3af transparent;
+  }
+  
+  /* Webkit thin scrollbar */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #9ca3af;
+    border-radius: 2px;
+  }
+  
+  /* Dark mode scrollbar */
+  .dark .scrollbar-thin {
+    scrollbar-color: #6b7280 transparent;
+  }
+  
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #6b7280;
+  }
+}
+
 /* Mobile-first responsive design */
 @layer base {
 

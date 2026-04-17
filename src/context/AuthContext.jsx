@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase, hasStoredSession, isSupabaseConfigured } from '../lib/supabase'
 import { toast } from 'react-toastify'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 
 const AuthContext = createContext(null)
 
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }) => {
     let mounted = true
 
     // Check if Supabase is configured
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured()) {
       console.error('Supabase is not configured')
       setLoading(false)
       return
@@ -214,7 +215,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // If Supabase isn't configured/available (or user is offline), do not spam errors.
       // Still update local state so the UI keeps working.
-      if (!isSupabaseConfigured || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      if (!isSupabaseConfigured() || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
         setPreferences(prev => ({
           ...(prev || {}),
           user_id: prev?.user_id || user.id,
@@ -224,19 +225,20 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (supabase) {
-        const { data, error } = await supabase
-          .from('user_preferences')
-          .upsert({
-            user_id: user.id,
-            ...newPreferences,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          })
-          .select()
-          .single()
-
-        if (error) throw error
+        const { data } = await executeSupabaseWrite(
+          () => supabase
+            .from('user_preferences')
+            .upsert({
+              user_id: user.id,
+              ...newPreferences,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            })
+            .select()
+            .single(),
+          { action: 'Save user preferences' }
+        )
 
         setPreferences(data)
         return data
@@ -270,7 +272,7 @@ export const AuthProvider = ({ children }) => {
       }))
 
       // If Supabase isn't ready/online, skip remote write.
-      if (!isSupabaseConfigured || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      if (!isSupabaseConfigured() || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
         return
       }
 
@@ -306,7 +308,7 @@ export const AuthProvider = ({ children }) => {
   // Sign in with Google
   const signInWithGoogle = async () => {
     try {
-      if (!isSupabaseConfigured || !supabase) {
+      if (!isSupabaseConfigured() || !supabase) {
         toast.error('Authentication is not configured')
         throw new Error('Supabase is not configured')
       }

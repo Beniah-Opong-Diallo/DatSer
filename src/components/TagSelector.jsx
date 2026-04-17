@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import { Tag, Check, X, Loader2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 
@@ -9,12 +10,16 @@ const TagSelector = ({
   tableName, 
   currentTags = [], 
   onTagsChange,
-  isDarkMode 
+  isDarkMode,
+  selectedTagIds = null,
+  onSelectionChange = null,
+  deferSave = false
 }) => {
   const [availableTags, setAvailableTags] = useState([])
-  const [selectedTagIds, setSelectedTagIds] = useState(new Set())
+  const [internalSelectedTagIds, setInternalSelectedTagIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const effectiveSelectedTagIds = selectedTagIds ?? internalSelectedTagIds
 
   // Load available tags
   useEffect(() => {
@@ -36,20 +41,24 @@ const TagSelector = ({
           p_table_name: tableName
         })
         if (error) throw error
-        if (!cancelled) setSelectedTagIds(new Set((data || []).map(t => t.id)))
+        if (!cancelled) setInternalSelectedTagIds(new Set((data || []).map(t => t.id)))
       } catch (err) {
         console.error('Error fetching member tags in selector:', err)
       }
     }
 
+    if (selectedTagIds !== null) {
+      return () => { cancelled = true }
+    }
+
     if (currentTags && currentTags.length > 0) {
-      setSelectedTagIds(new Set(currentTags.map(t => t.id)))
+      setInternalSelectedTagIds(new Set(currentTags.map(t => t.id)))
     } else {
       fetchMemberAssigned()
     }
 
     return () => { cancelled = true }
-  }, [memberId, tableName, currentTags])
+  }, [memberId, tableName, currentTags, selectedTagIds])
 
   const fetchTags = async () => {
     try {
@@ -69,36 +78,57 @@ const TagSelector = ({
   const toggleTag = async (tagId) => {
     if (saving) return
 
-    const isSelected = selectedTagIds.has(tagId)
+    const isSelected = effectiveSelectedTagIds.has(tagId)
+
+    if (deferSave) {
+      const next = new Set(effectiveSelectedTagIds)
+      if (isSelected) {
+        next.delete(tagId)
+      } else {
+        next.add(tagId)
+      }
+
+      if (onSelectionChange) {
+        onSelectionChange(next)
+      } else {
+        setInternalSelectedTagIds(next)
+      }
+      return
+    }
+
     setSaving(true)
 
     try {
       if (isSelected) {
         // Remove tag
-        const { error } = await supabase.rpc('remove_tag_from_member', {
-          p_tag_id: tagId,
-          p_member_id: memberId,
-          p_table_name: tableName,
-          p_owner_id: ownerId
-        })
-        if (error) throw error
+        await executeSupabaseWrite(
+          () => supabase.rpc('remove_tag_from_member', {
+            p_tag_id: tagId,
+            p_member_id: memberId,
+            p_table_name: tableName,
+            p_owner_id: ownerId
+          }),
+          { action: `Remove tag ${tagId} from member ${memberId}` }
+        )
 
-        setSelectedTagIds(prev => {
+        setInternalSelectedTagIds(prev => {
           const next = new Set(prev)
           next.delete(tagId)
           return next
         })
       } else {
         // Add tag
-        const { error } = await supabase.rpc('assign_tag_to_member', {
-          p_tag_id: tagId,
-          p_member_id: memberId,
-          p_table_name: tableName,
-          p_owner_id: ownerId
-        })
-        if (error) throw error
+        await executeSupabaseWrite(
+          () => supabase.rpc('assign_tag_to_member', {
+            p_tag_id: tagId,
+            p_member_id: memberId,
+            p_table_name: tableName,
+            p_owner_id: ownerId
+          }),
+          { action: `Assign tag ${tagId} to member ${memberId}` }
+        )
 
-        setSelectedTagIds(prev => new Set(prev).add(tagId))
+        setInternalSelectedTagIds(prev => new Set(prev).add(tagId))
       }
 
       // Notify parent
@@ -142,15 +172,15 @@ const TagSelector = ({
           <Tag className="w-4 h-4 inline mr-1" />
           Tags
         </label>
-        {selectedTagIds.size > 0 && (
+        {effectiveSelectedTagIds.size > 0 && (
           <span className="text-xs px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full font-medium">
-            {selectedTagIds.size} selected
+            {effectiveSelectedTagIds.size} selected
           </span>
         )}
       </div>
       <div className="flex flex-wrap gap-2">
         {availableTags.map((tag) => {
-          const isSelected = selectedTagIds.has(tag.id)
+          const isSelected = effectiveSelectedTagIds.has(tag.id)
           return (
             <button
               key={tag.id}

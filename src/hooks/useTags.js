@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { executeSupabaseWrite } from '../utils/supabaseWrite'
 
 export const useTags = (ownerId, currentTable) => {
   const [tags, setTags] = useState([])
@@ -61,14 +62,15 @@ export const useTags = (ownerId, currentTable) => {
   // Assign a tag to a member
   const assignTag = useCallback(async (tagId, memberId) => {
     try {
-      const { error } = await supabase.rpc('assign_tag_to_member', {
-        p_tag_id: tagId,
-        p_member_id: memberId,
-        p_table_name: currentTable,
-        p_owner_id: ownerId
-      })
-
-      if (error) throw error
+      await executeSupabaseWrite(
+        () => supabase.rpc('assign_tag_to_member', {
+          p_tag_id: tagId,
+          p_member_id: memberId,
+          p_table_name: currentTable,
+          p_owner_id: ownerId
+        }),
+        { action: `Assign tag ${tagId} to member ${memberId}` }
+      )
 
       // Update local state
       setMemberTags(prev => ({
@@ -86,14 +88,15 @@ export const useTags = (ownerId, currentTable) => {
   // Remove a tag from a member
   const removeTag = useCallback(async (tagId, memberId) => {
     try {
-      const { error } = await supabase.rpc('remove_tag_from_member', {
-        p_tag_id: tagId,
-        p_member_id: memberId,
-        p_table_name: currentTable,
-        p_owner_id: ownerId
-      })
-
-      if (error) throw error
+      await executeSupabaseWrite(
+        () => supabase.rpc('remove_tag_from_member', {
+          p_tag_id: tagId,
+          p_member_id: memberId,
+          p_table_name: currentTable,
+          p_owner_id: ownerId
+        }),
+        { action: `Remove tag ${tagId} from member ${memberId}` }
+      )
 
       // Update local state
       setMemberTags(prev => ({

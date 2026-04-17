@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import DatePicker from './DatePicker'
+import CustomSelect from './CustomSelect'
+import ExpandedSelect from './ExpandedSelect'
+import CombinedDatePicker from './CombinedDatePicker'
 import { X, AlertCircle, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
@@ -471,22 +474,14 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                 <div className="grid grid-cols-2 gap-3 items-end">
                                     {missingFields.includes('Date of Birth') && (
                                         <div>
-                                            <DatePicker
-                                                name="dateOfBirth"
-                                                label="Date of Birth"
+                                            {/* Combined Date Picker - All three in ONE unified dropdown */}
+                                            <CombinedDatePicker
                                                 value={formData.dateOfBirth || ''}
-                                                onChange={(e) => {
-                                                    // DatePicker emits an event-like object: { target: { name, value } }
-                                                    const v = e?.target?.value ?? e
-                                                    handleInputChange('dateOfBirth', v)
-                                                }}
+                                                onChange={(date) => handleInputChange('dateOfBirth', date)}
+                                                label="Date of Birth"
                                                 placeholder="Select date"
-                                                inputClassName="md:py-3 md:text-base"
-                                                error={isFieldInvalid('Date of Birth')}
+                                                error={isFieldInvalid('Date of Birth') ? 'Date of birth is required' : undefined}
                                             />
-                                            {isFieldInvalid('Date of Birth') && (
-                                                <p className="text-xs text-red-600 dark:text-red-400 mt-1">Date of birth is required</p>
-                                            )}
                                         </div>
                                     )}
 
