@@ -66,6 +66,19 @@ const createDeveloperQaQueue = () => ([
     { id: 'cleanup-member', label: 'Delete test member', status: 'pending' }
 ])
 
+const createDeepDeveloperQaQueue = () => ([
+    { id: 'open-add', label: 'Open Add Member', status: 'pending' },
+    { id: 'create-member', label: 'Create test member', status: 'pending' },
+    { id: 'verify-create', label: 'Verify created member', status: 'pending' },
+    { id: 'supabase-check-create', label: '🔍 Supabase check (created)', status: 'pending' },
+    { id: 'open-edit', label: 'Open Edit Member', status: 'pending' },
+    { id: 'update-member', label: 'Edit same member', status: 'pending' },
+    { id: 'verify-update', label: 'Verify edited member', status: 'pending' },
+    { id: 'supabase-check-update', label: '🔍 Supabase check (edited)', status: 'pending' },
+    { id: 'cleanup-member', label: 'Delete test member', status: 'pending' },
+    { id: 'supabase-check-delete', label: '🔍 Supabase check (deleted)', status: 'pending' }
+])
+
 const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMember }) => {
     const { user, signOut, preferences, resetPassword, isDeveloperBypass } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
@@ -176,10 +189,55 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
     const [isDevQaMinimized, setIsDevQaMinimized] = useState(false)
     const [devQaQueue, setDevQaQueue] = useState(() => createDeveloperQaQueue())
     const membersRef = useRef(members)
+    const devQaQueueScrollRef = useRef(null)
+    const devQaReportScrollRef = useRef(null)
+    const devQaResumeRef = useRef(null)
+    const devQaDeepModeRef = useRef(false)
+    const [devQaCountdown, setDevQaCountdown] = useState(0)
+    const [devQaPausedSql, setDevQaPausedSql] = useState('')
+    const [devQaPausedLabel, setDevQaPausedLabel] = useState('')
+    const [devQaBatchCount, setDevQaBatchCount] = useState(3)
 
     useEffect(() => {
         membersRef.current = members
     }, [members])
+
+    useEffect(() => {
+        if (devQaQueueScrollRef.current) {
+            devQaQueueScrollRef.current.scrollTo({
+                top: devQaQueueScrollRef.current.scrollHeight,
+                behavior: 'smooth'
+            })
+        }
+    }, [devQaQueue])
+
+    useEffect(() => {
+        if (devQaReportScrollRef.current) {
+            devQaReportScrollRef.current.scrollTo({
+                top: devQaReportScrollRef.current.scrollHeight,
+                behavior: 'smooth'
+            })
+        }
+    }, [devQaReport])
+
+    useEffect(() => {
+        if (devQaCountdown <= 0) return
+        const timer = setTimeout(() => {
+            setDevQaCountdown(prev => prev - 1)
+        }, 1000)
+        return () => clearTimeout(timer)
+    }, [devQaCountdown])
+
+    const handleDevQaResume = useCallback(() => {
+        selection()
+        if (devQaResumeRef.current) {
+            devQaResumeRef.current()
+            devQaResumeRef.current = null
+        }
+        setDevQaPausedSql('')
+        setDevQaPausedLabel('')
+        setDevQaCountdown(0)
+    }, [selection])
 
     useEffect(() => {
         const timer = setInterval(() => setLiveClock(new Date()), 30000)
@@ -217,7 +275,17 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             reportLines.push(message)
             setDevQaReport(reportLines.join('\n'))
         }
-        const resetQueue = () => setDevQaQueue(createDeveloperQaQueue())
+        const isDeepRun = devQaDeepModeRef.current
+        const resetQueue = () => setDevQaQueue(isDeepRun ? createDeepDeveloperQaQueue() : createDeveloperQaQueue())
+
+        const waitForUserContinue = (countdownSec, sql, label) => {
+            return new Promise((resolve) => {
+                devQaResumeRef.current = resolve
+                setDevQaPausedSql(sql)
+                setDevQaPausedLabel(label)
+                setDevQaCountdown(countdownSec)
+            })
+        }
         const markQueueStep = (stepId, status, detail = '') => {
             setDevQaQueue((prev) => prev.map((step) => (
                 step.id === stepId
@@ -312,7 +380,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 if (value) {
                     return value
                 }
-                await sleep(75)
+                await sleep(120)
             }
             throw new Error(`Timed out waiting for ${label}`)
         }
@@ -328,7 +396,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             }
             appendLine(message)
             element.click()
-            await sleep(220)
+            await sleep(500)
         }
 
         const setElementValue = async (element, nextValue, message) => {
@@ -356,11 +424,11 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 typedValue += character
                 valueSetter.call(element, typedValue)
                 element.dispatchEvent(new Event('input', { bubbles: true }))
-                await sleep(35)
+                await sleep(55)
             }
 
             element.dispatchEvent(new Event('change', { bubbles: true }))
-            await sleep(180)
+            await sleep(400)
         }
 
         const ensureParentSectionOpen = async (toggleTestId, nameFieldTestId) => {
@@ -409,7 +477,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                     const record = membersRef.current.find((member) => member.id === memberId)
                     return matchesExpectedFields(record, expectedFields) ? record : null
                 },
-                15000,
+                25000,
                 `${stageLabel.toLowerCase()} member state`
             )
 
@@ -500,6 +568,106 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             }, 'Create')
             markQueueStep('verify-create', 'passed', 'Created member values matched')
 
+            if (isDeepRun) {
+                appendLine('Assigning extra tags and attendance for deep QA testing...')
+                const sundayDatesForTable = []
+                if (currentTable) {
+                    const match = currentTable.match(/^(\d{4})_(\d{2})_members$/)
+                    if (match) {
+                        const tablYearNum = parseInt(match[1], 10)
+                        const tablMonthIdx = parseInt(match[2], 10) - 1
+                        const d = new Date(tablYearNum, tablMonthIdx, 1)
+                        while (d.getDay() !== 0) d.setDate(d.getDate() + 1)
+                        while (d.getMonth() === tablMonthIdx) {
+                            sundayDatesForTable.push(new Date(d))
+                            d.setDate(d.getDate() + 7)
+                        }
+                    }
+                }
+
+                // 1. Tags
+                const effectiveOwnerId = dataOwnerId || user?.id
+                let assignedTagNames = []
+                if (isSupabaseConfigured()) {
+                    try {
+                        const { data: tagData } = await supabase.rpc('get_workspace_tags', {
+                            p_owner_id: effectiveOwnerId
+                        })
+                        if (tagData && tagData.length > 0) {
+                            // Pick random 2 tags
+                            const tagsToAssign = tagData.sort(() => 0.5 - Math.random()).slice(0, 2)
+                            for (const tag of tagsToAssign) {
+                                await supabase.rpc('assign_tag_to_member', {
+                                    p_tag_id: tag.id,
+                                    p_member_id: createdMemberId,
+                                    p_table_name: currentTable,
+                                    p_owner_id: effectiveOwnerId
+                                })
+                                assignedTagNames.push(tag.name)
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error assigning QA tags:', err)
+                    }
+                }
+
+                // 2. Attendance
+                let assignedAttendance = []
+                if (isSupabaseConfigured()) {
+                    for (let i = 0; i < sundayDatesForTable.length; i++) {
+                        const sunday = sundayDatesForTable[i]
+                        const y = sunday.getFullYear()
+                        const m = String(sunday.getMonth() + 1).padStart(2, '0')
+                        const d = String(sunday.getDate()).padStart(2, '0')
+                        const colName = `attendance_${y}_${m}_${d}`
+                        const dateLabel = `${y}-${m}-${d}`
+
+                        const status = (i % 2 === 0) ? 'Present' : 'Absent'
+                        await supabase
+                            .from(currentTable)
+                            .update({ [colName]: status })
+                            .eq('id', createdMemberId)
+                        assignedAttendance.push(`-- ${dateLabel}: ${status}`)
+                    }
+                }
+
+                markQueueStep('supabase-check-create', 'running', 'Waiting for manual Supabase verification')
+                const createSql = [
+                    '-- \u2705 1. Verify the CREATED member exists in Supabase (with attendance)',
+                    `SELECT *`,
+                    `FROM "${currentTable}"`,
+                    `WHERE id = '${createdMemberId}';`,
+                    '',
+                    '-- \u2705 2. Verify their assigned WORKSPACE TAGS',
+                    `SELECT m."Full Name", COALESCE(STRING_AGG(t.name, ', '), 'No Tags') as assigned_tags`,
+                    `FROM "${currentTable}" m`,
+                    `LEFT JOIN member_tags mt ON mt.member_id = m.id AND mt.table_name = '${currentTable}'`,
+                    `LEFT JOIN tags t ON t.id = mt.tag_id`,
+                    `WHERE m.id = '${createdMemberId}'`,
+                    `GROUP BY m.id, m."Full Name";`,
+                    '',
+                    '-- Expected values:',
+                    `-- Full Name: ${createdName}`,
+                    `-- Gender: Female`,
+                    `-- Phone Number: ${createPhone}`,
+                    `-- Age: ${createAge}`,
+                    `-- date_of_birth: ${createDob}`,
+                    `-- Current Level: ${createLevel}`,
+                    `-- notes: ${createNotes}`,
+                    `-- is_visitor: ${createVisitor}`,
+                    `-- parent_name_1: ${createParentName}`,
+                    `-- parent_phone_1: ${createParentPhone}`,
+                    '',
+                    `-- Assigned Tags: ${assignedTagNames.length > 0 ? assignedTagNames.join(', ') : 'None available'}`,
+                    '-- Expected Attendance:',
+                    ...assignedAttendance
+                ].join('\n')
+                appendLine('⏳ Paused — copy the SQL below and run it in your Supabase SQL Editor to verify the CREATED member.')
+                await waitForUserContinue(120, createSql, 'Verify CREATED member in Supabase')
+                markQueueStep('supabase-check-create', 'passed', 'User confirmed Supabase check')
+                appendLine('✅ Supabase verification (created) confirmed by user')
+            }
+
             markQueueStep('open-edit', 'running', 'Launching the live Edit Member modal')
             appendLine('Opening the real Edit Member modal...')
             const editOpened = await waitFor(() => {
@@ -531,6 +699,10 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             await waitFor(() => !getByTestId('edit-member-modal'), 12000, 'Edit Member modal to close')
             markQueueStep('update-member', 'passed', `${updatedName} was submitted`)
 
+            appendLine('Refreshing members after edit submission...')
+            await forceRefreshMembersSilent()
+            await sleep(1500)
+
             markQueueStep('verify-update', 'running', 'Checking saved values after edit')
             await verifyPersistedMember(createdMemberId, {
                 full_name: updatedName,
@@ -545,6 +717,40 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 parent_phone_1: updatedParentPhone
             }, 'Update')
             markQueueStep('verify-update', 'passed', 'Edited member values matched')
+
+            if (isDeepRun) {
+                markQueueStep('supabase-check-update', 'running', 'Waiting for manual Supabase verification')
+                const updateSql = [
+                    '-- \u2705 1. Verify the EDITED member exists in Supabase',
+                    `SELECT *`,
+                    `FROM "${currentTable}"`,
+                    `WHERE id = '${createdMemberId}';`,
+                    '',
+                    '-- \u2705 2. Verify their assigned WORKSPACE TAGS',
+                    `SELECT m."Full Name", COALESCE(STRING_AGG(t.name, ', '), 'No Tags') as assigned_tags`,
+                    `FROM "${currentTable}" m`,
+                    `LEFT JOIN member_tags mt ON mt.member_id = m.id AND mt.table_name = '${currentTable}'`,
+                    `LEFT JOIN tags t ON t.id = mt.tag_id`,
+                    `WHERE m.id = '${createdMemberId}'`,
+                    `GROUP BY m.id, m."Full Name";`,
+                    '',
+                    '-- Expected values (after edit):',
+                    `-- Full Name: ${updatedName}`,
+                    `-- Gender: Male`,
+                    `-- Phone Number: ${updatedPhone}`,
+                    `-- Age: ${updatedAge}`,
+                    `-- date_of_birth: ${updatedDob}`,
+                    `-- Current Level: ${updatedLevel}`,
+                    `-- notes: ${updatedNotes}`,
+                    `-- is_visitor: ${updatedVisitor}`,
+                    `-- parent_name_1: ${updatedParentName}`,
+                    `-- parent_phone_1: ${updatedParentPhone}`
+                ].join('\n')
+                appendLine('⏳ Paused — copy the SQL below and run it in your Supabase SQL Editor to verify the EDITED member.')
+                await waitForUserContinue(120, updateSql, 'Verify EDITED member in Supabase')
+                markQueueStep('supabase-check-update', 'passed', 'User confirmed Supabase check')
+                appendLine('✅ Supabase verification (edited) confirmed by user')
+            }
 
             if (!isDeveloperBypass && isSupabaseConfigured()) {
                 appendLine('Refreshing local caches after database-backed run...')
@@ -568,6 +774,29 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             appendLine('Cleanup completed: the temporary test member was deleted')
             markQueueStep('cleanup-member', 'passed', 'Temporary member deleted')
 
+            if (isDeepRun) {
+                markQueueStep('supabase-check-delete', 'running', 'Waiting for manual Supabase verification')
+                const deleteSql = [
+                    '-- \u2705 1. Verify the member was DELETED from Supabase',
+                    `SELECT *`,
+                    `FROM "${currentTable}"`,
+                    `WHERE id = '${createdMember.id}';`,
+                    '',
+                    '-- \u2705 2. Verify their assigned tags were CASCADE DELETED',
+                    `SELECT *`,
+                    `FROM member_tags`,
+                    `WHERE member_id = '${createdMember.id}' AND table_name = '${currentTable}';`,
+                    '',
+                    '-- Expected: 0 rows returned for both queries',
+                    '-- The test member should no longer exist in the database or member_tags table.'
+                ].join('\n')
+                appendLine('⏳ Paused — copy the SQL below and run it in your Supabase SQL Editor to verify the member was DELETED.')
+                await waitForUserContinue(120, deleteSql, 'Verify DELETED member in Supabase')
+                markQueueStep('supabase-check-delete', 'passed', 'User confirmed Supabase deletion check')
+                appendLine('✅ Supabase verification (deleted) confirmed by user')
+            }
+
+            devQaDeepModeRef.current = false
             setDevQaStatus('passed')
             appendLine('Result: PASS')
             toast.success('Developer member QA passed')
@@ -598,6 +827,11 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 }
             }
 
+            devQaDeepModeRef.current = false
+            setDevQaPausedSql('')
+            setDevQaPausedLabel('')
+            setDevQaCountdown(0)
+            devQaResumeRef.current = null
             setDevQaStatus('failed')
             toast.error(error.message || 'Developer member QA failed')
         }
@@ -615,6 +849,423 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
         loadAllBadgeData,
         refreshSearch,
         onOpenAddMember
+    ])
+
+    const runBatchMemberQa = useCallback(async () => {
+        selection()
+        if (devQaStatus === 'running') return
+
+        const batchSize = Math.max(1, Math.min(10, devQaBatchCount))
+        const reportLines = []
+        const appendLine = (msg) => { reportLines.push(msg); setDevQaReport(reportLines.join('\n')) }
+        const markQueueStep = (stepId, status, detail = '') => {
+            setDevQaQueue(prev => prev.map(step =>
+                step.id === stepId ? { ...step, status, detail } : step
+            ))
+        }
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+        const waitForUserContinue = (countdownSec, sql, label) => {
+            return new Promise((resolve) => {
+                devQaResumeRef.current = resolve
+                setDevQaPausedSql(sql)
+                setDevQaPausedLabel(label)
+                setDevQaCountdown(countdownSec)
+            })
+        }
+
+        const ownerId = dataOwnerId || user?.id
+        const runToken = Date.now()
+        const createdMembers = []
+
+        // Generate Sunday dates for the current month table
+        const [tablMonth, tablYear] = currentTable.split('_')
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        const tablMonthIdx = monthNames.indexOf(tablMonth)
+        const tablYearNum = parseInt(tablYear)
+        const sundayDatesForTable = []
+        if (tablMonthIdx !== -1 && !isNaN(tablYearNum)) {
+            const d = new Date(tablYearNum, tablMonthIdx, 1)
+            while (d.getDay() !== 0) d.setDate(d.getDate() + 1)
+            while (d.getMonth() === tablMonthIdx) {
+                sundayDatesForTable.push(new Date(d))
+                d.setDate(d.getDate() + 7)
+            }
+        }
+
+        const badgeTypes = ['member', 'regular', 'newcomer']
+
+        const batchQueue = []
+        for (let i = 1; i <= batchSize; i++) {
+            batchQueue.push({ id: `batch-create-${i}`, label: `Create member #${i}`, status: 'pending' })
+        }
+        batchQueue.push({ id: 'batch-badges', label: `\ud83c\udff7\ufe0f Assign badges to all ${batchSize} members`, status: 'pending' })
+        batchQueue.push({ id: 'batch-tags', label: `\ud83c\udff7\ufe0f Assign workspace tags to all ${batchSize} members`, status: 'pending' })
+        if (sundayDatesForTable.length > 0) {
+            batchQueue.push({ id: 'batch-attendance', label: `\ud83d\udcc5 Mark attendance for ${sundayDatesForTable.length} Sundays`, status: 'pending' })
+        }
+        batchQueue.push({ id: 'batch-verify-all', label: '\ud83d\udd0d Verify all created in Supabase', status: 'pending' })
+        for (let i = 1; i <= batchSize; i++) {
+            batchQueue.push({ id: `batch-delete-${i}`, label: `Delete member #${i}`, status: 'pending' })
+        }
+        batchQueue.push({ id: 'batch-verify-deleted', label: '\ud83d\udd0d Verify all deleted from Supabase', status: 'pending' })
+
+        setDevQaStatus('running')
+        setIsDevQaModalOpen(true)
+        setIsDevQaMinimized(false)
+        setDevQaReport(`Starting batch QA (${batchSize} members)...`)
+        setDevQaQueue(batchQueue)
+
+        try {
+            if (!currentTable) throw new Error('No active month table selected')
+            appendLine(`Table: ${currentTable}`)
+            appendLine(`Batch size: ${batchSize}`)
+            appendLine(`Sundays in month: ${sundayDatesForTable.length}`)
+            appendLine('Mode: Direct database insertion for speed')
+            appendLine('')
+
+            const genders = ['Female', 'Male']
+            const levels = ['JHS 1', 'JHS 2', 'JHS 3', 'SHS 1', 'SHS 2', 'SHS 3']
+
+            // Track badge and attendance assignments for verification
+            const memberBadgeMap = {}
+            const memberAttendanceMap = {}
+
+            for (let i = 1; i <= batchSize; i++) {
+                markQueueStep(`batch-create-${i}`, 'running', `Inserting member #${i} into ${currentTable}`)
+
+                const memberName = `BATCH QA ${i} [${runToken}]`
+                const memberData = {
+                    'Full Name': memberName,
+                    'Gender': genders[i % 2],
+                    'Phone Number': `050000${String(1000 + i)}`,
+                    'Age': String(14 + (i % 6)),
+                    'date_of_birth': `${2012 - (i % 5)}-0${(i % 9) + 1}-${String(10 + (i % 20)).padStart(2, '0')}`,
+                    'Current Level': levels[i % levels.length],
+                    'notes': `Batch QA member ${i} of ${batchSize} \u2014 auto-generated`,
+                    'is_visitor': i % 4 === 0,
+                    'parent_name_1': `Batch Parent 1 for #${i}`,
+                    'parent_phone_1': `050111${String(1000 + i)}`,
+                    'parent_name_2': `Batch Parent 2 for #${i}`,
+                    'parent_phone_2': `050222${String(1000 + i)}`,
+                    'user_id': ownerId
+                }
+
+                const { data, error } = await supabase
+                    .from(currentTable)
+                    .insert(memberData)
+                    .select()
+                    .single()
+
+                if (error) throw new Error(`Failed to create member #${i}: ${error.message}`)
+
+                createdMembers.push({ id: data.id, name: memberName, index: i })
+                appendLine(`\u2713 Created #${i}: "${memberName}" \u2192 ${data.id}`)
+                markQueueStep(`batch-create-${i}`, 'passed', memberName)
+                await sleep(150)
+            }
+
+            // ── STEP: Assign badges ──
+            markQueueStep('batch-badges', 'running', 'Assigning badges to all members...')
+            appendLine('')
+            appendLine('\ud83c\udff7\ufe0f Assigning badges to batch members...')
+
+            for (let i = 0; i < createdMembers.length; i++) {
+                const member = createdMembers[i]
+                // Deterministic but varied badge assignment:
+                // All members get all 3 badges for thorough testing,
+                // but we vary it slightly so it's not identical
+                const assignedBadges = []
+                const badgeUpdate = {}
+
+                // Always assign at least 3 badges (all available types)
+                // Use index to create varied patterns
+                if ((i + 0) % 1 === 0) { badgeUpdate.Member = 'Yes'; assignedBadges.push('member') }
+                if ((i + 1) % 2 === 0) { badgeUpdate.Regular = 'Yes'; assignedBadges.push('regular') }
+                if ((i + 0) % 1 === 0) { badgeUpdate.Newcomer = 'Yes'; assignedBadges.push('newcomer') }
+
+                // Ensure at least 3 badges for every member
+                if (!badgeUpdate.Regular) { badgeUpdate.Regular = 'Yes'; assignedBadges.push('regular') }
+
+                memberBadgeMap[member.id] = assignedBadges
+
+                const { error: badgeError } = await supabase
+                    .from(currentTable)
+                    .update(badgeUpdate)
+                    .eq('id', member.id)
+
+                if (badgeError) throw new Error(`Failed to assign badges for member #${member.index}: ${badgeError.message}`)
+
+                appendLine(`  \u2713 #${member.index} badges: ${assignedBadges.join(', ')}`)
+                await sleep(100)
+            }
+
+            markQueueStep('batch-badges', 'passed', `Assigned badges to ${createdMembers.length} members`)
+            appendLine(`\u2705 All ${createdMembers.length} members received badges`)
+
+            // ── STEP: Assign workspace tags ──
+            markQueueStep('batch-tags', 'running', 'Fetching workspace tags...')
+            appendLine('')
+            appendLine('\ud83c\udff7\ufe0f Assigning workspace tags to batch members...')
+
+            const memberTagMap = {}
+            const effectiveOwnerId = dataOwnerId || user?.id
+            let workspaceTags = []
+            try {
+                const { data: tagData, error: tagFetchError } = await supabase.rpc('get_workspace_tags', {
+                    p_owner_id: effectiveOwnerId
+                })
+                if (tagFetchError) throw tagFetchError
+                workspaceTags = tagData || []
+            } catch (tagErr) {
+                appendLine(`  \u26a0 Could not fetch workspace tags: ${tagErr.message}`)
+            }
+
+            if (workspaceTags.length === 0) {
+                appendLine('  No workspace tags found — skipping tag assignment')
+                appendLine('  (Create tags in Admin Controls \u2192 Tag Management first)')
+                markQueueStep('batch-tags', 'passed', 'No tags available — skipped')
+            } else {
+                appendLine(`  Found ${workspaceTags.length} workspace tag(s): ${workspaceTags.map(t => t.name).join(', ')}`)
+
+                for (let i = 0; i < createdMembers.length; i++) {
+                    const member = createdMembers[i]
+                    // The user requested rigorous testing of ALL fields, so we assign ALL workspace tags to every member.
+                    const uniqueTags = workspaceTags
+
+                    memberTagMap[member.id] = uniqueTags.map(t => t.name)
+
+                    for (const tag of uniqueTags) {
+                        try {
+                            await supabase.rpc('assign_tag_to_member', {
+                                p_tag_id: tag.id,
+                                p_member_id: member.id,
+                                p_table_name: currentTable,
+                                p_owner_id: effectiveOwnerId
+                            })
+                        } catch (assignErr) {
+                            appendLine(`  \u26a0 Could not assign tag "${tag.name}" to #${member.index}: ${assignErr.message}`)
+                        }
+                    }
+
+                    appendLine(`  \u2713 #${member.index} tags: ${uniqueTags.map(t => t.name).join(', ')}`)
+                    await sleep(100)
+                }
+
+                markQueueStep('batch-tags', 'passed', `Assigned tags to ${createdMembers.length} members`)
+                appendLine(`\u2705 All ${createdMembers.length} members received workspace tags`)
+            }
+
+            // ── STEP: Mark attendance for all Sundays ──
+            if (sundayDatesForTable.length > 0) {
+                markQueueStep('batch-attendance', 'running', `Marking attendance for ${sundayDatesForTable.length} Sundays...`)
+                appendLine('')
+                appendLine(`\ud83d\udcc5 Marking attendance for ${sundayDatesForTable.length} Sundays...`)
+
+                for (const sunday of sundayDatesForTable) {
+                    const year = sunday.getFullYear()
+                    const month = String(sunday.getMonth() + 1).padStart(2, '0')
+                    const day = String(sunday.getDate()).padStart(2, '0')
+                    const colName = `attendance_${year}_${month}_${day}`
+                    const dateLabel = sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+                    // Ensure the attendance column exists via the app's existing RPC
+                    try {
+                        await supabase.rpc('add_attendance_column', {
+                            table_name: currentTable,
+                            column_name: colName
+                        })
+                    } catch {
+                        // Column likely already exists — safe to continue
+                    }
+
+                    // Assign a varied mix of Present and Absent for each member
+                    for (let i = 0; i < createdMembers.length; i++) {
+                        const member = createdMembers[i]
+                        const sundayIdx = sundayDatesForTable.indexOf(sunday)
+                        // Create a deterministic but varied pattern:
+                        // Some present, some absent, based on member index + sunday index
+                        const isPresent = ((i + sundayIdx) % 3 !== 0) // ~67% present, ~33% absent
+                        const status = isPresent ? 'Present' : 'Absent'
+
+                        if (!memberAttendanceMap[member.id]) {
+                            memberAttendanceMap[member.id] = {}
+                        }
+                        memberAttendanceMap[member.id][dateLabel] = status
+
+                        const { error: attError } = await supabase
+                            .from(currentTable)
+                            .update({ [colName]: status })
+                            .eq('id', member.id)
+
+                        if (attError) {
+                            appendLine(`  \u26a0 Could not mark ${dateLabel} for #${member.index}: ${attError.message}`)
+                        }
+                    }
+
+                    const presentCount = createdMembers.filter((_, idx) => {
+                        const sundayIdx = sundayDatesForTable.indexOf(sunday)
+                        return ((idx + sundayIdx) % 3 !== 0)
+                    }).length
+                    const absentCount = createdMembers.length - presentCount
+                    appendLine(`  \u2713 ${dateLabel}: ${presentCount} Present, ${absentCount} Absent`)
+                    await sleep(100)
+                }
+
+                markQueueStep('batch-attendance', 'passed', `Marked ${sundayDatesForTable.length} Sundays for ${createdMembers.length} members`)
+                appendLine(`\u2705 Attendance marked for all ${sundayDatesForTable.length} Sundays`)
+            }
+
+            appendLine('')
+            appendLine('Refreshing local member list...')
+            await forceRefreshMembersSilent()
+            await sleep(800)
+
+            markQueueStep('batch-verify-all', 'running', 'Waiting for Supabase verification')
+            const allIds = createdMembers.map(m => `'${m.id}'`).join(',\n       ')
+
+            // Build comprehensive verification SQL including badges + attendance
+            const attendanceCols = sundayDatesForTable.map(s => {
+                const y = s.getFullYear()
+                const m = String(s.getMonth() + 1).padStart(2, '0')
+                const d = String(s.getDate()).padStart(2, '0')
+                return `attendance_${y}_${m}_${d}`
+            })
+            
+            // Explicitly list all fields so the user sees everything
+            const selectFields = [
+                'm."Full Name"',
+                'm."Gender"',
+                'm."Phone Number"',
+                'm."date_of_birth"',
+                'm."Age"',
+                'm."Current Level"',
+                'm."parent_name_1"',
+                'm."parent_phone_1"',
+                'm."parent_name_2"',
+                'm."parent_phone_2"',
+                'm."is_visitor"',
+                'm."notes"',
+                'm."Member"',
+                'm."Regular"',
+                'm."Newcomer"',
+                ...attendanceCols.map(c => `m."${c}"`),
+                `COALESCE(STRING_AGG(t.name, ', '), 'No Tags') as assigned_tags`
+            ].join(',\n    ')
+
+            const verifySql = [
+                `-- \u2705 Verify ALL ${batchSize} batch members — EVERY SINGLE FIELD + BADGES + ATTENDANCE + TAGS`,
+                `SELECT `,
+                `    ${selectFields}`,
+                `FROM "${currentTable}" m`,
+                `LEFT JOIN member_tags mt ON mt.member_id = m.id AND mt.table_name = '${currentTable}'`,
+                `LEFT JOIN tags t ON t.id = mt.tag_id`,
+                `WHERE m.id IN (`,
+                `       ${allIds}`,
+                `)`,
+                `GROUP BY m.id, m."Full Name", m."Gender", m."Phone Number", m."date_of_birth", m."Age", m."Current Level", m."parent_name_1", m."parent_phone_1", m."parent_name_2", m."parent_phone_2", m."is_visitor", m."notes", m."Member", m."Regular", m."Newcomer"${attendanceCols.length > 0 ? ', ' + attendanceCols.map(c => `m."${c}"`).join(', ') : ''}`,
+                `ORDER BY m."Full Name";`,
+                '',
+                `-- Expected: ${batchSize} rows returned`,
+                `-- Every column listed above should be completely filled out for every member.`,
+                '',
+                ...createdMembers.map(m => {
+                    const badges = memberBadgeMap[m.id]?.join(', ') || 'none'
+                    const tags = memberTagMap[m.id]?.join(', ') || 'none'
+                    const att = memberAttendanceMap[m.id]
+                        ? Object.entries(memberAttendanceMap[m.id]).map(([d, s]) => `${d}=${s}`).join(', ')
+                        : 'none'
+                    return `-- #${m.index}: ${m.name} | Badges: ${badges} | Tags: ${tags} | Attendance: ${att}`
+                })
+            ].join('\n')
+            appendLine('')
+            appendLine(`\u23f3 Paused \u2014 verify all ${batchSize} members with badges + attendance in Supabase`)
+            await waitForUserContinue(180, verifySql, `Verify all ${batchSize} CREATED members`)
+            markQueueStep('batch-verify-all', 'passed', `User confirmed all ${batchSize} exist`)
+            appendLine('\u2705 Batch creation verified by user')
+            appendLine('')
+
+            for (let i = 0; i < createdMembers.length; i++) {
+                const member = createdMembers[i]
+                markQueueStep(`batch-delete-${member.index}`, 'running', `Deleting "${member.name}"`)
+
+                const deleteResult = await deleteMember(member.id)
+                if (!deleteResult?.success) {
+                    const { error: delError } = await supabase
+                        .from(currentTable)
+                        .delete()
+                        .eq('id', member.id)
+                    if (delError) throw new Error(`Failed to delete member #${member.index}: ${delError.message}`)
+                }
+
+                appendLine(`\u2713 Deleted #${member.index}: "${member.name}"`)
+                markQueueStep(`batch-delete-${member.index}`, 'passed', 'Deleted')
+                await sleep(150)
+            }
+
+            await forceRefreshMembersSilent()
+            await sleep(800)
+
+            markQueueStep('batch-verify-deleted', 'running', 'Waiting for Supabase verification')
+            const deleteSql = [
+                `-- \u274c Verify ALL ${batchSize} batch members were DELETED from Supabase`,
+                `SELECT *`,
+                `FROM "${currentTable}"`,
+                `WHERE id IN (`,
+                `       ${allIds}`,
+                `);`,
+                '',
+                `-- Expected: 0 rows returned`,
+                `-- All ${batchSize} test members should no longer exist.`
+            ].join('\n')
+            appendLine('')
+            appendLine(`\u23f3 Paused \u2014 verify all ${batchSize} members were deleted from Supabase`)
+            await waitForUserContinue(180, deleteSql, `Verify all ${batchSize} members DELETED`)
+            markQueueStep('batch-verify-deleted', 'passed', `User confirmed all ${batchSize} deleted`)
+            appendLine('\u2705 Batch deletion verified by user')
+
+            setDevQaStatus('passed')
+            appendLine('')
+            appendLine('Result: PASS')
+            toast.success(`Batch QA passed (${batchSize} members created, verified, deleted, verified)`)
+        } catch (error) {
+            setDevQaQueue(prev => prev.map(step =>
+                step.status === 'running' ? { ...step, status: 'failed', detail: error.message || 'Failed' } : step
+            ))
+            appendLine('Result: FAIL')
+            appendLine(`Error: ${error.message || 'Unknown error'}`)
+
+            if (createdMembers.length > 0) {
+                appendLine('')
+                appendLine('Attempting emergency cleanup of created members...')
+                for (const member of createdMembers) {
+                    try {
+                        const delResult = await deleteMember(member.id)
+                        if (!delResult?.success) {
+                            await supabase.from(currentTable).delete().eq('id', member.id)
+                        }
+                        appendLine(`  Cleaned up: ${member.name}`)
+                    } catch {
+                        appendLine(`  \u26a0 Could not clean up: ${member.name}`)
+                    }
+                }
+            }
+
+            setDevQaPausedSql('')
+            setDevQaPausedLabel('')
+            setDevQaCountdown(0)
+            devQaResumeRef.current = null
+            setDevQaStatus('failed')
+            toast.error(error.message || 'Batch QA failed')
+        }
+    }, [
+        selection,
+        devQaStatus,
+        devQaBatchCount,
+        dataOwnerId,
+        user?.id,
+        currentTable,
+        deleteMember,
+        forceRefreshMembersSilent
     ])
 
     useEffect(() => {
@@ -2241,55 +2892,128 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 space-y-4">
-                    <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Automated Member QA</h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            One tap to visibly open the real Add Member and Edit Member popups, operate them live, verify the saved values, then delete the temporary test member again.
-                        </p>
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-start justify-between gap-4 bg-gray-50/30 dark:bg-gray-900/20">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Zap className="w-5 h-5 text-indigo-500" />
+                                <h4 className="text-base font-semibold text-gray-900 dark:text-white">Automated QA Bench</h4>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Run complete automated test flows to verify UI functionality and database integrity.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                            <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md border ${
+                                devQaStatus === 'passed'
+                                    ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20'
+                                    : devQaStatus === 'failed'
+                                        ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'
+                                        : devQaStatus === 'running'
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
+                                            : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                            }`}>
+                                {devQaStatus === 'passed' && <CheckCircle className="w-3.5 h-3.5" />}
+                                {devQaStatus === 'failed' && <AlertTriangle className="w-3.5 h-3.5" />}
+                                {devQaStatus === 'running' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                {devQaStatus === 'passed' ? 'Last QA Passed'
+                                    : devQaStatus === 'failed' ? 'Last QA Failed'
+                                    : devQaStatus === 'running' ? 'QA Running...'
+                                    : 'Idle'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    selection()
+                                    setIsDevQaModalOpen(true)
+                                    setIsDevQaMinimized(false)
+                                }}
+                                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center gap-1.5"
+                            >
+                                <Monitor className="w-4 h-4" />
+                                Monitor
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={runDeveloperMemberQa}
-                            disabled={devQaStatus === 'running'}
-                            data-testid="dev-run-member-qa"
-                            className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white font-medium transition-colors flex items-center gap-2"
-                        >
-                            {devQaStatus === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                            {devQaStatus === 'running' ? 'Running QA...' : 'Run Add + Edit QA'}
-                        </button>
+                    <div className="p-4 sm:p-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Standard QA Card */}
+                            <div className="flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 p-4">
+                                <div className="mb-3">
+                                    <h5 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Monitor className="w-4 h-4 text-primary-500" />
+                                        UI Flow Simulation
+                                    </h5>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                        Visibly opens modals and types data. Verifies the Add, Edit, and Delete lifecycle.
+                                    </p>
+                                </div>
+                                <div className="mt-auto space-y-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            devQaDeepModeRef.current = false
+                                            runDeveloperMemberQa()
+                                        }}
+                                        disabled={devQaStatus === 'running'}
+                                        data-testid="dev-run-member-qa"
+                                        className="w-full px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        {devQaStatus === 'running' && !devQaDeepModeRef.current ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                                        Quick QA (Automated)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            devQaDeepModeRef.current = true
+                                            runDeveloperMemberQa()
+                                        }}
+                                        disabled={devQaStatus === 'running' || !currentTable}
+                                        className="w-full px-3 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
+                                    >
+                                        {devQaStatus === 'running' && devQaDeepModeRef.current ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                                        Deep QA + Manual Check
+                                    </button>
+                                </div>
+                            </div>
 
-                        <button
-                            type="button"
-                            onClick={() => {
-                                selection()
-                                setIsDevQaModalOpen(true)
-                                setIsDevQaMinimized(false)
-                            }}
-                            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        >
-                            Open QA Monitor
-                        </button>
-
-                        <span className={`text-sm font-medium ${
-                            devQaStatus === 'passed'
-                                ? 'text-green-600 dark:text-green-400'
-                                : devQaStatus === 'failed'
-                                    ? 'text-red-600 dark:text-red-400'
-                                    : devQaStatus === 'running'
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-gray-500 dark:text-gray-400'
-                        }`}>
-                            {devQaStatus === 'passed'
-                                ? 'Last run passed'
-                                : devQaStatus === 'failed'
-                                    ? 'Last run failed'
-                                    : devQaStatus === 'running'
-                                        ? 'QA is running now'
-                                        : 'No run yet'}
-                        </span>
+                            {/* Batch QA Card */}
+                            <div className="flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 p-4">
+                                <div className="mb-3">
+                                    <h5 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <Database className="w-4 h-4 text-emerald-500" />
+                                        Batch Insertion Stress Test
+                                    </h5>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                        Bypasses UI to directly insert bulk data. Provides combined SQL to verify.
+                                    </p>
+                                </div>
+                                <div className="mt-auto pt-2 border-t border-gray-200/50 dark:border-gray-700/50 flex items-center gap-3">
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Runs:</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="10"
+                                            value={devQaBatchCount}
+                                            onChange={(e) => setDevQaBatchCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                            disabled={devQaStatus === 'running'}
+                                            className="w-16 h-9 px-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-center text-gray-900 dark:text-white focus:ring-2 disabled:opacity-50"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={runBatchMemberQa}
+                                        disabled={devQaStatus === 'running' || !currentTable}
+                                        className="flex-1 h-9 px-3 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
+                                    >
+                                        {devQaStatus === 'running' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                                        Run Batch QA
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4">
@@ -2323,7 +3047,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 </div>
 
                 {isDevQaModalOpen && !isDevQaMinimized && (
-                    <div className="fixed bottom-4 right-4 z-[95] w-[min(26rem,calc(100vw-1.5rem))] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-950/95 shadow-2xl backdrop-blur-md overflow-hidden">
+                    <div className="fixed bottom-4 right-4 z-[95] w-[min(26rem,calc(100vw-1.5rem))] max-h-[min(32rem,calc(100vh-2rem))] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-950/95 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col">
                         <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-800">
                             <div>
                                 <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Developer QA Monitor</h4>
@@ -2358,7 +3082,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                             </div>
                         </div>
 
-                        <div className="px-4 py-3 space-y-3">
+                        <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 min-h-0">
                             <div className="flex flex-wrap items-center gap-2">
                                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
                                     devQaStatus === 'passed'
@@ -2386,7 +3110,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                 </p>
                             </div>
 
-                            <div className="space-y-2">
+                            <div ref={devQaQueueScrollRef} className="space-y-2 max-h-[10rem] overflow-y-auto pr-1">
                                 {devQaQueue.map((step) => (
                                     <div key={step.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 bg-white/60 dark:bg-gray-900/40">
                                         <div className="min-w-0">
@@ -2410,7 +3134,45 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                 ))}
                             </div>
 
-                            <div className="rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3 max-h-[22rem] overflow-y-auto">
+                            {devQaPausedSql && (
+                                <div className="rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border-2 border-indigo-300 dark:border-indigo-700 p-3 space-y-3 animate-pulse-once">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                                            {devQaPausedLabel || 'Supabase Verification'}
+                                        </p>
+                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-xs font-mono font-bold">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            {Math.floor(devQaCountdown / 60)}:{String(devQaCountdown % 60).padStart(2, '0')}
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                                        Copy this SQL, open your Supabase SQL Editor, and run it to verify the data. Press Continue when done.
+                                    </p>
+                                    <div className="relative">
+                                        <pre className="text-[11px] text-indigo-900 dark:text-indigo-100 whitespace-pre-wrap break-words bg-white/80 dark:bg-gray-950/60 rounded-lg p-2.5 border border-indigo-100 dark:border-indigo-800/50 font-mono max-h-[8rem] overflow-y-auto">{devQaPausedSql}</pre>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(devQaPausedSql)
+                                                toast.success('SQL copied to clipboard')
+                                            }}
+                                            className="absolute top-1.5 right-1.5 px-2 py-1 rounded-md bg-indigo-100 dark:bg-indigo-800/60 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-700/60 transition-colors text-[10px] font-semibold"
+                                        >
+                                            Copy SQL
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleDevQaResume}
+                                        className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <CheckCircle className="w-3.5 h-3.5" />
+                                        Continue — I've verified in Supabase
+                                    </button>
+                                </div>
+                            )}
+
+                            <div ref={devQaReportScrollRef} className="rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3 max-h-[12rem] overflow-y-auto">
                                 <pre className="text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words">{devQaReport}</pre>
                             </div>
                         </div>

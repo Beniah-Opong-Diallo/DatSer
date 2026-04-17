@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Search, UserPlus, Settings, Moon, Sun, Download, Home, X, Users, LogOut, Zap, Eye, Monitor, Palette, Building2, Database, TrendingUp, HelpCircle, AlertTriangle } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
+import { APP_VIEWS, SETTINGS_SECTIONS } from '../config/navigation.js'
 
 const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNavigateToSettingsSection }) => {
     const [isOpen, setIsOpen] = useState(false)
@@ -27,7 +28,7 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
+    }, [commandKEnabled])
 
     // Focus input when opened
     useEffect(() => {
@@ -39,251 +40,7 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
         }
     }, [isOpen])
 
-    const actions = [
-        // Navigation Actions
-        {
-            id: 'dashboard',
-            label: 'Go to Dashboard',
-            icon: Home,
-            category: 'navigation',
-            shortcut: 'D',
-            action: () => {
-                setCurrentView('dashboard')
-                setIsOpen(false)
-            }
-        },
-        ...(isExecutive ? [{
-            id: 'exec',
-            label: 'Executive Attendance',
-            icon: Monitor,
-            category: 'navigation',
-            shortcut: 'X',
-            action: () => {
-                setCurrentView('exec')
-                setIsOpen(false)
-            }
-        }] : []),
-        {
-            id: 'analytics',
-            label: 'View Analytics',
-            icon: TrendingUp,
-            category: 'navigation',
-            shortcut: 'A',
-            action: () => {
-                setCurrentView('analytics')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'admin',
-            label: 'Admin Panel',
-            icon: Users,
-            category: 'navigation',
-            shortcut: 'M',
-            action: () => {
-                setCurrentView('admin')
-                setIsOpen(false)
-            }
-        },
-        
-        // Settings Actions
-        {
-            id: 'settings',
-            label: 'Open Settings',
-            icon: Settings,
-            category: 'settings',
-            shortcut: 'S',
-            action: () => {
-                setCurrentView('settings')
-                setIsOpen(false)
-            }
-        },
-        // Account Settings
-        {
-            id: 'settings-account',
-            label: 'Settings → Account',
-            icon: Users,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('account')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-profile',
-            label: 'Settings → Profile Picture',
-            icon: Users,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('account')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-password',
-            label: 'Settings → Change Password',
-            icon: Users,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('account')
-                setIsOpen(false)
-            }
-        },
-        // Workspace Settings
-        {
-            id: 'settings-workspace',
-            label: 'Settings → Workspace',
-            icon: Building2,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('workspace')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-month',
-            label: 'Settings → Select Month',
-            icon: Building2,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('workspace')
-                setIsOpen(false)
-            }
-        },
-        // Team Settings
-        {
-            id: 'settings-team',
-            label: 'Settings → Team & Collaborators',
-            icon: Users,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('team')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-share',
-            label: 'Settings → Share Access',
-            icon: Users,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('team')
-                setIsOpen(false)
-            }
-        },
-        // Appearance Settings
-        {
-            id: 'settings-appearance',
-            label: 'Settings → Appearance',
-            icon: Palette,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('appearance')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-theme',
-            label: 'Settings → Theme',
-            icon: Palette,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('appearance')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-font',
-            label: 'Settings → Font Size & Family',
-            icon: Palette,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('appearance')
-                setIsOpen(false)
-            }
-        },
-        // Accessibility Settings
-        {
-            id: 'settings-accessibility',
-            label: 'Settings → Accessibility',
-            icon: Zap,
-            category: 'settings',
-            shortcut: 'K',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('accessibility')
-                setIsOpen(false)
-            }
-        },
-        // Data Management Settings
-        {
-            id: 'settings-data',
-            label: 'Settings → Data Management',
-            icon: Database,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('data')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-export',
-            label: 'Settings → Export Data',
-            icon: Download,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('data')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-import',
-            label: 'Settings → Import Data',
-            icon: Database,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('data')
-                setIsOpen(false)
-            }
-        },
-        // Help & Support
-        {
-            id: 'settings-help',
-            label: 'Settings → Help Center',
-            icon: HelpCircle,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('help')
-                setIsOpen(false)
-            }
-        },
-        {
-            id: 'settings-activity',
-            label: 'Settings → Activity Log',
-            icon: Database,
-            category: 'settings',
-            action: () => {
-                setCurrentView('settings')
-                if (onNavigateToSettingsSection) onNavigateToSettingsSection('activity')
-                setIsOpen(false)
-            }
-        },
-        
-        // Quick Actions
+    const defaultActions = [
         {
             id: 'add-member',
             label: 'Add New Member',
@@ -303,12 +60,10 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
             shortcut: 'E',
             action: () => {
                 setCurrentView('settings')
-                // In a real app, you'd pass a parameter to open the data section
+                if (onNavigateToSettingsSection) onNavigateToSettingsSection('data')
                 setIsOpen(false)
             }
         },
-        
-        // Theme Actions
         {
             id: 'theme',
             label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
@@ -320,22 +75,6 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
                 setIsOpen(false)
             }
         },
-        
-        // Help Actions
-        {
-            id: 'help',
-            label: 'Help Center',
-            icon: HelpCircle,
-            category: 'help',
-            shortcut: 'H',
-            action: () => {
-                setCurrentView('settings')
-                // In a real app, you'd pass a parameter to open the help section
-                setIsOpen(false)
-            }
-        },
-        
-        // Account Actions
         {
             id: 'logout',
             label: 'Log Out',
@@ -349,9 +88,39 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
         }
     ]
 
-    const filteredActions = actions.filter(action =>
-        action.label.toLowerCase().includes(query.toLowerCase())
-    )
+    const navActions = APP_VIEWS.filter(view => {
+        if (view.requiresExec && !isExecutive) return false
+        return true
+    }).map(view => ({
+        id: view.id,
+        label: `Go to ${view.label}`,
+        icon: view.icon,
+        category: 'navigation',
+        action: () => {
+            setCurrentView(view.id)
+            setIsOpen(false)
+        }
+    }))
+
+    const settingsActions = SETTINGS_SECTIONS.map(sec => ({
+        id: `settings-${sec.id}`,
+        label: `Settings → ${sec.label}`,
+        icon: sec.icon,
+        category: 'settings',
+        aliases: sec.keywords || '',
+        action: () => {
+            setCurrentView('settings')
+            if (onNavigateToSettingsSection) onNavigateToSettingsSection(sec.id)
+            setIsOpen(false)
+        }
+    }))
+
+    const actions = [...navActions, ...settingsActions, ...defaultActions]
+
+    const filteredActions = actions.filter(action => {
+        const target = `${action.label} ${action.aliases || ''}`.toLowerCase()
+        return target.includes(query.toLowerCase())
+    })
     
     // Group actions by category
     const groupedActions = filteredActions.reduce((groups, action) => {
