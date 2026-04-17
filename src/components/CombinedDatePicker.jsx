@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
 
 const CombinedDatePicker = ({ 
+  name,
   value, 
   onChange, 
   placeholder = 'Select date',
@@ -13,31 +14,42 @@ const CombinedDatePicker = ({
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
   const dropdownRef = useRef(null)
-  
-  // Parse the current value
-  const getDateParts = () => {
-    if (!value) return { day: '', month: '', year: '' }
-    const parts = value.split('-')
+  const pickerId = String(name || label || placeholder || 'date')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  const parseDateParts = (dateValue) => {
+    if (!dateValue) return { day: '', month: '', year: '' }
+    const parts = String(dateValue).split('-')
     return {
       day: parts[2] || '',
       month: parts[1] || '',
       year: parts[0] || ''
     }
   }
-  
-  const { day, month, year } = getDateParts()
+
+  const [selectedParts, setSelectedParts] = useState(() => parseDateParts(value))
+  const { day, month, year } = selectedParts
+
+  useEffect(() => {
+    setSelectedParts(parseDateParts(value))
+  }, [value])
   
   // Format display text
   const getDisplayText = () => {
-    if (!value) return placeholder
+    if (!day && !month && !year) return placeholder
     
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                        'July', 'August', 'September', 'October', 'November', 'December']
     
     const monthIndex = parseInt(month) - 1
     const monthName = monthNames[monthIndex] || ''
-    
-    return `${monthName} ${day}, ${year}`
+
+    if (day && monthName && year) return `${monthName} ${day}, ${year}`
+    if (monthName && year) return `${monthName} ${year}`
+    if (monthName && day) return `${monthName} ${day}`
+    return [day, monthName, year].filter(Boolean).join(' / ')
   }
 
   // Options
@@ -80,33 +92,69 @@ const CombinedDatePicker = ({
     }
   }, [isOpen])
 
-  const handleDayChange = (newDay) => {
-    if (newDay && month && year) {
-      onChange(`${year}-${month}-${newDay}`)
-    } else if (!newDay) {
-      onChange('')
+  const commitDateIfComplete = (nextParts) => {
+    if (nextParts.day && nextParts.month && nextParts.year) {
+      const nextValue = `${nextParts.year}-${nextParts.month}-${nextParts.day}`
+      if (name) {
+        onChange({ target: { name, value: nextValue } })
+      } else {
+        onChange(nextValue)
+      }
+      setIsOpen(false)
     }
+  }
+
+  const updateSelectedParts = (patch) => {
+    setSelectedParts(prev => {
+      const nextParts = { ...prev, ...patch }
+      commitDateIfComplete(nextParts)
+      return nextParts
+    })
+  }
+
+  const handleDayChange = (newDay) => {
+    if (!newDay) {
+      setSelectedParts({ day: '', month: '', year: '' })
+      if (name) {
+        onChange({ target: { name, value: '' } })
+      } else {
+        onChange('')
+      }
+      return
+    }
+    updateSelectedParts({ day: newDay })
   }
   
   const handleMonthChange = (newMonth) => {
-    if (day && newMonth && year) {
-      onChange(`${year}-${newMonth}-${day}`)
-    } else if (!newMonth) {
-      onChange('')
+    if (!newMonth) {
+      setSelectedParts({ day: '', month: '', year: '' })
+      if (name) {
+        onChange({ target: { name, value: '' } })
+      } else {
+        onChange('')
+      }
+      return
     }
+    updateSelectedParts({ month: newMonth })
   }
   
   const handleYearChange = (newYear) => {
-    if (day && month && newYear) {
-      onChange(`${newYear}-${month}-${day}`)
-    } else if (!newYear) {
-      onChange('')
+    if (!newYear) {
+      setSelectedParts({ day: '', month: '', year: '' })
+      if (name) {
+        onChange({ target: { name, value: '' } })
+      } else {
+        onChange('')
+      }
+      return
     }
+    updateSelectedParts({ year: newYear })
   }
 
   return (
     <div 
       ref={containerRef}
+      data-testid={`combined-date-picker-${pickerId}`}
       className={`relative ${className}`}
     >
       {label && (
@@ -120,6 +168,7 @@ const CombinedDatePicker = ({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
+        data-testid={`combined-date-picker-${pickerId}-toggle`}
         className={`
           w-full flex items-center justify-between px-3 py-2.5 text-left
           bg-white dark:bg-gray-800 border rounded-lg
@@ -146,6 +195,7 @@ const CombinedDatePicker = ({
       {isOpen && (
         <div 
           ref={dropdownRef}
+          data-testid={`combined-date-picker-${pickerId}-dropdown`}
           className={`
             absolute z-50 w-full mt-1 
             bg-white dark:bg-gray-800 
@@ -164,6 +214,7 @@ const CombinedDatePicker = ({
               {dayOptions.map((opt) => (
                 <div
                   key={opt.value}
+                  data-testid={`combined-date-picker-${pickerId}-day-${opt.value}`}
                   onClick={() => handleDayChange(opt.value)}
                   className={`
                     flex items-center justify-between px-3 py-2 cursor-pointer
@@ -190,6 +241,7 @@ const CombinedDatePicker = ({
               {monthOptions.map((opt) => (
                 <div
                   key={opt.value}
+                  data-testid={`combined-date-picker-${pickerId}-month-${opt.value}`}
                   onClick={() => handleMonthChange(opt.value)}
                   className={`
                     flex items-center justify-between px-3 py-2 cursor-pointer
@@ -216,6 +268,7 @@ const CombinedDatePicker = ({
               {yearOptions.map((opt) => (
                 <div
                   key={opt.value}
+                  data-testid={`combined-date-picker-${pickerId}-year-${opt.value}`}
                   onClick={() => handleYearChange(opt.value)}
                   className={`
                     flex items-center justify-between px-3 py-2 cursor-pointer

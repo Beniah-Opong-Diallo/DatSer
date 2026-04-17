@@ -205,6 +205,7 @@ export const AppProvider = ({ children }) => {
   const authContext = useAuth()
   const user = authContext?.user
   const authLoading = authContext?.loading
+  const isDeveloperBypass = authContext?.isDeveloperBypass === true
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -661,6 +662,17 @@ export const AppProvider = ({ children }) => {
     appContextLog('User ID:', user?.id)
     appContextLog('Supabase configured?', isSupabaseConfigured())
 
+    if (isDeveloperBypass && user?.id) {
+      setIsCollaborator(false)
+      setIsAdminCollaborator(false)
+      setDataOwnerId(user.id)
+      setOwnerEmail(null)
+      setHasAccess(true)
+      setOwnerStickyMonth(null)
+      setOwnerStickySundays([])
+      return user.id
+    }
+
     if (!user?.id || !isSupabaseConfigured()) {
       appContextLog('Skipping collaborator check - no user ID or Supabase not configured')
       setIsCollaborator(false)
@@ -914,7 +926,7 @@ export const AppProvider = ({ children }) => {
       }
       appContextLog(`Fetching members from table: ${tableName} for user: ${user?.id}`)
 
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         appContextLog('Using mock data - Supabase not configured')
         setMembers(mockMembers)
         if (!background) {
@@ -1021,7 +1033,7 @@ export const AppProvider = ({ children }) => {
   // Add new member to current monthly table
   const addMember = async (memberData) => {
     try {
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         // Demo mode - add to local state
         const newMember = {
           id: Date.now().toString(),
@@ -1029,7 +1041,14 @@ export const AppProvider = ({ children }) => {
           'Gender': memberData.gender || memberData['Gender'],
           'Phone Number': memberData.phone_number || memberData.phoneNumber || memberData['Phone Number'],
           'Age': memberData.age || memberData['Age'],
+          date_of_birth: memberData.date_of_birth || memberData['date_of_birth'] || null,
           'Current Level': memberData.current_level || memberData.currentLevel || memberData['Current Level'],
+          notes: memberData.notes || null,
+          is_visitor: Boolean(memberData.is_visitor),
+          parent_name_1: memberData.parent_name_1 || null,
+          parent_phone_1: memberData.parent_phone_1 || null,
+          parent_name_2: memberData.parent_name_2 || null,
+          parent_phone_2: memberData.parent_phone_2 || null,
           'Member Status': 'New', // Default status for new members
           'Badge Type': 'newcomer', // Default badge
           'Join Date': new Date().toISOString().split('T')[0], // Join date
@@ -1127,7 +1146,7 @@ export const AppProvider = ({ children }) => {
   // Get all attendance columns for the current table
   const getAttendanceColumns = async () => {
     try {
-      if (!isSupabaseConfigured()) return []
+      if (isDeveloperBypass || !isSupabaseConfigured()) return []
       if (!currentTable) return []
 
       const { data, error } = await supabase.rpc('get_table_columns', {
@@ -1509,7 +1528,7 @@ export const AppProvider = ({ children }) => {
 
   const getAttendanceColumnsForTable = useCallback(async (tableName) => {
     try {
-      if (!isSupabaseConfigured()) return []
+      if (isDeveloperBypass || !isSupabaseConfigured()) return []
       if (!tableName) return []
 
       const { data, error } = await supabase.rpc('get_table_columns', {
@@ -1532,7 +1551,7 @@ export const AppProvider = ({ children }) => {
       console.error('Error getting table columns:', error)
       return []
     }
-  }, [isSupabaseConfigured])
+  }, [isDeveloperBypass, isSupabaseConfigured])
 
   const findAttendanceColumnForDateInTable = useCallback(async (date, tableName) => {
     try {
@@ -1626,7 +1645,7 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'No valid Sunday found for this month' }
       }
 
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         // Demo mode - update local state
         const dateKey = getLocalDateString(effectiveDate)
         setAttendanceData(prev => ({
@@ -1991,7 +2010,7 @@ export const AppProvider = ({ children }) => {
   const updateMember = async (id, updates, options = {}) => {
     const { silent = false, allowLocalFallback = false } = options
     try {
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         // Demo mode - update local state
         const baseMember = members.find(m => m.id === id) || {}
         const updatedMember = { ...baseMember, ...updates }
@@ -2344,7 +2363,7 @@ export const AppProvider = ({ children }) => {
     }
 
     // Support deletion in demo mode by updating local state so mobile users on static deployments can manage entries
-    if (!isSupabaseConfigured()) {
+    if (isDeveloperBypass || !isSupabaseConfigured()) {
       console.log(`[DELETE] Demo mode - deleting member ${memberId} from local state`)
       setMembers(prevMembers => {
         const updated = prevMembers.filter(member => member.id !== memberId)
@@ -2527,7 +2546,7 @@ export const AppProvider = ({ children }) => {
       }
 
       // 1. Check configuration
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         setMonthlyTables(FALLBACK_MONTHLY_TABLES)
         return
       }
@@ -2614,6 +2633,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [
     isSupabaseConfigured,
+    isDeveloperBypass,
     dataOwnerId,
     user?.id,
     isCollaborator,
@@ -2626,7 +2646,7 @@ export const AppProvider = ({ children }) => {
   const deleteMonthTable = useCallback(async (tableName) => {
     if (!tableName) return
     try {
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         setMonthlyTables(prev => {
           const nextTables = sortMonthTables(prev.filter(t => t !== tableName))
           if (currentTable === tableName) {
@@ -2704,7 +2724,7 @@ export const AppProvider = ({ children }) => {
       toast.error(error?.message || 'Failed to delete month')
       throw error
     }
-  }, [isSupabaseConfigured, supabase, user?.id, dataOwnerId, currentTable, changeCurrentTable, fetchMonthlyTables])
+  }, [isDeveloperBypass, isSupabaseConfigured, supabase, user?.id, dataOwnerId, currentTable, changeCurrentTable, fetchMonthlyTables])
 
   const handleMissingTable = useCallback(async (tableName) => {
     if (!tableName) return
@@ -2742,7 +2762,7 @@ export const AppProvider = ({ children }) => {
       const resolvedCopyMode = copyMode === 'attendance' ? 'custom' : copyMode
       const ownerId = dataOwnerId || user?.id
 
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         // Demo mode - simulate table creation locally
         setMonthlyTables(prev => {
           if (prev.includes(monthIdentifier)) return prev
@@ -3758,7 +3778,7 @@ export const AppProvider = ({ children }) => {
   // Load all attendance data for all Sunday dates in the current month
   const loadAllAttendanceData = async () => {
     try {
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         console.log('Demo mode - attendance data will be managed locally')
         return
       }
@@ -3854,7 +3874,7 @@ export const AppProvider = ({ children }) => {
   // Load all badge data for the current table
   const loadAllBadgeData = async () => {
     try {
-      if (!isSupabaseConfigured()) {
+      if (isDeveloperBypass || !isSupabaseConfigured()) {
         console.log('Demo mode - badge data will be managed locally')
         return
       }
@@ -4120,6 +4140,7 @@ export const AppProvider = ({ children }) => {
     getMissingAttendance,
     autoAllDatesEnabled,
     setAutoAllDatesEnabled,
+    isDeveloperBypass,
     hasAccess,
     isCollaborator,
     isAdminCollaborator,
@@ -4148,7 +4169,7 @@ export const AppProvider = ({ children }) => {
     toggleMemberBadge, memberHasBadge, setAndSaveAttendanceDate,
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
-    autoAllDatesEnabled, setAutoAllDatesEnabled,
+    autoAllDatesEnabled, setAutoAllDatesEnabled, isDeveloperBypass,
     hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate, sendAdminPeriodBroadcast
   ])
@@ -4159,6 +4180,3 @@ export const AppProvider = ({ children }) => {
     </AppContext.Provider>
   )
 }
-
-
-

@@ -76,7 +76,8 @@ const Dashboard = ({ isAdmin = false }) => {
     getMissingAttendance,
     isCollaborator,
     dataOwnerId,
-    user
+    user,
+    isDeveloperBypass
   } = useApp()
   const { isDarkMode } = useTheme()
   const { selection, success, error: errorHaptic } = useHapticFeedback()
@@ -213,7 +214,11 @@ const Dashboard = ({ isAdmin = false }) => {
   useEffect(() => {
     const fetchTags = async () => {
       const ownerId = dataOwnerId || user?.id
-      if (!ownerId || !isSupabaseConfigured) return
+      if (!ownerId || isDeveloperBypass || !isSupabaseConfigured()) {
+        setWorkspaceTags([])
+        setAllMemberTags({})
+        return
+      }
       
       try {
         // Fetch workspace tags - do this first and always, regardless of whether members exist
@@ -267,7 +272,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
     
     fetchTags()
-  }, [dataOwnerId, user?.id, currentTable, isSupabaseConfigured, members?.length])
+  }, [dataOwnerId, user?.id, currentTable, isDeveloperBypass, isSupabaseConfigured, members?.length])
 
   // Handle bulk attendance for long-press selection
   const handleLongPressBulkAction = async (present) => {

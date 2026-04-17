@@ -6,6 +6,27 @@ let preferenceListeners = []
 let emitPreferencesChange = () => {}
 let preferencesRow = null
 
+const createMemoryStorage = () => {
+  let store = {}
+
+  return {
+    getItem: (key) => (key in store ? store[key] : null),
+    setItem: (key, value) => {
+      store[key] = String(value)
+    },
+    removeItem: (key) => {
+      delete store[key]
+    },
+    clear: () => {
+      store = {}
+    },
+    key: (index) => Object.keys(store)[index] ?? null,
+    get length() {
+      return Object.keys(store).length
+    }
+  }
+}
+
 vi.mock('../lib/supabase', () => {
   preferenceListeners = []
   preferencesRow = {
@@ -106,6 +127,14 @@ describe('AppContext collaborator sync', () => {
   beforeEach(() => {
     process.env.VITE_SUPABASE_URL = 'https://test.supabase.co'
     process.env.VITE_SUPABASE_ANON_KEY = 'test-key'
+
+    if (!globalThis.localStorage || typeof globalThis.localStorage.clear !== 'function') {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: createMemoryStorage(),
+        configurable: true
+      })
+    }
+
     localStorage.clear()
   })
 

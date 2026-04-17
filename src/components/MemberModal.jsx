@@ -13,7 +13,7 @@ import TagSelector from './TagSelector'
 
 const MemberModal = ({ isOpen, onClose }) => {
   const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
-  const { user, preferences } = useAuth()
+  const { user, preferences, isDeveloperBypass } = useAuth()
   const { isDarkMode } = useTheme()
   const { selection, success } = useHapticFeedback()
 
@@ -137,7 +137,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   React.useEffect(() => {
     const fetchWorkspaceTags = async () => {
       const ownerId = dataOwnerId || user?.id
-      if (!ownerId || !isSupabaseConfigured()) return
+      if (!ownerId || isDeveloperBypass || !isSupabaseConfigured()) return
       
       try {
         const { data, error } = await supabase.rpc('get_workspace_tags', {
@@ -156,7 +156,7 @@ const MemberModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       fetchWorkspaceTags()
     }
-  }, [isOpen, dataOwnerId, user?.id, isSupabaseConfigured])
+  }, [isOpen, dataOwnerId, user?.id, isDeveloperBypass, isSupabaseConfigured])
 
   const levels = [
     'SHS1', 'SHS2', 'SHS3',
@@ -392,7 +392,7 @@ const MemberModal = ({ isOpen, onClose }) => {
       <div className={`shadow-2xl ring-1 max-w-md w-[96%] sm:w-full mx-auto max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in ${isOverrideMode
         ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
-        }`}> 
+        }`} data-testid="add-member-modal"> 
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b flex-shrink-0 transition-all duration-300 ${isOverrideMode
           ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700 rounded-t-3xl'
@@ -443,6 +443,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                     name="full_name"
                     value={formData.full_name}
                     onChange={handleInputChange}
+                    data-testid="member-form-full-name"
                     className={`w-full pl-10 pr-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors duration-200 border ${showErrors && (!formData.full_name || !formData.full_name.trim()) ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
                     placeholder="Enter full name"
                   />
@@ -465,6 +466,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                       value="male"
                       checked={formData.gender === 'male'}
                       onChange={handleInputChange}
+                      data-testid="member-form-gender-male"
                       className="text-primary-600 focus:ring-primary-500"
                     />
                     <span className="text-sm">Male</span>
@@ -477,6 +479,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                       value="female"
                       checked={formData.gender === 'female'}
                       onChange={handleInputChange}
+                      data-testid="member-form-gender-female"
                       className="text-primary-600 focus:ring-primary-500"
                     />
                     <span className="text-sm">Female</span>
@@ -501,6 +504,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                     name="phone_number"
                     value={formData.phone_number}
                     onChange={handleInputChange}
+                    data-testid="member-form-phone"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={10}
@@ -548,6 +552,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                       name="age"
                       value={formData.age}
                       onChange={handleInputChange}
+                      data-testid="member-form-age"
                       min="1"
                       max="120"
                       inputMode="numeric"
@@ -572,6 +577,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => { selection(); setIsLevelOpen(!isLevelOpen) }}
+                    data-testid="member-form-level-toggle"
                     className={`w-full pl-3 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${showErrors && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
                   >
                     <div className="flex items-center">
@@ -589,6 +595,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                         <button
                           key={level}
                           type="button"
+                          data-testid={`member-form-level-${level.toLowerCase()}`}
                           onClick={() => {
                             selection()
                             handleInputChange({ target: { name: 'current_level', value: level } })
@@ -671,6 +678,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={() => { selection(); setShowParentSection(!showParentSection) }}
+                  data-testid="member-form-parent-toggle"
                   className={`w-full flex items-center justify-between p-3 transition-colors ${showErrors && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim()))
                     ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
                     : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -715,6 +723,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                             type="text"
                             value={parentInfo.parent_name_1}
                             onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_1: e.target.value }))}
+                            data-testid="member-form-parent1-name"
                             placeholder="Name"
                             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
                           />
@@ -725,6 +734,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                             type="tel"
                             value={parentInfo.parent_phone_1}
                             onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_1: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                            data-testid="member-form-parent1-phone"
                             placeholder="Phone Number"
                             className="w-full pl-10 pr-20 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
                           />
@@ -790,6 +800,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={() => { selection(); setFormData(prev => ({ ...prev, is_visitor: !prev.is_visitor })) }}
+                  data-testid="member-form-visitor-toggle"
                   className={`relative w-11 h-6 rounded-full transition-colors ${
                     formData.is_visitor ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
                   }`}
@@ -854,6 +865,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                   value={formData.notes}
                   onChange={handleInputChange}
                   rows={2}
+                  data-testid="member-form-notes"
                   placeholder="Add any notes about this member..."
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border-gray-300 dark:border-gray-600 focus:ring-primary-500 text-sm resize-none"
                 />
@@ -871,6 +883,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                 <button
                   type="submit"
                   disabled={loading}
+                  data-testid="member-form-submit"
                   className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${isOverrideMode
                     ? 'bg-orange-600 hover:bg-orange-700'
                     : 'bg-primary-600 hover:bg-primary-700'

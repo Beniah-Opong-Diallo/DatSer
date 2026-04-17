@@ -12,6 +12,7 @@ import MonthModal from './components/MonthModal'
 
 // Lazy-loaded components - loaded on demand for faster initial load
 const MemberModal = lazy(() => import('./components/MemberModal'))
+const EditMemberModal = lazy(() => import('./components/EditMemberModal'))
 const AttendanceAnalytics = lazy(() => import('./components/AttendanceAnalytics'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const WorkspaceSettingsModal = lazy(() => import('./components/WorkspaceSettingsModal'))
@@ -48,6 +49,8 @@ function AppContent({ isMobile }) {
     return localStorage.getItem('tmht_admin_session') === 'true'
   })
   const [showMemberModal, setShowMemberModal] = useState(false)
+  const [showDeveloperEditModal, setShowDeveloperEditModal] = useState(false)
+  const [developerEditMember, setDeveloperEditMember] = useState(null)
   const [showMonthModal, setShowMonthModal] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
   const [navigateToSettingsSection, setNavigateToSettingsSection] = useState(null)
@@ -83,6 +86,24 @@ function AppContent({ isMobile }) {
 
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
+    window.openDashboard = () => setCurrentView('dashboard')
+    window.openAddMember = () => setShowMemberModal(true)
+    window.openDeveloperEditMember = (memberIdentifier) => {
+      const resolvedMember = members.find((member) =>
+        member?.id === memberIdentifier ||
+        member?.full_name === memberIdentifier ||
+        member?.['Full Name'] === memberIdentifier
+      )
+
+      if (!resolvedMember) {
+        return false
+      }
+
+      setDeveloperEditMember(resolvedMember)
+      setShowDeveloperEditModal(true)
+      return true
+    }
+    window.openCreateMonth = () => setShowMonthModal(true)
     window.openWorkspaceSettings = () => setShowWorkspaceSettings(true)
     window.openDeleteAccount = () => setShowDeleteAccount(true)
     window.openExportData = () => setShowExportData(true)
@@ -90,6 +111,10 @@ function AppContent({ isMobile }) {
     window.openExecutive = () => setCurrentView('exec')
     window.openOnboarding = () => setShowOnboarding(true)
     return () => {
+      delete window.openDashboard
+      delete window.openAddMember
+      delete window.openDeveloperEditMember
+      delete window.openCreateMonth
       delete window.openWorkspaceSettings
       delete window.openDeleteAccount
       delete window.openExportData
@@ -97,7 +122,7 @@ function AppContent({ isMobile }) {
       delete window.openExecutive
       delete window.openOnboarding
     }
-  }, [])
+  }, [members])
 
   // Guard executive view if role revoked or non-exec
   useEffect(() => {
@@ -249,12 +274,13 @@ function AppContent({ isMobile }) {
 
         {currentView === 'settings' && (
           <Suspense fallback={<LazyFallback />}>
-            <SettingsPage 
+            <SettingsPage
               onBack={() => {
                 setCurrentView('dashboard')
                 setNavigateToSettingsSection(null)
               }}
               navigateToSection={navigateToSettingsSection}
+              onOpenAddMember={() => setShowMemberModal(true)}
               onCreateMonth={() => setShowMonthModal(true)}
             />
           </Suspense>
@@ -274,6 +300,19 @@ function AppContent({ isMobile }) {
           <MemberModal
             isOpen={showMemberModal}
             onClose={() => setShowMemberModal(false)}
+          />
+        </Suspense>
+      )}
+
+      {showDeveloperEditModal && developerEditMember && (
+        <Suspense fallback={<LazyFallback />}>
+          <EditMemberModal
+            isOpen={showDeveloperEditModal}
+            member={developerEditMember}
+            onClose={() => {
+              setShowDeveloperEditModal(false)
+              setDeveloperEditMember(null)
+            }}
           />
         </Suspense>
       )}

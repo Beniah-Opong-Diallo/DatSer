@@ -13,7 +13,7 @@ import TagSelector from './TagSelector'
 
 const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
   const { updateMember, markAttendance, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, currentTable, attendanceData, members, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
-  const { user } = useAuth()
+  const { user, isDeveloperBypass } = useAuth()
   const { selection, success } = useHapticFeedback()
   const { isDarkMode } = useTheme()
 
@@ -156,7 +156,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     let cancelled = false
 
     const fetchMemberTags = async () => {
-      if (!isOpen || !latestMember?.id || !currentTable) return
+      if (!isOpen || !latestMember?.id || !currentTable || isDeveloperBypass) return
       try {
         const { data, error } = await supabase.rpc('get_member_tags', {
           p_member_id: latestMember.id,
@@ -179,7 +179,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     return () => {
       cancelled = true
     }
-  }, [isOpen, latestMember?.id, currentTable])
+  }, [isOpen, latestMember?.id, currentTable, isDeveloperBypass])
 
   // Initialize attendance snapshot when modal opens (stable deps, no loop)
   useEffect(() => {
@@ -506,6 +506,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
         }`}
+        data-testid="edit-member-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -549,6 +550,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 name="full_name"
                 value={formData.full_name}
                 onChange={handleInputChange}
+                data-testid="edit-form-full-name"
                 required
                 className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${hasAttemptedSave && (!formData.full_name || !formData.full_name.trim())
                   ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
@@ -580,6 +582,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   value="male"
                   checked={formData.gender === 'male'}
                   onChange={handleInputChange}
+                  data-testid="edit-form-gender-male"
                   required
                   className="text-primary-600 focus:ring-primary-500"
                 />
@@ -598,6 +601,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   value="female"
                   checked={formData.gender === 'female'}
                   onChange={handleInputChange}
+                  data-testid="edit-form-gender-female"
                   required
                   className="text-primary-600 focus:ring-primary-500"
                 />
@@ -625,6 +629,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 name="phone_number"
                 value={formData.phone_number}
                 onChange={handleInputChange}
+                data-testid="edit-form-phone"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={10}
@@ -674,6 +679,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   name="age"
                   value={formData.age}
                   onChange={handleInputChange}
+                  data-testid="edit-form-age"
                   min="1"
                   max="120"
                   inputMode="numeric"
@@ -701,6 +707,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
               <button
                 type="button"
                 onClick={() => setIsLevelOpen(!isLevelOpen)}
+                data-testid="edit-form-level-toggle"
                 className={`w-full pl-3 pr-4 py-2 text-left rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 border flex items-center justify-between ${hasAttemptedSave && !formData.current_level ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'}`}
               >
                 <div className="flex items-center">
@@ -718,6 +725,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                     <button
                       key={level}
                       type="button"
+                      data-testid={`edit-form-level-${level.toLowerCase()}`}
                       onClick={() => {
                         handleInputChange({ target: { name: 'current_level', value: level } })
                         setIsLevelOpen(false)
@@ -814,6 +822,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
             <button
               type="button"
               onClick={() => setShowParentSection(!showParentSection)}
+              data-testid="edit-form-parent-toggle"
               className={`w-full flex items-center justify-between p-3 transition-colors ${hasAttemptedSave && !overrideMode && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim()))
                 ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30'
                 : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -867,6 +876,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                           isDirtyRef.current = true
                           setParentInfo(prev => ({ ...prev, parent_name_1: e.target.value }))
                         }}
+                        data-testid="edit-form-parent1-name"
                         placeholder="Name"
                         className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
                       />
@@ -880,6 +890,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                           isDirtyRef.current = true
                           setParentInfo(prev => ({ ...prev, parent_phone_1: e.target.value.replace(/\D/g, '').slice(0, 10) }))
                         }}
+                        data-testid="edit-form-parent1-phone"
                         placeholder="Phone Number"
                         className="w-full pl-10 pr-20 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
                       />
@@ -990,6 +1001,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 isDirtyRef.current = true
                 setFormData(prev => ({ ...prev, is_visitor: !prev.is_visitor }))
               }}
+              data-testid="edit-form-visitor-toggle"
               className={`relative w-11 h-6 rounded-full transition-colors ${
                 formData.is_visitor ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
@@ -1013,6 +1025,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
               value={formData.notes}
               onChange={handleInputChange}
               rows={2}
+              data-testid="edit-form-notes"
               placeholder="Add any notes about this member..."
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border-gray-300 dark:border-gray-600 focus:ring-primary-500 text-sm resize-none"
             />
@@ -1030,6 +1043,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
             <button
               type="submit"
               disabled={loading || !formData.full_name}
+              data-testid="edit-form-submit"
               className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${overrideMode
                 ? 'bg-orange-600 hover:bg-orange-700'
                 : 'bg-primary-600 hover:bg-primary-700'

@@ -34,6 +34,7 @@ const getPasswordStrength = (password) => {
 const LoginPage = () => {
   const { signInWithGoogle, signUpWithEmail, signInWithEmail, signInWithMagicLink, resetPassword, bypassAuth } = useAuth()
   const { isDarkMode, themeMode, setThemeMode } = useTheme()
+  const isDeveloperToolsEnabled = import.meta.env.DEV
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -95,6 +96,19 @@ const LoginPage = () => {
     } catch (err) {
       console.error('Sign in error:', err)
       setError('Failed to sign in. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBypassAuth = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await bypassAuth()
+    } catch (err) {
+      console.error('Developer sign in error:', err)
+      setError(err.message || 'Developer sign in failed. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -765,6 +779,19 @@ const LoginPage = () => {
             </svg>
             <span>Continue with Google</span>
           </button>
+
+          {isDeveloperToolsEnabled && (
+            <button
+              type="button"
+              onClick={handleBypassAuth}
+              disabled={isLoading}
+              data-testid="dev-login-button"
+              className="w-full mt-3 flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span>Enter Developer Mode</span>
+            </button>
+          )}
 
           {/* Switch Mode */}
           <div className="mt-5 text-center text-sm">

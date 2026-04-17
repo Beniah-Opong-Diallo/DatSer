@@ -4,6 +4,18 @@ import { toast } from 'react-toastify'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
 
 const AuthContext = createContext(null)
+const DEV_BYPASS_STORAGE_KEY = 'datser_dev_bypass'
+const DEV_BYPASS_USER = {
+  id: 'dev-bypass-user',
+  email: 'dev@datser.local',
+  user_metadata: {
+    full_name: 'Developer Mode User'
+  }
+}
+const DEV_BYPASS_PREFERENCES = {
+  workspace_name: 'Developer Workspace',
+  role: 'owner'
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
@@ -19,6 +31,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [preferences, setPreferences] = useState(null)
   const welcomeToastShownRef = useRef(false) // Prevent duplicate welcome toasts
+  const isDeveloperBypassEnabled = import.meta.env.DEV && localStorage.getItem(DEV_BYPASS_STORAGE_KEY) === 'true'
 
   // Load preferences in background (non-blocking)
   const loadUserPreferencesBackground = useCallback((userId) => {
@@ -49,6 +62,15 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state - optimized for speed
   useEffect(() => {
     let mounted = true
+
+    if (isDeveloperBypassEnabled) {
+      setUser(DEV_BYPASS_USER)
+      setPreferences(DEV_BYPASS_PREFERENCES)
+      setLoading(false)
+      return () => {
+        mounted = false
+      }
+    }
 
     // Check if Supabase is configured
     if (!isSupabaseConfigured()) {
@@ -173,10 +195,15 @@ export const AuthProvider = ({ children }) => {
         subscription?.unsubscribe()
       }
     }
-  }, [loadUserPreferencesBackground])
+  }, [isDeveloperBypassEnabled, loadUserPreferencesBackground])
 
   // Load user preferences from database
   const loadUserPreferences = async (userId) => {
+    if (isDeveloperBypassEnabled) {
+      setPreferences(DEV_BYPASS_PREFERENCES)
+      return DEV_BYPASS_PREFERENCES
+    }
+
     try {
       if (supabase) {
         const { data, error } = await supabase
@@ -213,6 +240,16 @@ export const AuthProvider = ({ children }) => {
     if (!user) return
 
     try {
+      if (isDeveloperBypassEnabled) {
+        const nextPreferences = {
+          ...(preferences || DEV_BYPASS_PREFERENCES),
+          user_id: user.id,
+          ...newPreferences
+        }
+        setPreferences(nextPreferences)
+        return nextPreferences
+      }
+
       // If Supabase isn't configured/available (or user is offline), do not spam errors.
       // Still update local state so the UI keeps working.
       if (!isSupabaseConfigured() || !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
@@ -286,23 +323,26 @@ export const AuthProvider = ({ children }) => {
   }
 
   const getRedirectUrl = useCallback(() => {
-    // Use the full pathname to include /DatSer/ or any base path
-    const pathname = window.location.pathname || '/'
-    // Remove trailing slash from pathname for cleaner URLs, but keep root
-    const cleanPath = pathname === '/' ? '/' : pathname.replace(/\/$/, '')
-    const currentUrl = `${window.location.origin}${cleanPath}`
-    
-    const hostname = window.location.hostname || ''
-    const isLocalhost =
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0'
+    const normalizeRedirectUrl = (value) => {
+      const trimmed = value?.trim()
+      if (!trimmed) return ''
 
-    if (isLocalhost) return currentUrl
+      try {
+        const url = new URL(trimmed)
+        const pathname = url.pathname === '/' ? '' : url.pathname.replace(/\/$/, '')
+        return `${url.origin}${pathname}${url.search}${url.hash}`
+      } catch {
+        return trimmed.replace(/\/$/, '')
+      }
+    }
 
-    const explicit = import.meta.env?.VITE_SUPABASE_REDIRECT_URL
+    const explicit = normalizeRedirectUrl(import.meta.env?.VITE_SUPABASE_REDIRECT_URL)
     if (explicit) return explicit
-    return currentUrl
+
+    // Prefer the app base URL instead of the current route so OAuth always
+    // returns to a stable entry point in both localhost and deployed builds.
+    const basePath = import.meta.env?.BASE_URL || '/'
+    return normalizeRedirectUrl(new URL(basePath, window.location.origin).toString())
   }, [])
 
   // Sign in with Google
@@ -494,6 +534,10 @@ export const AuthProvider = ({ children }) => {
       setPreferences(null)
       welcomeToastShownRef.current = false
 
+      if (import.meta.env.DEV) {
+        localStorage.removeItem(DEV_BYPASS_STORAGE_KEY)
+      }
+
       if (supabase) {
         const { error } = await supabase.auth.signOut()
         if (error) {
@@ -511,6 +555,15 @@ export const AuthProvider = ({ children }) => {
 
   // Memoize bypassAuth to prevent recreation on every render
   const bypassAuth = useCallback(async () => {
+    if (import.meta.env.DEV) {
+      localStorage.setItem(DEV_BYPASS_STORAGE_KEY, 'true')
+      setUser(DEV_BYPASS_USER)
+      setPreferences(DEV_BYPASS_PREFERENCES)
+      setLoading(false)
+      toast.success('Entered Developer Mode')
+      return DEV_BYPASS_USER
+    }
+
     try {
       setLoading(true)
       // 1. Try to sign in as the persistent God Mode user
@@ -565,8 +618,9 @@ export const AuthProvider = ({ children }) => {
     updatePreference,
     loadUserPreferences,
     bypassAuth,
+    isDeveloperBypass: isDeveloperBypassEnabled,
     isAuthenticated: !!user
-  }), [user, loading, preferences, signInWithGoogle, signUpWithEmail, signInWithEmail, signInWithMagicLink, resetPassword, signOut, saveUserPreferences, updatePreference, loadUserPreferences, bypassAuth])
+  }), [user, loading, preferences, signInWithGoogle, signUpWithEmail, signInWithEmail, signInWithMagicLink, resetPassword, signOut, saveUserPreferences, updatePreference, loadUserPreferences, bypassAuth, isDeveloperBypassEnabled])
 
   return (
     <AuthContext.Provider value={value}>

@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
 
 const ShareAccessModal = ({ isOpen, onClose }) => {
-  const { user, preferences } = useAuth()
+  const { user, preferences, isDeveloperBypass } = useAuth()
   const { isDarkMode } = useTheme()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,13 +18,16 @@ const ShareAccessModal = ({ isOpen, onClose }) => {
 
   // Fetch existing collaborators when modal opens
   useEffect(() => {
-    if (isOpen && user) {
+    if (isOpen && user && !isDeveloperBypass) {
       fetchCollaborators()
     }
-  }, [isOpen, user])
+  }, [isOpen, user, isDeveloperBypass])
 
   const fetchCollaborators = async () => {
-    if (!user) return
+    if (!user || isDeveloperBypass) {
+      setCollaborators([])
+      return
+    }
     
     setFetchingCollaborators(true)
     setError('')

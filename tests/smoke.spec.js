@@ -1,0 +1,117 @@
+import { test, expect } from '@playwright/test'
+
+const loginWithDeveloperMode = async (page) => {
+  await expect(page.getByTestId('dev-login-button')).toBeVisible()
+  await page.getByTestId('dev-login-button').click()
+  await page.waitForFunction(() => typeof window.openSettings === 'function', null, { timeout: 30000 })
+  await expect(page.getByText('Something went wrong')).toHaveCount(0)
+}
+
+const openDeveloperMode = async (page) => {
+  await page.evaluate(() => {
+    window.openSettings?.()
+  })
+  const developerModeEntry = page.getByRole('button', { name: /developer mode launch flows quickly/i })
+  await expect(developerModeEntry).toBeVisible()
+  await developerModeEntry.click()
+  await expect(page.getByRole('heading', { name: 'Developer Mode' }).first()).toBeVisible()
+}
+
+test.describe('Preflight smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    const pageErrors = []
+    const consoleErrors = []
+
+    page.on('pageerror', (error) => {
+      pageErrors.push(error.message)
+    })
+
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text())
+      }
+    })
+
+    page.setExtraHTTPHeaders({ 'x-datser-smoke': '1' })
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+
+    test.info().annotations.push({
+      type: 'pageErrors',
+      description: JSON.stringify(pageErrors)
+    })
+
+    test.info().annotations.push({
+      type: 'consoleErrors',
+      description: JSON.stringify(consoleErrors)
+    })
+  })
+
+  test('loads the login screen without crashing', async ({ page }) => {
+    await expect(page.getByText('Something went wrong')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible()
+    await expect(page.locator('input[type="email"]').first()).toBeVisible()
+  })
+
+  test('core auth actions render and stay interactive', async ({ page }) => {
+    const signInButton = page.getByRole('button', { name: /^sign in$/i }).last()
+    const googleButton = page.getByRole('button', { name: /continue with google/i })
+    const emailInput = page.locator('input[type="email"]').first()
+
+    await emailInput.fill('smoke@example.com')
+    await expect(emailInput).toHaveValue('smoke@example.com')
+    await expect(signInButton).toBeVisible()
+    await expect(googleButton).toBeVisible()
+    await expect(page.getByText('Something went wrong')).toHaveCount(0)
+  })
+
+  test('developer mode launches add member and date picking stays stable', async ({ page }) => {
+    await loginWithDeveloperMode(page)
+    await openDeveloperMode(page)
+
+    await page.getByTestId('dev-launcher-add-member').click()
+    await expect(page.getByRole('heading', { name: 'Add New Member' })).toBeVisible()
+
+    await page.getByPlaceholder('Enter full name').fill('Smoke Member')
+    await page.getByText('Female').click()
+    await page.getByRole('button', { name: /select date/i }).click()
+    await page.getByText('January', { exact: true }).click()
+    await page.getByText(String(new Date().getFullYear() - 1), { exact: true }).click()
+    await page.locator('div').filter({ hasText: /^15$/ }).first().click()
+
+    await expect(page.getByRole('button', { name: /january 15,/i })).toBeVisible()
+    await expect(page.getByText('Something went wrong')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('heading', { name: 'Add New Member' })).toHaveCount(0)
+  })
+
+  test('developer mode launches create month and carry-over options switch cleanly', async ({ page }) => {
+    await loginWithDeveloperMode(page)
+    await openDeveloperMode(page)
+
+    await page.getByTestId('dev-launcher-create-month').click()
+    await expect(page.getByRole('heading', { name: 'Create New Month' })).toBeVisible()
+
+    const copyEveryone = page.locator('input[name="copyMode"][value="all"]')
+    const selectSpecific = page.locator('input[name="copyMode"][value="custom"]')
+    const copyAttendance = page.locator('input[name="copyMode"][value="attendance"]')
+    const startFresh = page.locator('input[name="copyMode"][value="empty"]')
+
+    await page.getByText('Select specific people', { exact: true }).click()
+    await expect(selectSpecific).toBeChecked()
+
+    await page.getByText('Copy present people from a Sunday', { exact: true }).click()
+    await expect(copyAttendance).toBeChecked()
+
+    await page.getByText('Start fresh', { exact: true }).click()
+    await expect(startFresh).toBeChecked()
+
+    await page.getByText('Copy everyone', { exact: true }).click()
+    await expect(copyEveryone).toBeChecked()
+    await expect(page.getByText('Something went wrong')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('heading', { name: 'Create New Month' })).toHaveCount(0)
+  })
+})

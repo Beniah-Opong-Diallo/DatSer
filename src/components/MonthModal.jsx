@@ -369,7 +369,13 @@ const MonthModal = ({ isOpen, onClose }) => {
               What data should carry over?
             </label>
             <div className="space-y-2">
-              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400 transition-colors cursor-pointer">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  copyMode === 'all'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-200 dark:border-primary-400 dark:bg-primary-900/30 dark:ring-primary-800'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400'
+                }`}
+              >
                 <input
                   type="radio"
                   name="copyMode"
@@ -383,7 +389,13 @@ const MonthModal = ({ isOpen, onClose }) => {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Duplicate all current members and their details into the new month.</p>
                 </div>
               </label>
-              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400 transition-colors cursor-pointer">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  copyMode === 'custom'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-200 dark:border-primary-400 dark:bg-primary-900/30 dark:ring-primary-800'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400'
+                }`}
+              >
                 <input
                   type="radio"
                   name="copyMode"
@@ -397,7 +409,13 @@ const MonthModal = ({ isOpen, onClose }) => {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Choose exactly who you want to carry over. Leave blank to start with an empty list.</p>
                 </div>
               </label>
-              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400 transition-colors cursor-pointer">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  copyMode === 'attendance'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-200 dark:border-primary-400 dark:bg-primary-900/30 dark:ring-primary-800'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400'
+                }`}
+              >
                 <input
                   type="radio"
                   name="copyMode"
@@ -411,7 +429,13 @@ const MonthModal = ({ isOpen, onClose }) => {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Pick a month and Sunday to copy only those marked Present.</p>
                 </div>
               </label>
-              <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400 transition-colors cursor-pointer">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  copyMode === 'empty'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-200 dark:border-primary-400 dark:bg-primary-900/30 dark:ring-primary-800'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-primary-400'
+                }`}
+              >
                 <input
                   type="radio"
                   name="copyMode"
