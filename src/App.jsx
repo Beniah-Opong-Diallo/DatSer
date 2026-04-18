@@ -248,7 +248,7 @@ function AppContent({ isMobile }) {
         </div>
       )}
 
-      <main className={`mx-auto px-0 sm:px-4 py-8 pt-28 sm:pt-24 md:pt-20 w-full`}>
+      <main className={`mx-auto px-0 sm:px-4 py-6 pt-24 sm:pt-20 md:pt-20 w-full`}>
         {currentView === 'dashboard' && (
           <Dashboard isAdmin={isAdmin} />
         )}

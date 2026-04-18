@@ -7,7 +7,15 @@ import { X, AlertCircle, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
 
-const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendanceAction, selectedAttendanceDate, onClose, onSave }) => {
+const MissingDataModal = ({
+    member,
+    missingFields = [],
+    missingDates = [],
+    pendingAttendanceAction = null,
+    selectedAttendanceDate = null,
+    onClose,
+    onSave
+}) => {
     // Debug: Log all props received
     console.log('=== MissingDataModalProps ===')
     console.log('member:', member?.id, member?.name)
@@ -309,8 +317,19 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
             }
 
             console.log('All updates complete!')
+            const updatedSnapshot = {
+                ...member,
+                ...(missingFields.includes('Phone Number') ? { 'Phone Number': formData.phoneNumber } : {}),
+                ...(missingFields.includes('Gender') ? { 'Gender': formData.gender } : {}),
+                ...(missingFields.includes('Age') ? { 'Age': formData.age } : {}),
+                ...(missingFields.includes('Date of Birth') ? { date_of_birth: formData.dateOfBirth } : {}),
+                ...(missingFields.includes('Current Level') ? { 'Current Level': formData.currentLevel } : {}),
+                ...(missingFields.includes('Parent Name 1') ? { parent_name_1: formData.parentName1 } : {}),
+                ...(missingFields.includes('Parent Phone 1') ? { parent_phone_1: formData.parentPhone1 } : {})
+            }
+
             toast.success(isOverrideMode ? 'Attendance saved (Override)' : 'Missing data saved successfully!')
-            onSave()
+            onSave?.(updatedSnapshot)
             onClose()
         } catch (error) {
             console.error('Error saving missing data:', error)
@@ -321,7 +340,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
         }
     }
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-[60] backdrop-animate">
+        <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-[60] backdrop-animate">
             <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-3xl animate-scale-in ${isOverrideMode
                 ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
@@ -344,6 +363,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
+                            data-testid="missing-data-override-toggle"
                             onClick={() => setIsOverrideMode(!isOverrideMode)}
                             className={`px-3 py-1 rounded text-xs border transition-colors ${isOverrideMode
                                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
@@ -388,6 +408,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                     <div className="flex gap-2">
                                         <input
                                             type="tel"
+                                            data-testid="missing-data-phone"
                                             value={formData.phoneNumber || ''}
                                             onChange={(e) => {
                                                 const value = e.target.value.replace(/\D/g, '').slice(0, 10)
@@ -426,6 +447,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                         {/* Custom dropdown trigger */}
                                         <button
                                             type="button"
+                                            data-testid="missing-data-gender-toggle"
                                             onClick={() => setShowGenderDropdown(prev => !prev)}
                                             className={`w-full px-3 py-2 text-left border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors flex items-center justify-between ${isFieldInvalid('Gender')
                                                 ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
@@ -447,6 +469,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                                         <button
                                                             key={gender}
                                                             type="button"
+                                                            data-testid={`missing-data-gender-${gender.toLowerCase()}`}
                                                             onClick={() => {
                                                                 handleInputChange('gender', gender)
                                                                 setShowGenderDropdown(false)
@@ -492,6 +515,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                             </label>
                                             <input
                                                 type="text"
+                                                data-testid="missing-data-age"
                                                 value={formData.age || ''}
                                                 onChange={(e) => handleInputChange('age', e.target.value)}
                                                 className={`w-full px-3 py-2 md:py-3 md:text-base border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Age')
@@ -517,6 +541,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                         {/* Custom dropdown trigger */}
                                         <button
                                             type="button"
+                                            data-testid="missing-data-level-toggle"
                                             onClick={() => setShowLevelDropdown(prev => !prev)}
                                             className={`w-full px-3 py-2 text-left border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors flex items-center justify-between ${isFieldInvalid('Current Level')
                                                 ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
@@ -538,6 +563,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                                         <button
                                                             key={level}
                                                             type="button"
+                                                            data-testid={`missing-data-level-${level.toLowerCase()}`}
                                                             onClick={() => {
                                                                 handleInputChange('currentLevel', level)
                                                                 setShowLevelDropdown(false)
@@ -567,6 +593,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                     </label>
                                     <input
                                         type="text"
+                                        data-testid="missing-data-parent1-name"
                                         value={formData.parentName1 || ''}
                                         onChange={(e) => handleInputChange('parentName1', e.target.value)}
                                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white ${isFieldInvalid('Parent Name 1')
@@ -589,6 +616,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                     <div className="flex gap-2">
                                         <input
                                             type="tel"
+                                            data-testid="missing-data-parent1-phone"
                                             value={formData.parentPhone1 || ''}
                                             onChange={(e) => {
                                                 const value = e.target.value.replace(/\D/g, '').slice(0, 10)
@@ -633,6 +661,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                             <div className="mb-3">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apply pending attendance to</label>
                                 <select
+                                    data-testid="missing-data-date-select"
                                     value={selectedDateKey || ''}
                                     onChange={(e) => setSelectedDateKey(e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-primary-500"
@@ -653,13 +682,18 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                     const isMissing = hasAttemptedSave && attendanceData[dateKey] === null
 
                                     return (
-                                        <div key={dateKey} className={`border rounded-lg p-3 ${isMissing ? 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-700' : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600'} transition-colors`}> 
+                                        <div
+                                            key={dateKey}
+                                            data-testid={`missing-data-attendance-card-${dateKey}`}
+                                            className={`border rounded-lg p-3 ${isMissing ? 'bg-red-50 dark:bg-red-900/10 border-red-300 dark:border-red-700' : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600'} transition-colors`}
+                                        >
                                             <div className={`text-sm font-medium mb-2 ${isMissing ? 'text-red-800 dark:text-red-200' : 'text-gray-700 dark:text-gray-300'}`}>
                                                 {dateLabel} {isMissing && '(Required)'}
                                             </div>
                                             <div className="flex space-x-2">
                                                 <button
                                                     type="button"
+                                                    data-testid={`missing-data-attendance-${dateKey}-present`}
                                                     onClick={() => handleAttendanceChange(dateKey, true)}
                                                     onTouchStart={() => handleAttendanceChange(dateKey, true)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === true
@@ -671,6 +705,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                                 </button>
                                                 <button
                                                     type="button"
+                                                    data-testid={`missing-data-attendance-${dateKey}-absent`}
                                                     onClick={() => handleAttendanceChange(dateKey, false)}
                                                     onTouchStart={() => handleAttendanceChange(dateKey, false)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === false
@@ -682,6 +717,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                                                 </button>
                                                 <button
                                                     type="button"
+                                                    data-testid={`missing-data-attendance-${dateKey}-clear`}
                                                     onClick={() => handleAttendanceChange(dateKey, null)}
                                                     onTouchStart={() => handleAttendanceChange(dateKey, null)}
                                                     className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
@@ -707,6 +743,7 @@ const MissingDataModal = ({ member, missingFields, missingDates, pendingAttendan
                         Cancel
                     </button>
                     <button
+                        data-testid="missing-data-save"
                         onClick={handleSave}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors btn-press ${isSaving
                             ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'

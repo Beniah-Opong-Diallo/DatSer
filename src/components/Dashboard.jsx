@@ -342,6 +342,26 @@ const Dashboard = ({ isAdmin = false }) => {
     return false // No missing data
   }
 
+  useEffect(() => {
+    window.openDeveloperMissingDataFlow = (memberIdentifier, present = true) => {
+      const resolvedMember = members.find((member) =>
+        member?.id === memberIdentifier ||
+        member?.full_name === memberIdentifier ||
+        member?.['Full Name'] === memberIdentifier
+      )
+
+      if (!resolvedMember) {
+        return false
+      }
+
+      return checkMissingDataBeforeAttendance(resolvedMember, present)
+    }
+
+    return () => {
+      delete window.openDeveloperMissingDataFlow
+    }
+  }, [members, showMissingDataModal, attendanceData, selectedAttendanceDate, currentTable])
+
   const onRowTouchStart = (id, e) => {
     swipeActiveIdRef.current = id
     swipeStartXRef.current = e.touches[0]?.clientX || 0

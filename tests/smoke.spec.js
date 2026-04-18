@@ -69,7 +69,8 @@ test.describe('Preflight smoke', () => {
     await loginWithDeveloperMode(page)
     await openDeveloperMode(page)
 
-    await page.getByTestId('dev-launcher-add-member').click()
+    await page.getByTestId('dev-launcher-select').selectOption('add-member')
+    await page.getByTestId('dev-launcher-open').click()
     await expect(page.getByRole('heading', { name: 'Add New Member' })).toBeVisible()
 
     await page.getByPlaceholder('Enter full name').fill('Smoke Member')
@@ -90,7 +91,8 @@ test.describe('Preflight smoke', () => {
     await loginWithDeveloperMode(page)
     await openDeveloperMode(page)
 
-    await page.getByTestId('dev-launcher-create-month').click()
+    await page.getByTestId('dev-launcher-select').selectOption('create-month')
+    await page.getByTestId('dev-launcher-open').click()
     await expect(page.getByRole('heading', { name: 'Create New Month' })).toBeVisible()
 
     const copyEveryone = page.locator('input[name="copyMode"][value="all"]')
