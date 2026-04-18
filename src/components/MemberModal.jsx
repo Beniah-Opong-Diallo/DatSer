@@ -312,6 +312,12 @@ const MemberModal = ({ isOpen, onClose }) => {
           localStorage.setItem('lastMemberSaveReceipt', JSON.stringify(bundleResult.receipt))
         }
 
+        setNewlyAddedMemberId(savedMemberId)
+        onClose()
+        success()
+        setIsOverrideMode(false)
+
+        // Perform refreshes in background
         try {
           await forceRefreshMembersSilent()
           await Promise.all([loadAllAttendanceData(), loadAllBadgeData()])
@@ -325,7 +331,7 @@ const MemberModal = ({ isOpen, onClose }) => {
         toast.success(`Member saved successfully to ${currentTable}! Receipt: ${bundleResult?.receipt?.request_id || 'saved'}`)
       }
 
-      // Reset form and open Parent Info popup to complete mandatory details
+      // Reset form (this component is unmounting but we reset for consistency if it remounts)
       setFormData({
         full_name: '',
         gender: '',
@@ -339,10 +345,7 @@ const MemberModal = ({ isOpen, onClose }) => {
       setSelectedTagIds(new Set())
       setParentInfo({ parent_name_1: '', parent_phone_1: '', parent_name_2: '', parent_phone_2: '' })
       setShowErrors(false)
-      setNewlyAddedMemberId(savedMemberId)
-      onClose()
-      setIsOverrideMode(false)
-      success()
+
     } catch (error) {
       console.error('Error adding member:', error)
       toast.error(error.message || 'Failed to save member')

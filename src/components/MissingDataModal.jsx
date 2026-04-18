@@ -329,8 +329,8 @@ const MissingDataModal = ({
             }
 
             toast.success(isOverrideMode ? 'Attendance saved (Override)' : 'Missing data saved successfully!')
-            onSave?.(updatedSnapshot)
             onClose()
+            onSave?.(updatedSnapshot)
         } catch (error) {
             console.error('Error saving missing data:', error)
             const errorMsg = error.message || 'Unknown error occurred'

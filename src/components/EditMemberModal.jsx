@@ -445,9 +445,17 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           localStorage.setItem('lastMemberSaveReceipt', JSON.stringify(bundleResult.receipt))
         }
 
+        // Successful update - close modal immediately before triggering global refreshes
+        // This prevents the parent dashboard from re-rendering the modal while it's still "open" 
+        // which causes the entrance animations or "reshow" flicker.
+        success()
+        onClose()
+
+        // Perform side-effects in background
         try {
           await forceRefreshMembersSilent()
           await Promise.all([loadAllAttendanceData(), loadAllBadgeData()])
+          // Only one refreshSearch is needed
           refreshSearch()
         } catch (refreshError) {
           console.warn('Member updated but refresh failed:', refreshError)
@@ -461,15 +469,12 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         toast.success(`Member saved successfully in ${currentTable}! Receipt: ${bundleResult?.receipt?.request_id || 'saved'}`)
       }
 
-      success()
-      onClose()
-
       // Reset Sunday attendance state
       setSundayAttendance({})
       setSelectedTags([])
 
-      // Refresh search results to show updated information
-      setTimeout(() => refreshSearch(), 100)
+      // Removed redundant setTimeout refreshSearch to prevent double-triggering
+
     } catch (error) {
       console.error('Error updating member:', error)
       toast.error(error.message || 'Failed to update member')
