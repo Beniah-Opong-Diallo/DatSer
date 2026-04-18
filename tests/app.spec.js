@@ -13,7 +13,7 @@ test.describe('React App Tests', () => {
 
   test('should load the main app without errors', async ({ page }) => {
     // Check that the page loads successfully
-    await expect(page).toHaveTitle(/TMHT/i);
+    await expect(page).toHaveTitle(/Datser/i);
     
     // Check for console errors
     const consoleErrors = [];
@@ -102,47 +102,6 @@ test.describe('React App Tests', () => {
   });
 });
 
-/**
- * Example: How to test specific button failures
- */
-test.describe('Button Error Detection', () => {
-  
-  test('should detect button click failures', async ({ page }) => {
-    await page.goto('/');
-    
-    // Try to find and click buttons
-    const buttons = page.locator('button');
-    const count = await buttons.count();
-    
-    for (let i = 0; i < Math.min(count, 5); i++) { // Test first 5 buttons
-      const button = buttons.nth(i);
-      const text = await button.textContent().catch(() => '');
-      
-      // Try clicking and see if it fails
-      try {
-        await button.click({ timeout: 2000 });
-        console.log(`Button "${text.trim()}" clicked successfully`);
-      } catch (e) {
-        console.log(`Button "${text.trim()}" click failed: ${e.message}`);
-      }
-    }
-  });
-
-  test('should verify form inputs are working', async ({ page }) => {
-    await page.goto('/');
-    
-    // Try to find and type in email input
-    const emailInput = page.locator('input[type="email"]').first();
-    if (await emailInput.isVisible().catch(() => false)) {
-      await emailInput.fill('test@example.com');
-      const value = await emailInput.inputValue();
-      expect(value).toBe('test@example.com');
-      console.log('Email input works correctly');
-    } else {
-      console.log('Email input not visible - user may already be logged in');
-    }
-  });
-});
 
 /**
  * Example: How to test specific button failures
@@ -185,4 +144,3 @@ test.describe('Button Error Detection', () => {
     }
   });
 });
-

@@ -172,6 +172,20 @@ const Dashboard = ({ isAdmin = false }) => {
   const [missingFields, setMissingFields] = useState([])
   const [missingDates, setMissingDates] = useState([])
   const [pendingAttendanceAction, setPendingAttendanceAction] = useState(null)
+  const recentMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
+
+  const closeMissingDataModal = () => {
+    recentMissingDataCloseRef.current = {
+      memberId: pendingAttendanceAction?.memberId ?? missingDataMember?.id ?? null,
+      present: pendingAttendanceAction?.present ?? null,
+      at: Date.now()
+    }
+    setShowMissingDataModal(false)
+    setMissingDataMember(null)
+    setMissingFields([])
+    setMissingDates([])
+    setPendingAttendanceAction(null)
+  }
 
   // Bulk Transfer Modal state
   const [showTransferModal, setShowTransferModal] = useState(false)
@@ -312,10 +326,18 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
+    const recentClose = recentMissingDataCloseRef.current
+    if (
+      recentClose.memberId === member?.id &&
+      recentClose.present === present &&
+      Date.now() - recentClose.at < 750
+    ) {
+      return true
+    }
+
     // If modal is already open, close it first to reset state
     if (showMissingDataModal) {
-      setShowMissingDataModal(false)
-      setMissingDataMember(null)
+      closeMissingDataModal()
       // Small delay to allow state to reset before re-opening
       setTimeout(() => {
         proceedWithAttendanceCheck(member, present)
@@ -2747,26 +2769,20 @@ const Dashboard = ({ isAdmin = false }) => {
       {/* Missing Data Modal */}
       {showMissingDataModal && missingDataMember && (
         <Suspense fallback={null}>
-          <MissingDataModal
-            member={missingDataMember}
-            missingFields={missingFields}
-            missingDates={missingDates}
-            pendingAttendanceAction={pendingAttendanceAction}
-            selectedAttendanceDate={selectedAttendanceDate}
-            onClose={() => {
-              setShowMissingDataModal(false)
-              setMissingDataMember(null)
-              setMissingFields([])
-              setMissingDates([])
-              setPendingAttendanceAction(null)
-            }}
-            onSave={async () => {
-              setPendingAttendanceAction(null)
-              // Force refresh attendance data for the date that was just saved
-              // Use selectedAttendanceDate if available, otherwise use selectedSundayDate
-              const dateToRefresh = selectedAttendanceDate ? getDateString(selectedAttendanceDate) : selectedSundayDate
-              if (dateToRefresh) {
-                const freshMap = await fetchAttendanceForDate(new Date(dateToRefresh))
+            <MissingDataModal
+              member={missingDataMember}
+              missingFields={missingFields}
+              missingDates={missingDates}
+              pendingAttendanceAction={pendingAttendanceAction}
+              selectedAttendanceDate={selectedAttendanceDate}
+              onClose={closeMissingDataModal}
+              onSave={async () => {
+                closeMissingDataModal()
+                // Force refresh attendance data for the date that was just saved
+                // Use selectedAttendanceDate if available, otherwise use selectedSundayDate
+                const dateToRefresh = selectedAttendanceDate ? getDateString(selectedAttendanceDate) : selectedSundayDate
+                if (dateToRefresh) {
+                  const freshMap = await fetchAttendanceForDate(new Date(dateToRefresh))
                 setAttendanceData(prev => ({ ...prev, [dateToRefresh]: freshMap || {} }))
               }
               // Also force refresh members to ensure any updated data is reflected (with cache bypass)

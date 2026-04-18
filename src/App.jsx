@@ -8,7 +8,6 @@ import Dashboard from './components/Dashboard'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './components/LoginPage'
 import TutorialPromptBar from './components/TutorialPromptBar'
-import MonthModal from './components/MonthModal'
 
 // Lazy-loaded components - loaded on demand for faster initial load
 const MemberModal = lazy(() => import('./components/MemberModal'))
@@ -26,6 +25,7 @@ const CommandPalette = lazy(() => import('./components/CommandPalette'))
 const ExecAttendancePage = lazy(() => import('./components/ExecAttendancePage'))
 const SetPasswordModal = lazy(() => import('./components/SetPasswordModal'))
 const ResetPasswordModal = lazy(() => import('./components/ResetPasswordModal'))
+const MonthModal = lazy(() => import('./components/MonthModal'))
 
 // Minimal loading fallback for lazy components
 const LazyFallback = memo(() => (
@@ -68,6 +68,7 @@ function AppContent({ isMobile }) {
   const [developerMissingFields, setDeveloperMissingFields] = useState([])
   const [developerMissingDates, setDeveloperMissingDates] = useState([])
   const [developerPendingAttendanceAction, setDeveloperPendingAttendanceAction] = useState(null)
+  const recentDeveloperMissingDataCloseRef = React.useRef({ memberId: null, present: null, at: 0 })
   const [showMonthModal, setShowMonthModal] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
   const [navigateToSettingsSection, setNavigateToSettingsSection] = useState(null)
@@ -102,6 +103,11 @@ function AppContent({ isMobile }) {
     : (adminSyncNotice?.targetTable ? adminSyncNotice.targetTable.replace('_', ' ') : null)
 
   const clearDeveloperMissingDataState = () => {
+    recentDeveloperMissingDataCloseRef.current = {
+      memberId: developerPendingAttendanceAction?.memberId ?? developerMissingDataMember?.id ?? null,
+      present: developerPendingAttendanceAction?.present ?? null,
+      at: Date.now()
+    }
     setShowDeveloperMissingDataModal(false)
     setDeveloperMissingDataMember(null)
     setDeveloperMissingFields([])
@@ -137,6 +143,15 @@ function AppContent({ isMobile }) {
 
       if (!resolvedMember) {
         return false
+      }
+
+      const recentClose = recentDeveloperMissingDataCloseRef.current
+      if (
+        recentClose.memberId === resolvedMember.id &&
+        recentClose.present === present &&
+        Date.now() - recentClose.at < 750
+      ) {
+        return true
       }
 
       const fields = validateMemberData(resolvedMember)
@@ -387,6 +402,9 @@ function AppContent({ isMobile }) {
             pendingAttendanceAction={developerPendingAttendanceAction}
             selectedAttendanceDate={selectedAttendanceDate}
             onClose={clearDeveloperMissingDataState}
+            onSave={async () => {
+              clearDeveloperMissingDataState()
+            }}
           />
         </Suspense>
       )}

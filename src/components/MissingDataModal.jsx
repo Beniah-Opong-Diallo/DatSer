@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import DatePicker from './DatePicker'
 import CustomSelect from './CustomSelect'
 import ExpandedSelect from './ExpandedSelect'
@@ -32,6 +32,7 @@ const MissingDataModal = ({
     const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
     const [isOverrideMode, setIsOverrideMode] = useState(false)
     const [showLevelDropdown, setShowLevelDropdown] = useState(false)
+    const isSaveInFlightRef = useRef(false)
 
     const levelOptions = [
         'JHS1', 'JHS2', 'JHS3',
@@ -186,6 +187,10 @@ const MissingDataModal = ({
     }
 
     const handleSave = async () => {
+        if (isSaveInFlightRef.current) {
+            return
+        }
+
         setHasAttemptedSave(true)
 
         console.log('=== SAVE BUTTON CLICKED ===')
@@ -204,6 +209,7 @@ const MissingDataModal = ({
             return
         }
 
+        isSaveInFlightRef.current = true
         setIsSaving(true)
         setSaveError(null)
         console.log('Starting save process...')
@@ -329,14 +335,18 @@ const MissingDataModal = ({
             }
 
             toast.success(isOverrideMode ? 'Attendance saved (Override)' : 'Missing data saved successfully!')
-            onClose()
-            onSave?.(updatedSnapshot)
+            if (onSave) {
+                await onSave(updatedSnapshot)
+            } else {
+                onClose?.()
+            }
         } catch (error) {
             console.error('Error saving missing data:', error)
             const errorMsg = error.message || 'Unknown error occurred'
             setSaveError(errorMsg)
             toast.error(`Failed to save data: ${errorMsg}`)
             setIsSaving(false)
+            isSaveInFlightRef.current = false
         }
     }
     return (

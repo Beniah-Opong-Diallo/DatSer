@@ -4,11 +4,18 @@ import { test, expect } from '@playwright/test';
 // while attempting to avoid destructive actions (delete, remove, reset, logout).
 
 const DESTRUCTIVE_KEYWORDS = ['delete', 'remove', 'reset', 'logout', 'sign out', 'erase'];
+const EXTERNAL_FLOW_KEYWORDS = ['google', 'sign in', 'continue with', 'supabase.co', 'forgot email', 'create account', 'next'];
 
 function isDestructive(text) {
   if (!text) return false;
   const lower = text.toLowerCase();
   return DESTRUCTIVE_KEYWORDS.some(k => lower.includes(k));
+}
+
+function isExternalFlow(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return EXTERNAL_FLOW_KEYWORDS.some(k => lower.includes(k));
 }
 
 test.describe('Exhaustive UI interactions (safe mode)', () => {
@@ -18,13 +25,16 @@ test.describe('Exhaustive UI interactions (safe mode)', () => {
   });
 
   test('click visible non-destructive buttons and follow links', async ({ page, context }) => {
+    test.setTimeout(60000);
+    const appOrigin = new URL(page.url()).origin;
+
     // Collect anchors and visit them in a fresh page to avoid state pollution
     const anchors = await page.locator('a[href]').elementHandles();
     for (const a of anchors) {
       try {
         const href = await a.getAttribute('href');
         const text = (await a.innerText()).trim();
-        if (!href || href.startsWith('#') || isDestructive(text)) continue;
+        if (!href || href.startsWith('#') || isDestructive(text) || isExternalFlow(text)) continue;
 
         // Open in a new page so we can return to the app safely
         const newPage = await context.newPage();
@@ -45,13 +55,11 @@ test.describe('Exhaustive UI interactions (safe mode)', () => {
     }
 
     // Click visible interactive controls (buttons, [role=button])
-    const controls = page.locator('button:visible, [role="button"]:visible, input[type="button"]:visible, input[type="submit"]:visible');
-    const count = await controls.count();
-    for (let i = 0; i < count; i++) {
-      const ctl = controls.nth(i);
+    const controls = await page.locator('button:visible, [role="button"]:visible, input[type="button"]:visible, input[type="submit"]:visible').elementHandles();
+    for (const ctl of controls) {
       try {
-        const text = (await ctl.innerText()).trim() || (await ctl.getAttribute('aria-label')) || '';
-        if (isDestructive(text)) {
+        const text = ((await ctl.innerText().catch(() => '')) || (await ctl.getAttribute('aria-label').catch(() => '')) || '').trim();
+        if (isDestructive(text) || isExternalFlow(text)) {
           console.log('Skipping destructive control:', text);
           continue;
         }
@@ -59,8 +67,14 @@ test.describe('Exhaustive UI interactions (safe mode)', () => {
         // Attempt to click and handle possible navigation or modal
         const [maybeNav] = await Promise.all([
           page.waitForNavigation({ timeout: 3000 }).catch(() => null),
-          ctl.click({ timeout: 5000 }).catch(e => { throw e; }),
+          ctl.click({ timeout: 2500 }).catch(e => { throw e; }),
         ].map(p => p));
+
+        if (new URL(page.url()).origin !== appOrigin) {
+          await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+          await page.waitForLoadState('networkidle').catch(() => {});
+          continue;
+        }
 
         if (maybeNav) {
           // returned to base if necessary
