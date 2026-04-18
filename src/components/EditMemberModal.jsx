@@ -269,11 +269,11 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
       const currentSnapshot = members.find(m => m.id === latestMember.id) || latestMember || member
       const nextMemberPayload = {
         full_name: formData.full_name,
-        Gender: formData.gender,
-        'Phone Number': formData.phone_number || null,
-        Age: formData.age ? String(formData.age).trim() : null,
+        gender: formData.gender,
+        phone_number: formData.phone_number || null,
+        age: formData.age ? String(formData.age).trim() : null,
         date_of_birth: formData.date_of_birth ? String(formData.date_of_birth).trim() : null,
-        'Current Level': formData.current_level,
+        current_level: formData.current_level,
         // Parent info
         parent_name_1: parentInfo.parent_name_1 || null,
         parent_phone_1: parentInfo.parent_phone_1 || null,
@@ -291,19 +291,19 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
       console.log('[EditMemberModal] nextMemberPayload:', JSON.stringify(nextMemberPayload))
       const getExistingValue = (key) => {
         if (!currentSnapshot) return undefined
-        if (key === 'full_name') return currentSnapshot.full_name ?? currentSnapshot['Full Name']
-        if (key === 'Gender') return currentSnapshot.Gender ?? currentSnapshot.gender
-        if (key === 'Phone Number') return currentSnapshot['Phone Number'] ?? currentSnapshot.phone_number
-        if (key === 'Age') return currentSnapshot.Age ?? currentSnapshot.age
+        if (key === 'full_name' || key === 'Full Name') return currentSnapshot.full_name ?? currentSnapshot['Full Name']
+        if (key === 'gender' || key === 'Gender') return currentSnapshot.gender ?? currentSnapshot.Gender
+        if (key === 'phone_number' || key === 'Phone Number') return currentSnapshot.phone_number ?? currentSnapshot['Phone Number']
+        if (key === 'age' || key === 'Age') return currentSnapshot.age ?? currentSnapshot.Age
         if (key === 'date_of_birth') return currentSnapshot['date_of_birth'] ?? currentSnapshot.date_of_birth
-        if (key === 'Current Level') return currentSnapshot['Current Level'] ?? currentSnapshot.current_level
-        if (key === 'Member') return currentSnapshot.Member ?? currentSnapshot.member
-        if (key === 'Regular') return currentSnapshot.Regular ?? currentSnapshot.regular
-        if (key === 'Newcomer') return currentSnapshot.Newcomer ?? currentSnapshot.newcomer
-        if (key === 'parent_name_1') return currentSnapshot.parent_name_1 ?? currentSnapshot['Parent Name 1']
-        if (key === 'parent_phone_1') return currentSnapshot.parent_phone_1 ?? currentSnapshot['Parent Phone 1']
-        if (key === 'parent_name_2') return currentSnapshot.parent_name_2 ?? currentSnapshot['Parent Name 2']
-        if (key === 'parent_phone_2') return currentSnapshot.parent_phone_2 ?? currentSnapshot['Parent Phone 2']
+        if (key === 'current_level' || key === 'Current Level') return currentSnapshot.current_level ?? currentSnapshot['Current Level']
+        if (key === 'Member' || key === 'member') return currentSnapshot.Member ?? currentSnapshot.member
+        if (key === 'Regular' || key === 'regular') return currentSnapshot.Regular ?? currentSnapshot.regular
+        if (key === 'Newcomer' || key === 'newcomer') return currentSnapshot.Newcomer ?? currentSnapshot.newcomer
+        if (key === 'parent_name_1' || key === 'Parent Name 1') return currentSnapshot.parent_name_1 ?? currentSnapshot['Parent Name 1']
+        if (key === 'parent_phone_1' || key === 'Parent Phone 1') return currentSnapshot.parent_phone_1 ?? currentSnapshot['Parent Phone 1']
+        if (key === 'parent_name_2' || key === 'Parent Name 2') return currentSnapshot.parent_name_2 ?? currentSnapshot['Parent Name 2']
+        if (key === 'parent_phone_2' || key === 'Parent Phone 2') return currentSnapshot.parent_phone_2 ?? currentSnapshot['Parent Phone 2']
         return currentSnapshot[key]
       }
 
@@ -372,15 +372,41 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         delete backendUpdates.Regular
         delete backendUpdates.Newcomer
 
+        // Robust Column Mapping: Map from camelCase/snake_case in UI to Pascal Case/Spaces in DB
         if (Object.prototype.hasOwnProperty.call(backendUpdates, 'full_name')) {
-          const targetNameKey = Object.prototype.hasOwnProperty.call(currentSnapshot || {}, 'full_name') ? 'full_name' : 'Full Name'
+          const targetNameKey = Object.prototype.hasOwnProperty.call(currentSnapshot || {}, 'Full Name')
+            ? 'Full Name'
+            : 'full_name'
+          console.log(`[EditMemberModal] Mapping name to: ${targetNameKey}`)
           backendUpdates[targetNameKey] = backendUpdates.full_name
-          delete backendUpdates.full_name
+          if (targetNameKey !== 'full_name') delete backendUpdates.full_name
         }
 
-        if (Object.prototype.hasOwnProperty.call(backendUpdates, 'Gender')) {
-          backendUpdates.Gender = normalizedGender
-        }
+        // Map other common fields that are Pascal Case in the DB tables
+        const mappings = [
+          { ui: 'gender', db: 'Gender' },
+          { ui: 'phone_number', db: 'Phone Number' },
+          { ui: 'age', db: 'Age' },
+          { ui: 'current_level', db: 'Current Level' }
+        ]
+
+        mappings.forEach(({ ui, db }) => {
+          if (Object.prototype.hasOwnProperty.call(backendUpdates, ui)) {
+            // Check what the table actually has
+            const hasPascal = Object.prototype.hasOwnProperty.call(currentSnapshot || {}, db)
+            const targetKey = hasPascal ? db : ui
+            
+            // For gender, use the properly capitalized version
+            const finalValue = ui === 'gender' ? normalizedGender : backendUpdates[ui]
+            
+            console.log(`[EditMemberModal] Mapping ${ui} to: ${targetKey}`)
+            backendUpdates[targetKey] = finalValue
+            if (targetKey !== ui) delete backendUpdates[ui]
+          } else if (ui === 'gender' && Object.prototype.hasOwnProperty.call(backendUpdates, 'Gender')) {
+            // Already mapped or received as Gender, ensure normalization
+            backendUpdates.Gender = normalizedGender
+          }
+        })
 
         const attendancePayload = Object.fromEntries(attendanceUpdates)
         const ownerId = dataOwnerId || user?.id
@@ -388,6 +414,13 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         if (!ownerId) {
           throw new Error('Unable to determine the workspace owner for this save')
         }
+
+        console.info('[EditMemberModal] Submitting bundle update:', {
+          table: currentTable,
+          memberId: latestMember.id,
+          updates: backendUpdates,
+          requestId: submitRequestIdRef.current
+        })
 
         const { data: bundleResult } = await executeSupabaseWrite(
           () => supabase.rpc('update_member_bundle', {
@@ -404,6 +437,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         )
 
         if (!bundleResult?.success) {
+          console.error('[EditMemberModal] RPC Error:', bundleResult)
           throw new Error(bundleResult?.error_message || 'Backend member update failed')
         }
 
@@ -544,7 +578,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
               Full Name *
             </label>
             <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <User className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
               <input
                 type="text"
                 name="full_name"
@@ -622,7 +656,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Phone className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <Phone className="pointer-events-none w-4 h-4 text-gray-500 dark:text-gray-400" />
               </div>
               <input
                 type="tel"
@@ -775,13 +809,18 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 })
 
                 return (
-                  <div key={date} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 transition-colors">
+                  <div
+                    key={date}
+                    data-testid={`edit-form-attendance-card-${date}`}
+                    className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700 transition-colors"
+                  >
                     <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       {formattedDate}
                     </div>
                     <div className="flex space-x-2">
                       <button
                         type="button"
+                        data-testid={`edit-form-attendance-${date}-present`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
                         className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === true
                           ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
@@ -792,6 +831,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       </button>
                       <button
                         type="button"
+                        data-testid={`edit-form-attendance-${date}-absent`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
                         className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === false
                           ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
@@ -802,6 +842,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       </button>
                       <button
                         type="button"
+                        data-testid={`edit-form-attendance-${date}-clear`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: null }))}
                         className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                       >
@@ -868,7 +909,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   </label>
                   <div className="space-y-2">
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <User className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
                         value={parentInfo.parent_name_1}
@@ -882,7 +923,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       />
                     </div>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="tel"
                         value={parentInfo.parent_phone_1}
@@ -918,7 +959,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   </label>
                   <div className="space-y-2">
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <User className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
                         value={parentInfo.parent_name_2}
@@ -931,7 +972,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       />
                     </div>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="tel"
                         value={parentInfo.parent_phone_2}
@@ -974,6 +1015,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                   <button
                     key={tag}
                     type="button"
+                    data-testid={`edit-form-badge-${tag}`}
                     onClick={() => {
                       setSelectedTags(prev =>
                         prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]

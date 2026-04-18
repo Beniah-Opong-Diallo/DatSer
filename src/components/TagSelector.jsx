@@ -184,6 +184,8 @@ const TagSelector = ({
           return (
             <button
               key={tag.id}
+              type="button"
+              data-testid={`tag-selector-tag-${tag.id}`}
               onClick={() => toggleTag(tag.id)}
               disabled={saving}
               title={tag.name}

@@ -13,6 +13,7 @@ import MonthModal from './components/MonthModal'
 // Lazy-loaded components - loaded on demand for faster initial load
 const MemberModal = lazy(() => import('./components/MemberModal'))
 const EditMemberModal = lazy(() => import('./components/EditMemberModal'))
+const MissingDataModal = lazy(() => import('./components/MissingDataModal'))
 const AttendanceAnalytics = lazy(() => import('./components/AttendanceAnalytics'))
 const AdminPanel = lazy(() => import('./components/AdminPanel'))
 const WorkspaceSettingsModal = lazy(() => import('./components/WorkspaceSettingsModal'))
@@ -43,7 +44,18 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 function AppContent({ isMobile }) {
 
   const { preferences, signOut } = useAuth()
-  const { members, loading: appLoading, hasAccess, isCollaborator, adminSyncNotice, acknowledgeAdminSync } = useApp()
+  const {
+    members,
+    loading: appLoading,
+    hasAccess,
+    isCollaborator,
+    adminSyncNotice,
+    acknowledgeAdminSync,
+    validateMemberData,
+    getPastSundays,
+    getMissingAttendance,
+    selectedAttendanceDate
+  } = useApp()
   const [currentView, setCurrentView] = useState('dashboard')
   const [isAdmin, setIsAdmin] = useState(() => {
     return localStorage.getItem('tmht_admin_session') === 'true'
@@ -51,6 +63,11 @@ function AppContent({ isMobile }) {
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showDeveloperEditModal, setShowDeveloperEditModal] = useState(false)
   const [developerEditMember, setDeveloperEditMember] = useState(null)
+  const [showDeveloperMissingDataModal, setShowDeveloperMissingDataModal] = useState(false)
+  const [developerMissingDataMember, setDeveloperMissingDataMember] = useState(null)
+  const [developerMissingFields, setDeveloperMissingFields] = useState([])
+  const [developerMissingDates, setDeveloperMissingDates] = useState([])
+  const [developerPendingAttendanceAction, setDeveloperPendingAttendanceAction] = useState(null)
   const [showMonthModal, setShowMonthModal] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
   const [navigateToSettingsSection, setNavigateToSettingsSection] = useState(null)
@@ -84,6 +101,14 @@ function AppContent({ isMobile }) {
     ? new Date(adminSyncNotice.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : (adminSyncNotice?.targetTable ? adminSyncNotice.targetTable.replace('_', ' ') : null)
 
+  const clearDeveloperMissingDataState = () => {
+    setShowDeveloperMissingDataModal(false)
+    setDeveloperMissingDataMember(null)
+    setDeveloperMissingFields([])
+    setDeveloperMissingDates([])
+    setDeveloperPendingAttendanceAction(null)
+  }
+
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
     window.openDashboard = () => setCurrentView('dashboard')
@@ -103,6 +128,41 @@ function AppContent({ isMobile }) {
       setShowDeveloperEditModal(true)
       return true
     }
+    window.openDeveloperMissingDataFlow = (memberIdentifier, present = true) => {
+      const resolvedMember = members.find((member) =>
+        member?.id === memberIdentifier ||
+        member?.full_name === memberIdentifier ||
+        member?.['Full Name'] === memberIdentifier
+      )
+
+      if (!resolvedMember) {
+        return false
+      }
+
+      const fields = validateMemberData(resolvedMember)
+      const dates = getMissingAttendance(resolvedMember.id, getPastSundays())
+
+      if (fields.length === 0 && dates.length === 0) {
+        return false
+      }
+
+      const openModal = () => {
+        setDeveloperMissingDataMember(resolvedMember)
+        setDeveloperMissingFields(fields)
+        setDeveloperMissingDates(dates)
+        setDeveloperPendingAttendanceAction({ memberId: resolvedMember.id, present })
+        setShowDeveloperMissingDataModal(true)
+      }
+
+      if (showDeveloperMissingDataModal) {
+        clearDeveloperMissingDataState()
+        setTimeout(openModal, 50)
+      } else {
+        openModal()
+      }
+
+      return true
+    }
     window.openCreateMonth = () => setShowMonthModal(true)
     window.openWorkspaceSettings = () => setShowWorkspaceSettings(true)
     window.openDeleteAccount = () => setShowDeleteAccount(true)
@@ -114,6 +174,7 @@ function AppContent({ isMobile }) {
       delete window.openDashboard
       delete window.openAddMember
       delete window.openDeveloperEditMember
+      delete window.openDeveloperMissingDataFlow
       delete window.openCreateMonth
       delete window.openWorkspaceSettings
       delete window.openDeleteAccount
@@ -122,7 +183,7 @@ function AppContent({ isMobile }) {
       delete window.openExecutive
       delete window.openOnboarding
     }
-  }, [members])
+  }, [members, validateMemberData, getMissingAttendance, getPastSundays, showDeveloperMissingDataModal])
 
   // Guard executive view if role revoked or non-exec
   useEffect(() => {
@@ -313,6 +374,19 @@ function AppContent({ isMobile }) {
               setShowDeveloperEditModal(false)
               setDeveloperEditMember(null)
             }}
+          />
+        </Suspense>
+      )}
+
+      {showDeveloperMissingDataModal && developerMissingDataMember && (
+        <Suspense fallback={<LazyFallback />}>
+          <MissingDataModal
+            member={developerMissingDataMember}
+            missingFields={developerMissingFields}
+            missingDates={developerMissingDates}
+            pendingAttendanceAction={developerPendingAttendanceAction}
+            selectedAttendanceDate={selectedAttendanceDate}
+            onClose={clearDeveloperMissingDataState}
           />
         </Suspense>
       )}

@@ -1,14 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Calendar, X, Plus } from 'lucide-react'
+import { Check, Calendar, X, Plus, Zap } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 
-const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectSunday }) => {
+const MonthPickerPopup = ({
+    isOpen,
+    onClose,
+    anchorRef,
+    onCreateMonth,
+    onSelectSunday,
+    autoEnabled = null,
+    onToggleAuto = null,
+    toggleLabel = 'Auto',
+    manualModeDisabled = false,
+    disabledReason = '',
+    manualStatus = ''
+}) => {
     const { monthlyTables, currentTable, setCurrentTable, isCollaborator, selectedAttendanceDate, setAndSaveAttendanceDate, getSundaysInMonth, ownerStickySundays } = useApp()
     const { selection } = useHapticFeedback()
     const popupRef = useRef(null)
     const [previewTable, setPreviewTable] = useState(currentTable)
+    const showAutoToggle = typeof autoEnabled === 'boolean' && typeof onToggleAuto === 'function'
+    const selectionDisabled = showAutoToggle ? (autoEnabled || manualModeDisabled) : false
 
     const handleClose = useCallback(() => {
         selection()
@@ -47,9 +61,12 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectS
     }, [isOpen, handleClose])
 
     const handleSelectMonth = (table) => {
+        if (selectionDisabled) return
         selection()
-        setCurrentTable(table)
         setPreviewTable(table)
+        if (!onSelectSunday) {
+            setCurrentTable(table)
+        }
     }
 
     const previewSundays = useMemo(() => {
@@ -85,6 +102,7 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectS
         : null
 
     const handleSelectSunday = (dateStr) => {
+        if (selectionDisabled) return
         const [y, m, d] = dateStr.split('-').map(Number)
         if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return
         selection()
@@ -148,16 +166,53 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectS
                             Select Month
                         </span>
                     </div>
-                    <button
-                        onClick={handleClose}
-                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors btn-press"
-                    >
-                        <X className="w-4 h-4 text-gray-500" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {showAutoToggle && (
+                            <button
+                                type="button"
+                                onClick={onToggleAuto}
+                                disabled={manualModeDisabled}
+                                className={`inline-flex items-center gap-2 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${autoEnabled
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-red-600 text-white'
+                                    }`}
+                            >
+                                <Zap className="w-3 h-3" />
+                                <span>{toggleLabel}</span>
+                                <span className={`inline-flex h-4 w-8 items-center rounded-full px-0.5 ${autoEnabled ? 'bg-emerald-500/60' : 'bg-red-500/60'}`}>
+                                    <span className={`h-3 w-3 rounded-full bg-white transition-transform ${autoEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </span>
+                            </button>
+                        )}
+                        <button
+                            onClick={handleClose}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors btn-press"
+                        >
+                            <X className="w-4 h-4 text-gray-500" />
+                        </button>
+                    </div>
                 </div>
 
+                {showAutoToggle && (
+                    <div className={`px-4 py-3 border-b border-gray-200/60 dark:border-gray-700/60 ${autoEnabled
+                            ? 'bg-emerald-50/80 dark:bg-emerald-900/20'
+                            : 'bg-red-50/80 dark:bg-red-900/20'
+                        }`}>
+                        <p className={`text-xs font-semibold ${autoEnabled ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-800 dark:text-red-200'}`}>
+                            {autoEnabled ? 'Auto is on' : 'Manual mode is on'}
+                        </p>
+                        <p className={`text-[11px] mt-1 ${autoEnabled ? 'text-emerald-700/80 dark:text-emerald-300/80' : 'text-red-700/80 dark:text-red-300/80'}`}>
+                            {manualModeDisabled
+                                ? disabledReason
+                                : (manualStatus || (autoEnabled
+                                    ? 'Turn Auto off before manually picking a month and Sunday.'
+                                    : 'Choose the exact month and Sunday you want to use.'))}
+                        </p>
+                    </div>
+                )}
+
                 {/* Month list */}
-                <div className="max-h-[50vh] overflow-y-auto overscroll-contain">
+                <div className={`max-h-[50vh] overflow-y-auto overscroll-contain ${selectionDisabled ? 'opacity-70' : ''}`}>
                     {Object.entries(tablesByYear).sort((a, b) => b[0] - a[0]).map(([year, tables]) => (
                         <div key={year}>
                             {/* Year header */}
@@ -173,6 +228,7 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectS
                                         <button
                                             key={table}
                                             onClick={() => handleSelectMonth(table)}
+                                            disabled={selectionDisabled}
                                             className={`relative flex flex-col items-center justify-center p-3 rounded-xl text-sm font-medium btn-press transition-all duration-200 ${isSelected
                                                 ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30 scale-105'
                                                 : 'bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -220,6 +276,7 @@ const MonthPickerPopup = ({ isOpen, onClose, anchorRef, onCreateMonth, onSelectS
                                     <button
                                         key={dateStr}
                                         onClick={() => handleSelectSunday(dateStr)}
+                                        disabled={selectionDisabled}
                                         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${isSelected
                                             ? 'bg-orange-600 text-white'
                                             : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'

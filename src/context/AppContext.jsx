@@ -118,6 +118,26 @@ const getSundayDefaultForTable = (tableName, referenceDate = new Date()) => {
   return sundaysUpToReference.length > 0 ? sundaysUpToReference[sundaysUpToReference.length - 1] : sundays[0]
 }
 
+const PERSONAL_MANUAL_OVERRIDE_HOURS = 12
+
+const parseStoredCalendarDate = (value) => {
+  if (!value) return null
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  if (typeof value !== 'string') return null
+
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day))
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 const normalizeDateToSundayForTable = (date, tableName) => {
   const parsed = parseMonthTable(tableName)
   const normalizedDate = toLocalStartOfDay(date)
@@ -204,6 +224,7 @@ export const AppProvider = ({ children }) => {
   // Get user from auth context - may be null during initial load
   const authContext = useAuth()
   const user = authContext?.user
+  const preferences = authContext?.preferences || null
   const authLoading = authContext?.loading
   const isDeveloperBypass = authContext?.isDeveloperBypass === true
   const [members, setMembers] = useState([])
@@ -299,6 +320,15 @@ export const AppProvider = ({ children }) => {
   // Admin-locked default date ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â forces collaborators to a specific date
   const [lockedDefaultDate, setLockedDefaultDate] = useState(null)
   const suppressDateBroadcastRef = useRef(false)
+  const personalCalendarMode = preferences?.calendar_mode === 'manual' ? 'manual' : 'auto'
+  const manualMonthTable = preferences?.manual_month_table || null
+  const manualSundayDateValue = preferences?.manual_sunday_date || null
+  const manualOverrideUntil = preferences?.manual_override_until || null
+  const manualSundayDate = useMemo(() => parseStoredCalendarDate(manualSundayDateValue), [manualSundayDateValue])
+  const manualOverrideUntilDate = useMemo(() => parseStoredCalendarDate(manualOverrideUntil), [manualOverrideUntil])
+  const isManualOverrideExpired = Boolean(manualOverrideUntilDate && manualOverrideUntilDate.getTime() <= Date.now())
+  const collaboratorLockedByOwner = Boolean(isCollaborator && lockedDefaultDate)
+  const isPersonalManualMode = personalCalendarMode === 'manual' && !isManualOverrideExpired && !collaboratorLockedByOwner
 
   // Fetch the owner's locked default date (for collaborators)
   const fetchLockedDefaultDate = useCallback(async (ownerId) => {
@@ -1270,6 +1300,19 @@ export const AppProvider = ({ children }) => {
 
     if (sundays.length > 0) {
       suppressDateBroadcastRef.current = true
+
+      if (isPersonalManualMode && manualMonthTable === currentTable) {
+        const manualDateKey = manualSundayDate ? getLocalDateString(manualSundayDate) : null
+        const matchingManualDate = manualDateKey
+          ? sundays.find((sunday) => getLocalDateString(sunday) === manualDateKey)
+          : null
+
+        if (matchingManualDate) {
+          setAndSaveAttendanceDate(matchingManualDate, currentTable)
+          setTimeout(() => { suppressDateBroadcastRef.current = false }, 300)
+          return
+        }
+      }
 
       // Sunday-only mode: default to the active Sunday for this month.
       const autoSunday = getSundayDefaultForTable(currentTable, new Date())
@@ -3339,6 +3382,24 @@ export const AppProvider = ({ children }) => {
       return
     }
 
+    if (!forceAuto && isPersonalManualMode) {
+      const targetTable = manualMonthTable && monthlyTables.includes(manualMonthTable)
+        ? manualMonthTable
+        : currentTable
+      const fallbackDate = manualSundayDate || selectedAttendanceDate || getSundayDefaultForTable(targetTable, now)
+      const manualDate = normalizeDateToSundayForTable(fallbackDate, targetTable)
+      const manualDateKey = manualDate ? getLocalDateString(manualDate) : null
+
+      if (targetTable && currentTable !== targetTable) {
+        changeCurrentTable(targetTable)
+      }
+
+      if (manualDate && currentDateKey !== manualDateKey) {
+        setAndSaveAttendanceDate(manualDate, targetTable)
+      }
+      return
+    }
+
     const todayTable = `${MONTHS_IN_YEAR[now.getMonth()]}_${now.getFullYear()}`
     const monthExists = monthlyTables.includes(todayTable)
     if (!monthExists) return
@@ -3398,9 +3459,134 @@ export const AppProvider = ({ children }) => {
     changeCurrentTable,
     setAndSaveAttendanceDate,
     isCollaborator,
+    isPersonalManualMode,
+    manualMonthTable,
+    manualSundayDate,
     user?.id,
     isSupabaseConfigured,
     sendAdminPeriodBroadcast
+  ])
+
+  const setPersonalCalendarMode = useCallback(async ({
+    mode = 'auto',
+    tableName = currentTable,
+    date = selectedAttendanceDate,
+    durationHours = PERSONAL_MANUAL_OVERRIDE_HOURS,
+    silent = false
+  } = {}) => {
+    const nextMode = mode === 'manual' ? 'manual' : 'auto'
+
+    if (nextMode === 'manual' && collaboratorLockedByOwner) {
+      if (!silent) {
+        toast.info('Manual mode is locked while the workspace owner override is active.')
+      }
+      return false
+    }
+
+    try {
+      if (nextMode === 'manual') {
+        const targetTable = tableName || currentTable || getCurrentMonthTable()
+        const targetDate = normalizeDateToSundayForTable(
+          date || selectedAttendanceDate || getSundayDefaultForTable(targetTable, new Date()),
+          targetTable
+        )
+
+        if (!targetDate) {
+          throw new Error('Could not find a Sunday for manual mode')
+        }
+
+        const expiresAt = new Date(Date.now() + (durationHours * 60 * 60 * 1000))
+        const nextPreferences = {
+          calendar_mode: 'manual',
+          current_month_table: targetTable,
+          manual_month_table: targetTable,
+          manual_sunday_date: getLocalDateString(targetDate),
+          manual_override_until: expiresAt.toISOString()
+        }
+
+        changeCurrentTable(targetTable)
+        setAndSaveAttendanceDate(targetDate, targetTable)
+
+        if (authContext?.saveUserPreferences) {
+          await authContext.saveUserPreferences(nextPreferences)
+        }
+
+        return true
+      }
+
+      if (authContext?.saveUserPreferences) {
+        await authContext.saveUserPreferences({
+          calendar_mode: 'auto',
+          manual_month_table: null,
+          manual_sunday_date: null,
+          manual_override_until: null
+        })
+      }
+
+      await syncCalendarToToday({ forceAuto: true })
+      return true
+    } catch (error) {
+      console.error('Error updating personal calendar mode:', error)
+      if (!silent) {
+        toast.error(error.message || 'Failed to update calendar mode')
+      }
+      return false
+    }
+  }, [
+    authContext,
+    collaboratorLockedByOwner,
+    currentTable,
+    selectedAttendanceDate,
+    changeCurrentTable,
+    setAndSaveAttendanceDate,
+    syncCalendarToToday
+  ])
+
+  useEffect(() => {
+    if (personalCalendarMode !== 'manual' || !manualOverrideUntilDate) return
+
+    const remainingMs = manualOverrideUntilDate.getTime() - Date.now()
+    if (remainingMs <= 0) {
+      setPersonalCalendarMode({ mode: 'auto', silent: true })
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPersonalCalendarMode({ mode: 'auto', silent: true })
+    }, remainingMs)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [personalCalendarMode, manualOverrideUntilDate, setPersonalCalendarMode])
+
+  useEffect(() => {
+    if (import.meta.env.MODE === 'test') return
+    if (!isPersonalManualMode) return
+
+    const targetTable = manualMonthTable && monthlyTables.includes(manualMonthTable)
+      ? manualMonthTable
+      : currentTable
+    const fallbackDate = manualSundayDate || selectedAttendanceDate || getSundayDefaultForTable(targetTable, new Date())
+    const normalizedDate = normalizeDateToSundayForTable(fallbackDate, targetTable)
+    const normalizedDateKey = normalizedDate ? getLocalDateString(normalizedDate) : null
+    const currentDateKey = selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null
+
+    if (targetTable && currentTable !== targetTable) {
+      changeCurrentTable(targetTable)
+      return
+    }
+
+    if (normalizedDate && currentDateKey !== normalizedDateKey) {
+      setAndSaveAttendanceDate(normalizedDate, targetTable)
+    }
+  }, [
+    isPersonalManualMode,
+    manualMonthTable,
+    monthlyTables,
+    manualSundayDate,
+    currentTable,
+    selectedAttendanceDate,
+    changeCurrentTable,
+    setAndSaveAttendanceDate
   ])
 
 
@@ -4145,6 +4331,12 @@ export const AppProvider = ({ children }) => {
     isCollaborator,
     isAdminCollaborator,
     dataOwnerId,
+    personalCalendarMode,
+    isPersonalManualMode,
+    manualMonthTable,
+    manualSundayDate,
+    manualOverrideUntil,
+    setPersonalCalendarMode,
     ownerStickyMonth,
     ownerStickySundays,
     adminSyncNotice,
@@ -4170,7 +4362,8 @@ export const AppProvider = ({ children }) => {
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled, isDeveloperBypass,
-    hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
+    hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil,
+    setPersonalCalendarMode, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate, sendAdminPeriodBroadcast
   ])
 
