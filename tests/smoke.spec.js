@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+const isPreviewSmoke = process.env.PLAYWRIGHT_USE_PREVIEW === '1'
+
 const loginWithDeveloperMode = async (page) => {
   await expect(page.getByTestId('dev-login-button')).toBeVisible()
   await page.getByTestId('dev-login-button').click()
@@ -66,6 +68,8 @@ test.describe('Preflight smoke', () => {
   })
 
   test('developer mode launches add member and date picking stays stable', async ({ page }) => {
+    test.skip(isPreviewSmoke, 'Developer bypass is intentionally disabled in preview/prod smoke runs.')
+
     await loginWithDeveloperMode(page)
     await openDeveloperMode(page)
 
@@ -88,6 +92,8 @@ test.describe('Preflight smoke', () => {
   })
 
   test('developer mode launches create month and carry-over options switch cleanly', async ({ page }) => {
+    test.skip(isPreviewSmoke, 'Developer bypass is intentionally disabled in preview/prod smoke runs.')
+
     await loginWithDeveloperMode(page)
     await openDeveloperMode(page)
 

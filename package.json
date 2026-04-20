@@ -14,6 +14,7 @@
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "vitest --run --environment jsdom",
     "test:smoke": "playwright test tests/smoke.spec.js",
+    "test:smoke:prod": "npm run build && node scripts/run-playwright-preview.mjs",
     "test:preflight": "npm run build && npm run test && npm run test:smoke",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
