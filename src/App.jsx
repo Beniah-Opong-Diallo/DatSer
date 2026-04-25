@@ -269,7 +269,7 @@ function AppContent({ isMobile }) {
       if (
         recentClose.memberId === resolvedMember.id &&
         recentClose.present === present &&
-        Date.now() - recentClose.at < 750
+        Date.now() - recentClose.at < 2000
       ) {
         return true
       }

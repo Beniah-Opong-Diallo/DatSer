@@ -175,9 +175,10 @@ const Dashboard = ({ isAdmin = false }) => {
   const recentMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
 
   const closeMissingDataModal = () => {
+    const memberId = missingDataMember?.id
     recentMissingDataCloseRef.current = {
-      memberId: pendingAttendanceAction?.memberId ?? missingDataMember?.id ?? null,
-      present: pendingAttendanceAction?.present ?? null,
+      memberId,
+      present: pendingAttendanceAction?.present,
       at: Date.now()
     }
     setShowMissingDataModal(false)
@@ -185,6 +186,11 @@ const Dashboard = ({ isAdmin = false }) => {
     setMissingFields([])
     setMissingDates([])
     setPendingAttendanceAction(null)
+    
+    // Clear loading state for this member when modal closes
+    if (memberId) {
+      setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
+    }
   }
 
   // Bulk Transfer Modal state
@@ -330,7 +336,7 @@ const Dashboard = ({ isAdmin = false }) => {
     if (
       recentClose.memberId === member?.id &&
       recentClose.present === present &&
-      Date.now() - recentClose.at < 750
+      Date.now() - recentClose.at < 2000
     ) {
       return true
     }
@@ -961,21 +967,26 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendance = async (memberId, present) => {
+    // Set loading immediately to prevent double-clicks
+    setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
+
     // Check for missing data before marking attendance
     const member = members.find(m => m.id === memberId)
-    if (member && checkMissingDataBeforeAttendance(member, present)) {
-      return // Stop here if missing data found
-    }
-
-    // Use the selected attendance date from the picker
-    const targetDate = getDateString(selectedAttendanceDate)
-    if (!targetDate) {
-      toast.error('Please select an attendance date first.')
-      return
-    }
-
-    setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
+    
+    let modalWillOpen = false
     try {
+      if (member && checkMissingDataBeforeAttendance(member, present)) {
+        modalWillOpen = true
+        return // Stop here if missing data found, loading state will be cleared by closeMissingDataModal
+      }
+
+      // Use the selected attendance date from the picker
+      const targetDate = getDateString(selectedAttendanceDate)
+      if (!targetDate) {
+        toast.error('Please select an attendance date first.')
+        return
+      }
+
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
       const currentStatus = attendanceData[targetDate]?.[memberId]
       const dateLabel = selectedAttendanceDate ? new Date(selectedAttendanceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
@@ -1010,7 +1021,9 @@ const Dashboard = ({ isAdmin = false }) => {
       errorHaptic()
       toast.error('Failed to update attendance. Please try again.')
     } finally {
-      setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
+      if (!modalWillOpen) {
+        setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
+      }
     }
   }
 
