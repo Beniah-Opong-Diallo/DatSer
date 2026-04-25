@@ -70,6 +70,17 @@ const MissingDataModal = ({
         }
     }, [selectedAttendanceDate, missingDates])
 
+    // Clean up global lock on unmount
+    useEffect(() => {
+        console.log(`[MODAL] MissingDataModal mounted for member: ${member?.id || 'unknown'}`)
+        window.__datser_modal_active = true
+        
+        return () => {
+            console.log(`[MODAL] MissingDataModal unmounting...`)
+            window.__datser_modal_active = false
+        }
+    }, [member?.id])
+
     // Initialize form data with member's current values
     useEffect(() => {
         const initialData = {}

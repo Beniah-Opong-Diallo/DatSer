@@ -194,6 +194,7 @@ function AppContent({ isMobile }) {
       at: Date.now()
     }
     isDeveloperMissingDataModalOpeningRef.current = false
+    window.__datser_modal_active = false
     setShowDeveloperMissingDataModal(false)
     setDeveloperMissingDataMember(null)
     setDeveloperMissingFields([])
@@ -283,7 +284,7 @@ function AppContent({ isMobile }) {
         return false
       }
 
-      if (isDeveloperMissingDataModalOpeningRef.current || showDeveloperMissingDataModal) {
+      if (isDeveloperMissingDataModalOpeningRef.current || showDeveloperMissingDataModal || window.__datser_modal_active) {
         // If already open or opening, ignore redundant calls
         if (developerMissingDataMember?.id === resolvedMember.id && 
             developerPendingAttendanceAction?.present === present) {
@@ -293,6 +294,7 @@ function AppContent({ isMobile }) {
       }
 
       isDeveloperMissingDataModalOpeningRef.current = true
+      window.__datser_modal_active = true
       setDeveloperMissingDataMember(resolvedMember)
       setDeveloperMissingFields(fields)
       setDeveloperMissingDates(dates)
@@ -639,9 +641,6 @@ function AppContent({ isMobile }) {
         draggable={false}
         closeButton={CustomCloseButton}
         pauseOnHover
-        style={isMobile
-          ? { top: 'calc(env(safe-area-inset-top) + 8px)' }
-          : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
       />
     </div>
   )

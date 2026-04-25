@@ -196,6 +196,7 @@ const Dashboard = ({ isAdmin = false }) => {
     }
     
     isMissingDataModalOpenRef.current = false
+    window.__datser_modal_active = false
     setShowMissingDataModal(false)
     setMissingDataMember(null)
     setMissingFields([])
@@ -344,9 +345,9 @@ const Dashboard = ({ isAdmin = false }) => {
   const checkMissingDataBeforeAttendance = (member, present) => {
     if (!member) return false
     
-    // 1. Check if modal is already open or opening (SYNC check via Ref)
-    if (isMissingDataModalOpenRef.current) {
-      console.log('Blocking check: Modal already open/opening')
+    // 1. Check if modal is already open or opening (SYNC check via Ref and Global flag)
+    if (isMissingDataModalOpenRef.current || window.__datser_modal_active) {
+      console.log('Blocking check: Modal already open/opening (Global or local lock)')
       return true
     }
 
@@ -374,6 +375,7 @@ const Dashboard = ({ isAdmin = false }) => {
       console.log('Missing data detected, opening modal...')
       // SET LOCKS IMMEDIATELY
       isMissingDataModalOpenRef.current = true
+      window.__datser_modal_active = true
       interactionLockRef.current.add(member.id)
       
       proceedWithAttendanceCheck(member, present, missingFields, missingDates)
