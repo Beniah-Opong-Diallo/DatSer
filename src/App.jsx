@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense, memo } from 'react'
+import React, { useState, useEffect, lazy, Suspense, memo } from 'react'
 import { ToastContainer, Slide, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
@@ -152,8 +152,7 @@ function AppContent({ isMobile }) {
   const [developerMissingFields, setDeveloperMissingFields] = useState([])
   const [developerMissingDates, setDeveloperMissingDates] = useState([])
   const [developerPendingAttendanceAction, setDeveloperPendingAttendanceAction] = useState(null)
-  const recentDeveloperMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
-  const isDeveloperMissingDataModalOpeningRef = useRef(false)
+  const recentDeveloperMissingDataCloseRef = React.useRef({ memberId: null, present: null, at: 0 })
   const [showMonthModal, setShowMonthModal] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
   const [navigateToSettingsSection, setNavigateToSettingsSection] = useState(null)
@@ -193,8 +192,6 @@ function AppContent({ isMobile }) {
       present: developerPendingAttendanceAction?.present ?? null,
       at: Date.now()
     }
-    isDeveloperMissingDataModalOpeningRef.current = false
-    window.__datser_modal_active = false
     setShowDeveloperMissingDataModal(false)
     setDeveloperMissingDataMember(null)
     setDeveloperMissingFields([])
@@ -272,7 +269,7 @@ function AppContent({ isMobile }) {
       if (
         recentClose.memberId === resolvedMember.id &&
         recentClose.present === present &&
-        Date.now() - recentClose.at < 2000
+        Date.now() - recentClose.at < 750
       ) {
         return true
       }
@@ -284,22 +281,21 @@ function AppContent({ isMobile }) {
         return false
       }
 
-      if (isDeveloperMissingDataModalOpeningRef.current || showDeveloperMissingDataModal || window.__datser_modal_active) {
-        // If already open or opening, ignore redundant calls
-        if (developerMissingDataMember?.id === resolvedMember.id && 
-            developerPendingAttendanceAction?.present === present) {
-          return true
-        }
-        return true
+      const openModal = () => {
+        setDeveloperMissingDataMember(resolvedMember)
+        setDeveloperMissingFields(fields)
+        setDeveloperMissingDates(dates)
+        setDeveloperPendingAttendanceAction({ memberId: resolvedMember.id, present })
+        setShowDeveloperMissingDataModal(true)
       }
 
-      isDeveloperMissingDataModalOpeningRef.current = true
-      window.__datser_modal_active = true
-      setDeveloperMissingDataMember(resolvedMember)
-      setDeveloperMissingFields(fields)
-      setDeveloperMissingDates(dates)
-      setDeveloperPendingAttendanceAction({ memberId: resolvedMember.id, present })
-      setShowDeveloperMissingDataModal(true)
+      if (showDeveloperMissingDataModal) {
+        clearDeveloperMissingDataState()
+        setTimeout(openModal, 50)
+      } else {
+        openModal()
+      }
+
       return true
     }
     window.openCreateMonth = () => setShowMonthModal(true)
@@ -641,6 +637,9 @@ function AppContent({ isMobile }) {
         draggable={false}
         closeButton={CustomCloseButton}
         pauseOnHover
+        style={isMobile
+          ? { top: 'calc(env(safe-area-inset-top) + 8px)' }
+          : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
       />
     </div>
   )

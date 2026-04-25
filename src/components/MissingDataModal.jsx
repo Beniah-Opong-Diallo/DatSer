@@ -70,17 +70,6 @@ const MissingDataModal = ({
         }
     }, [selectedAttendanceDate, missingDates])
 
-    // Clean up global lock on unmount
-    useEffect(() => {
-        console.log(`[MODAL] MissingDataModal mounted for member: ${member?.id || 'unknown'}`)
-        window.__datser_modal_active = true
-        
-        return () => {
-            console.log(`[MODAL] MissingDataModal unmounting...`)
-            window.__datser_modal_active = false
-        }
-    }, [member?.id])
-
     // Initialize form data with member's current values
     useEffect(() => {
         const initialData = {}
@@ -197,12 +186,7 @@ const MissingDataModal = ({
         return false
     }
 
-    const handleSave = async (e) => {
-        if (e) {
-            e.preventDefault()
-            e.stopPropagation()
-        }
-        
+    const handleSave = async () => {
         if (isSaveInFlightRef.current) {
             return
         }
@@ -315,14 +299,8 @@ const MissingDataModal = ({
             if (selectedKey) {
                 // Determine action: use pendingAttendanceAction.present if available, otherwise default based on what user tapped
                 const actionBool = pendingAttendanceAction?.present ?? true // Default to present if not specified
-                
-                // Only mark if different from what was already marked in the modal
-                if (attendanceData[selectedKey] !== actionBool) {
-                    console.log(`Marking attendance for ${selectedKey}: ${actionBool}`)
-                    await markAttendance(member.id, parseLocalDate(selectedKey), actionBool)
-                } else {
-                    console.log(`Attendance for ${selectedKey} already marked as ${actionBool}, skipping redundant call`)
-                }
+                console.log(`Marking attendance for ${selectedKey}: ${actionBool}`)
+                await markAttendance(member.id, parseLocalDate(selectedKey), actionBool)
             } else {
                 console.warn('No selectedKey - attendance will not be marked!')
             }
@@ -373,8 +351,8 @@ const MissingDataModal = ({
     }
     return (
         <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-[60] backdrop-animate">
-            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-xl animate-scale-in ${isOverrideMode
-                ? 'bg-orange-50 dark:bg-orange-900/90 ring-orange-300 dark:ring-orange-700'
+            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-3xl animate-scale-in ${isOverrideMode
+                ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
                 }`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <style>{`
@@ -382,7 +360,7 @@ const MissingDataModal = ({
                         display: none;
                     }
                 `}</style>
-                <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-xl ${isOverrideMode
+                <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-3xl ${isOverrideMode
                     ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}>
@@ -396,7 +374,7 @@ const MissingDataModal = ({
                         <button
                             type="button"
                             data-testid="missing-data-override-toggle"
-                            onClick={(e) => { e.stopPropagation(); setIsOverrideMode(!isOverrideMode) }}
+                            onClick={() => setIsOverrideMode(!isOverrideMode)}
                             className={`px-3 py-1 rounded text-xs border transition-colors ${isOverrideMode
                                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -406,7 +384,7 @@ const MissingDataModal = ({
                             {isOverrideMode ? 'Override Active' : 'Override'}
                         </button>
                         <button
-                            onClick={(e) => { e.stopPropagation(); onClose() }}
+                            onClick={onClose}
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                         >
                             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -727,6 +705,7 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-present`}
                                                     onClick={() => handleAttendanceChange(dateKey, true)}
+                                                    onTouchStart={() => handleAttendanceChange(dateKey, true)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === true
                                                         ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
                                                         : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
@@ -738,6 +717,7 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-absent`}
                                                     onClick={() => handleAttendanceChange(dateKey, false)}
+                                                    onTouchStart={() => handleAttendanceChange(dateKey, false)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === false
                                                         ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
                                                         : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
@@ -749,6 +729,7 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-clear`}
                                                     onClick={() => handleAttendanceChange(dateKey, null)}
+                                                    onTouchStart={() => handleAttendanceChange(dateKey, null)}
                                                     className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                                                 >
                                                     Clear
@@ -763,9 +744,9 @@ const MissingDataModal = ({
                 </div>
 
                 {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10 rounded-b-xl">
+                <div className="sticky bottom-0 bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10 rounded-b-3xl">
                     <button
-                        onClick={(e) => { e.stopPropagation(); onClose() }}
+                        onClick={onClose}
                         className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors btn-press"
                         disabled={isSaving}
                     >
@@ -773,7 +754,7 @@ const MissingDataModal = ({
                     </button>
                     <button
                         data-testid="missing-data-save"
-                        onClick={(e) => handleSave(e)}
+                        onClick={handleSave}
                         className={`px-6 py-2 rounded-lg font-medium transition-colors btn-press ${isSaving
                             ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
                             : (isOverrideMode ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white')
@@ -787,6 +768,5 @@ const MissingDataModal = ({
         </div >
     )
 }
-
 
 export default MissingDataModal

@@ -173,30 +173,13 @@ const Dashboard = ({ isAdmin = false }) => {
   const [missingDates, setMissingDates] = useState([])
   const [pendingAttendanceAction, setPendingAttendanceAction] = useState(null)
   const recentMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
-  
-  // Robust locking to prevent double-triggering
-  const isMissingDataModalOpenRef = useRef(false)
-  const interactionLockRef = useRef(new Set()) // memberId as strings
 
   const closeMissingDataModal = () => {
-    const memberId = missingDataMember?.id
-    if (memberId) {
-      setAttendanceLoading(prev => {
-        const next = { ...prev }
-        delete next[memberId]
-        return next
-      })
-      interactionLockRef.current.delete(memberId)
-    }
-
     recentMissingDataCloseRef.current = {
-      memberId,
-      present: pendingAttendanceAction?.present,
+      memberId: pendingAttendanceAction?.memberId ?? missingDataMember?.id ?? null,
+      present: pendingAttendanceAction?.present ?? null,
       at: Date.now()
     }
-    
-    isMissingDataModalOpenRef.current = false
-    window.__datser_modal_active = false
     setShowMissingDataModal(false)
     setMissingDataMember(null)
     setMissingFields([])
@@ -343,61 +326,42 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
-    if (!member) return false
-    
-    // 1. Check if modal is already open or opening (SYNC check via Ref and Global flag)
-    if (isMissingDataModalOpenRef.current || window.__datser_modal_active) {
-      console.log('Blocking check: Modal already open/opening (Global or local lock)')
-      return true
-    }
-
-    // 2. Check if this specific member is already locked
-    if (interactionLockRef.current.has(member.id)) {
-      console.log(`Blocking check: Interaction already in progress for member ${member.id}`)
-      return true
-    }
-
-    // 3. Check cooldown to prevent ghost clicks or rapid taps
     const recentClose = recentMissingDataCloseRef.current
     if (
-      recentClose.memberId === member.id &&
+      recentClose.memberId === member?.id &&
       recentClose.present === present &&
-      Date.now() - recentClose.at < 2000
+      Date.now() - recentClose.at < 750
     ) {
-      console.log('Blocking check: Cooldown active')
       return true
     }
 
-    const missingFields = validateMemberData(member)
-    const missingDates = getMissingAttendance(member.id, getPastSundays())
-
-    if (missingFields.length > 0 || missingDates.length > 0) {
-      console.log('Missing data detected, opening modal...')
-      // SET LOCKS IMMEDIATELY
-      isMissingDataModalOpenRef.current = true
-      window.__datser_modal_active = true
-      interactionLockRef.current.add(member.id)
-      
-      proceedWithAttendanceCheck(member, present, missingFields, missingDates)
+    // If modal is already open, close it first to reset state
+    if (showMissingDataModal) {
+      closeMissingDataModal()
+      // Small delay to allow state to reset before re-opening
+      setTimeout(() => {
+        proceedWithAttendanceCheck(member, present)
+      }, 50)
       return true
     }
-    return false
+    
+    return proceedWithAttendanceCheck(member, present)
   }
   
-  const proceedWithAttendanceCheck = (member, present, fields, dates) => {
-    // If not provided, calculate them (fallback)
-    const missingFieldsToUse = fields || validateMemberData(member)
-    const missingDatesToUse = dates || getMissingAttendance(member.id, getPastSundays())
+  const proceedWithAttendanceCheck = (member, present) => {
+    const fields = validateMemberData(member)
+    const pastSundays = getPastSundays()
+    const dates = getMissingAttendance(member.id, pastSundays)
 
-    if (missingFieldsToUse.length > 0 || missingDatesToUse.length > 0) {
+    if (fields.length > 0 || dates.length > 0) {
       setMissingDataMember(member)
-      setMissingFields(missingFieldsToUse)
-      setMissingDates(missingDatesToUse)
+      setMissingFields(fields)
+      setMissingDates(dates)
       setPendingAttendanceAction({ memberId: member.id, present })
       setShowMissingDataModal(true)
-      return true
+      return true // Has missing data
     }
-    return false
+    return false // No missing data
   }
 
   const onRowTouchStart = (id, e) => {
@@ -993,26 +957,21 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   const handleAttendance = async (memberId, present) => {
-    // Set loading immediately to prevent double-clicks
-    setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
-
     // Check for missing data before marking attendance
     const member = members.find(m => m.id === memberId)
-    
-    let modalWillOpen = false
+    if (member && checkMissingDataBeforeAttendance(member, present)) {
+      return // Stop here if missing data found
+    }
+
+    // Use the selected attendance date from the picker
+    const targetDate = getDateString(selectedAttendanceDate)
+    if (!targetDate) {
+      toast.error('Please select an attendance date first.')
+      return
+    }
+
+    setAttendanceLoading(prev => ({ ...prev, [memberId]: true }))
     try {
-      if (member && checkMissingDataBeforeAttendance(member, present)) {
-        modalWillOpen = true
-        return // Stop here if missing data found, loading state will be cleared by closeMissingDataModal
-      }
-
-      // Use the selected attendance date from the picker
-      const targetDate = getDateString(selectedAttendanceDate)
-      if (!targetDate) {
-        toast.error('Please select an attendance date first.')
-        return
-      }
-
       const memberName = member ? (member['full_name'] || member['Full Name']) : 'Member'
       const currentStatus = attendanceData[targetDate]?.[memberId]
       const dateLabel = selectedAttendanceDate ? new Date(selectedAttendanceDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
@@ -1047,9 +1006,7 @@ const Dashboard = ({ isAdmin = false }) => {
       errorHaptic()
       toast.error('Failed to update attendance. Please try again.')
     } finally {
-      if (!modalWillOpen) {
-        setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
-      }
+      setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
     }
   }
 
@@ -1995,7 +1952,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               return (
                                 <>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); handleAttendance(member.id, true) }}
+                                    onClick={() => handleAttendance(member.id, true)}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isPresentSelected
                                       ? 'bg-orange-600 dark:bg-orange-700 text-white shadow ring-1 ring-orange-300 dark:ring-orange-500'
@@ -2008,7 +1965,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     {attendanceLoading[member.id] ? '...' : 'Present'}
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); handleAttendance(member.id, false) }}
+                                    onClick={() => handleAttendance(member.id, false)}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isAbsentSelected
                                       ? 'bg-red-600 dark:bg-red-700 text-white shadow ring-1 ring-red-300 dark:ring-red-500'
