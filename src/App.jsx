@@ -199,55 +199,39 @@ function AppContent({ isMobile }) {
     setDeveloperPendingAttendanceAction(null)
   }
 
-  // Swipe up to dismiss all toasts, and Long Press to expand
+  // Tap outside to collapse, long press to expand
   useEffect(() => {
-    let startY = 0;
-    let isToastSwipe = false;
     let longPressTimer;
-    let hasMoved = false;
 
     const handleTouchStart = (e) => {
       const stack = e.target.closest('.datser-toast-stack');
       if (stack) {
-        isToastSwipe = true;
-        hasMoved = false;
-        startY = e.touches[0].clientY;
-        
-        // If it's already expanded, don't trigger long press again
         if (!stack.classList.contains('toast-stack-expanded')) {
           longPressTimer = setTimeout(() => {
-            if (!hasMoved) { // only expand if they didn't start swiping
-              stack.classList.add('toast-stack-expanded');
-            }
-          }, 800); // Wait a bit longer (800ms) before expanding
+            stack.classList.add('toast-stack-expanded');
+          }, 800);
         }
       } else {
-        // Tap outside collapses the expanded list
         document.querySelector('.datser-toast-stack')?.classList.remove('toast-stack-expanded');
       }
     };
 
-    const handleTouchMove = (e) => {
-      if (isToastSwipe) {
-        hasMoved = true;
-        clearTimeout(longPressTimer);
-      }
-    };
-
-    const handleTouchEnd = (e) => {
-      if (!isToastSwipe) return;
-      isToastSwipe = false;
+    const clearTimer = () => {
       clearTimeout(longPressTimer);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: true, capture: true });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', clearTimer, { passive: true });
+    document.addEventListener('touchend', clearTimer, { passive: true });
+    document.addEventListener('touchcancel', clearTimer, { passive: true });
+    document.addEventListener('scroll', clearTimer, { passive: true });
 
     return () => {
-      document.removeEventListener('touchstart', handleTouchStart, { capture: true });
-      document.removeEventListener('touchmove', handleTouchMove, { capture: true });
-      document.removeEventListener('touchend', handleTouchEnd, { capture: true });
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', clearTimer);
+      document.removeEventListener('touchend', clearTimer);
+      document.removeEventListener('touchcancel', clearTimer);
+      document.removeEventListener('scroll', clearTimer);
     };
   }, []);
 
