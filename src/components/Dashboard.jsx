@@ -337,6 +337,10 @@ const Dashboard = ({ isAdmin = false }) => {
 
     // If modal is already open, close it first to reset state
     if (showMissingDataModal) {
+      // If already open for the same member and action, ignore redundant calls
+      if (missingDataMember?.id === member?.id && pendingAttendanceAction?.present === present) {
+        return true
+      }
       closeMissingDataModal()
       // Small delay to allow state to reset before re-opening
       setTimeout(() => {

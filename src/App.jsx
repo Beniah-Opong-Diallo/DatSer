@@ -290,6 +290,11 @@ function AppContent({ isMobile }) {
       }
 
       if (showDeveloperMissingDataModal) {
+        // If already open for the same member and action, ignore redundant calls
+        if (developerMissingDataMember?.id === resolvedMember.id && 
+            developerPendingAttendanceAction?.present === present) {
+          return true
+        }
         clearDeveloperMissingDataState()
         setTimeout(openModal, 50)
       } else {

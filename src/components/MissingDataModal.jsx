@@ -351,8 +351,8 @@ const MissingDataModal = ({
     }
     return (
         <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-[60] backdrop-animate">
-            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-3xl animate-scale-in ${isOverrideMode
-                ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
+            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-xl animate-scale-in ${isOverrideMode
+                ? 'bg-orange-50 dark:bg-orange-900/90 ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
                 }`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <style>{`
@@ -360,7 +360,7 @@ const MissingDataModal = ({
                         display: none;
                     }
                 `}</style>
-                <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-3xl ${isOverrideMode
+                <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-xl ${isOverrideMode
                     ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}>
@@ -705,7 +705,6 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-present`}
                                                     onClick={() => handleAttendanceChange(dateKey, true)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, true)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === true
                                                         ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
                                                         : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
@@ -717,7 +716,6 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-absent`}
                                                     onClick={() => handleAttendanceChange(dateKey, false)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, false)}
                                                     className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === false
                                                         ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
                                                         : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
@@ -729,7 +727,6 @@ const MissingDataModal = ({
                                                     type="button"
                                                     data-testid={`missing-data-attendance-${dateKey}-clear`}
                                                     onClick={() => handleAttendanceChange(dateKey, null)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, null)}
                                                     className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                                                 >
                                                     Clear
@@ -744,7 +741,7 @@ const MissingDataModal = ({
                 </div>
 
                 {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10 rounded-b-3xl">
+                <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10 rounded-b-xl">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors btn-press"
@@ -768,5 +765,6 @@ const MissingDataModal = ({
         </div >
     )
 }
+
 
 export default MissingDataModal

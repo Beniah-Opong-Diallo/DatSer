@@ -835,6 +835,17 @@ details[open] summary~* {
   width: auto !important;
 }
 
+/* Wider on mobile */
+@media (max-width: 600px) {
+  .datser-toast-stack {
+    width: 92vw !important;
+    max-width: none !important;
+  }
+  .datser-toast-stack .Toastify__toast {
+    width: 100% !important;
+  }
+}
+
 /* Light mode fallback */
 @media (prefers-color-scheme: light) {
   .datser-toast-stack .Toastify__toast {
