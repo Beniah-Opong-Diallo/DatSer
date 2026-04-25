@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense, memo } from 'react'
-import { ToastContainer } from 'react-toastify'
+import { ToastContainer, Slide, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
 // Core components - loaded immediately
@@ -41,6 +41,90 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 // Main app content - only shown when authenticated
+const CustomCloseButton = ({ closeToast }) => {
+  const [showCloseAll, setShowCloseAll] = React.useState(false);
+  const timerRef = React.useRef(null);
+
+  const handleStart = (e) => {
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    e.stopPropagation();
+    timerRef.current = setTimeout(() => {
+      setShowCloseAll(true);
+    }, 600);
+  };
+
+  const handleEnd = (e) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (!showCloseAll) {
+      closeToast(e);
+    }
+  };
+
+  const handleCloseAll = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // Small defer so the click doesn't get swallowed by the toast's closeOnClick handler
+    setTimeout(() => toast.dismiss(), 0);
+  };
+
+  const handleCancelCloseAll = (e) => {
+    e.stopPropagation();
+    setShowCloseAll(false);
+  };
+
+  if (showCloseAll) {
+    return (
+      <button
+        onClick={handleCloseAll}
+        style={{
+          background: '#dc2626',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '4px 10px',
+          fontSize: '12px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          animation: 'fadeInToast 0.15s ease-out',
+        }}
+      >
+        🗑 Close All
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onMouseDown={handleStart}
+      onMouseUp={handleEnd}
+      onMouseLeave={() => { if (timerRef.current) clearTimeout(timerRef.current); }}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
+      onTouchCancel={() => { if (timerRef.current) clearTimeout(timerRef.current); }}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        color: '#9ca3af',
+        fontSize: '18px',
+        lineHeight: 1,
+        padding: '4px 8px',
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
+    >
+      ✕
+    </button>
+  );
+}
+
+
 function AppContent({ isMobile }) {
 
   const { preferences, signOut } = useAuth()
@@ -114,6 +198,58 @@ function AppContent({ isMobile }) {
     setDeveloperMissingDates([])
     setDeveloperPendingAttendanceAction(null)
   }
+
+  // Swipe up to dismiss all toasts, and Long Press to expand
+  useEffect(() => {
+    let startY = 0;
+    let isToastSwipe = false;
+    let longPressTimer;
+    let hasMoved = false;
+
+    const handleTouchStart = (e) => {
+      const stack = e.target.closest('.datser-toast-stack');
+      if (stack) {
+        isToastSwipe = true;
+        hasMoved = false;
+        startY = e.touches[0].clientY;
+        
+        // If it's already expanded, don't trigger long press again
+        if (!stack.classList.contains('toast-stack-expanded')) {
+          longPressTimer = setTimeout(() => {
+            if (!hasMoved) { // only expand if they didn't start swiping
+              stack.classList.add('toast-stack-expanded');
+            }
+          }, 800); // Wait a bit longer (800ms) before expanding
+        }
+      } else {
+        // Tap outside collapses the expanded list
+        document.querySelector('.datser-toast-stack')?.classList.remove('toast-stack-expanded');
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      if (isToastSwipe) {
+        hasMoved = true;
+        clearTimeout(longPressTimer);
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      if (!isToastSwipe) return;
+      isToastSwipe = false;
+      clearTimeout(longPressTimer);
+    };
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: true, capture: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart, { capture: true });
+      document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+      document.removeEventListener('touchend', handleTouchEnd, { capture: true });
+    };
+  }, []);
 
   // Expose modal openers globally via window for profile dropdown
   useEffect(() => {
@@ -505,14 +641,17 @@ function AppContent({ isMobile }) {
       </Suspense>
 
       <ToastContainer
+        className="datser-toast-stack"
         position={isMobile ? 'top-center' : 'bottom-right'}
         autoClose={3000}
+        transition={Slide}
         hideProgressBar={false}
         newestOnTop
-        closeOnClick
+        closeOnClick={false}
         rtl={false}
         pauseOnFocusLoss
-        draggable
+        draggable={false}
+        closeButton={CustomCloseButton}
         pauseOnHover
         style={isMobile
           ? { top: 'calc(env(safe-area-inset-top) + 8px)' }

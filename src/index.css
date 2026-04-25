@@ -792,3 +792,162 @@ details[open] summary~* {
   background: linear-gradient(90deg, rgba(249, 115, 22, 0.88), rgba(251, 146, 60, 0.72)) !important;
 }
 
+.datser-toast-stack {
+  display: grid !important;
+  max-height: 150px;
+  overflow: visible !important;
+  pointer-events: none;
+}
+
+.datser-toast-stack .Toastify__toast {
+  grid-area: 1 / 1;
+  pointer-events: auto;
+  margin: 0 !important;
+  transform-origin: top center;
+  transition:
+    transform 0.28s ease,
+    opacity 0.28s ease,
+    filter 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
+.datser-toast-stack .Toastify--animate {
+  animation: none !important;
+}
+
+.datser-toast-stack .Toastify__toast:nth-child(1) {
+  z-index: 5;
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  filter: none;
+}
+
+.datser-toast-stack .Toastify__toast:nth-child(2) {
+  z-index: 4;
+  transform: translateY(18px) scale(0.965);
+  opacity: 0.92;
+  filter: saturate(0.94);
+}
+
+.datser-toast-stack .Toastify__toast:nth-child(3) {
+  z-index: 3;
+  transform: translateY(34px) scale(0.93);
+  opacity: 0.74;
+  filter: saturate(0.86);
+}
+
+.datser-toast-stack .Toastify__toast:nth-child(n + 4) {
+  z-index: 2;
+  transform: translateY(46px) scale(0.9);
+  opacity: 0;
+  filter: saturate(0.78);
+}
+
+.Toastify__toast-container--bottom-right.datser-toast-stack .Toastify__toast,
+.Toastify__toast-container--bottom-left.datser-toast-stack .Toastify__toast,
+.Toastify__toast-container--bottom-center.datser-toast-stack .Toastify__toast {
+  transform-origin: bottom center;
+}
+
+.Toastify__toast-container--bottom-right.datser-toast-stack .Toastify__toast:nth-child(2),
+.Toastify__toast-container--bottom-left.datser-toast-stack .Toastify__toast:nth-child(2),
+.Toastify__toast-container--bottom-center.datser-toast-stack .Toastify__toast:nth-child(2) {
+  transform: translateY(-18px) scale(0.965);
+}
+
+.Toastify__toast-container--bottom-right.datser-toast-stack .Toastify__toast:nth-child(3),
+.Toastify__toast-container--bottom-left.datser-toast-stack .Toastify__toast:nth-child(3),
+.Toastify__toast-container--bottom-center.datser-toast-stack .Toastify__toast:nth-child(3) {
+  transform: translateY(-34px) scale(0.93);
+}
+
+.Toastify__toast-container--bottom-right.datser-toast-stack .Toastify__toast:nth-child(n + 4),
+.Toastify__toast-container--bottom-left.datser-toast-stack .Toastify__toast:nth-child(n + 4),
+.Toastify__toast-container--bottom-center.datser-toast-stack .Toastify__toast:nth-child(n + 4) {
+  transform: translateY(-46px) scale(0.9);
+}
+
+/* Custom Interaction Logic for Toast Stack */
+.datser-toast-stack .Toastify__toast:nth-child(1) { --index: 0; }
+.datser-toast-stack .Toastify__toast:nth-child(2) { --index: 1; }
+.datser-toast-stack .Toastify__toast:nth-child(3) { --index: 2; }
+.datser-toast-stack .Toastify__toast:nth-child(4) { --index: 3; }
+.datser-toast-stack .Toastify__toast:nth-child(5) { --index: 4; }
+.datser-toast-stack .Toastify__toast:nth-child(6) { --index: 5; }
+.datser-toast-stack .Toastify__toast:nth-child(n+7) { --index: 6; }
+
+.datser-toast-stack .Toastify__toast {
+  --toast-dir: 1;
+}
+
+.Toastify__toast-container--bottom-right.datser-toast-stack .Toastify__toast,
+.Toastify__toast-container--bottom-left.datser-toast-stack .Toastify__toast,
+.Toastify__toast-container--bottom-center.datser-toast-stack .Toastify__toast {
+  --toast-dir: -1;
+}
+
+/* 1. Tap (Hover) -> Straighten */
+.datser-toast-stack:hover .Toastify__toast,
+.datser-toast-stack:focus-within .Toastify__toast {
+  transform: translateY(0) scale(1) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* 2. Long Tap (Expanded via JS class) -> Show Scrollable List */
+.datser-toast-stack.toast-stack-expanded {
+  max-height: 220px !important; /* Shows about 3 toasts */
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  padding: 8px 4px;
+  gap: 12px;
+}
+
+/* Hide scrollbar for the expanded stack but keep functionality */
+.datser-toast-stack.toast-stack-expanded::-webkit-scrollbar {
+  display: none;
+}
+.datser-toast-stack.toast-stack-expanded {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.datser-toast-stack.toast-stack-expanded .Toastify__toast {
+  grid-area: auto !important;
+  position: relative !important;
+  transform: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+  animation: fadeInToast 0.2s ease-out forwards !important;
+}
+
+@keyframes fadeInToast {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Fast Close Animation */
+.datser-toast-stack .Toastify__toast.Toastify__toast--exit,
+.datser-toast-stack.toast-stack-expanded .Toastify__toast.Toastify__toast--exit {
+  animation: fastExit 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+@keyframes fastExit {
+  to {
+    opacity: 0;
+    transform: translateY(-80px) scale(0.9);
+  }
+}
+
+
+

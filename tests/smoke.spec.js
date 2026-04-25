@@ -91,6 +91,40 @@ test.describe('Preflight smoke', () => {
     await expect(page.getByRole('heading', { name: 'Add New Member' })).toHaveCount(0)
   })
 
+  test('developer mode notification tester stacks mobile toasts', async ({ page }) => {
+    test.skip(isPreviewSmoke, 'Developer bypass is intentionally disabled in preview/prod smoke runs.')
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    await loginWithDeveloperMode(page)
+    await openDeveloperMode(page)
+
+    await page.getByTestId('dev-member-picker-toggle').click()
+    const memberPickerList = page.getByTestId('dev-member-picker-list')
+    await expect(memberPickerList).toBeVisible()
+    const memberPickerMaxHeight = await memberPickerList.evaluate((node) => Number.parseFloat(window.getComputedStyle(node).maxHeight))
+    expect(memberPickerMaxHeight).toBeLessThanOrEqual(224)
+    await page.keyboard.press('Escape')
+
+    await page.getByTestId('dev-notification-stack-test').click()
+    const toasts = page.locator('.datser-toast-stack .dev-stack-test-toast')
+    await expect(toasts).toHaveCount(5)
+
+    const toastMetrics = await toasts.evaluateAll((nodes) => nodes.map((node) => {
+      const rect = node.getBoundingClientRect()
+      const style = window.getComputedStyle(node)
+      return {
+        top: rect.top,
+        opacity: Number.parseFloat(style.opacity)
+      }
+    }))
+
+    expect(Math.abs(toastMetrics[1].top - toastMetrics[0].top)).toBeLessThan(40)
+    expect(toastMetrics[4].top - toastMetrics[0].top).toBeLessThan(90)
+    expect(toastMetrics[4].opacity).toBeLessThan(toastMetrics[0].opacity)
+  })
+
   test('developer mode launches create month and carry-over options switch cleanly', async ({ page }) => {
     test.skip(isPreviewSmoke, 'Developer bypass is intentionally disabled in preview/prod smoke runs.')
 
