@@ -173,24 +173,34 @@ const Dashboard = ({ isAdmin = false }) => {
   const [missingDates, setMissingDates] = useState([])
   const [pendingAttendanceAction, setPendingAttendanceAction] = useState(null)
   const recentMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
+  
+  // Robust locking to prevent double-triggering
+  const isMissingDataModalOpenRef = useRef(false)
+  const interactionLockRef = useRef(new Set()) // memberId as strings
 
   const closeMissingDataModal = () => {
     const memberId = missingDataMember?.id
+    if (memberId) {
+      setAttendanceLoading(prev => {
+        const next = { ...prev }
+        delete next[memberId]
+        return next
+      })
+      interactionLockRef.current.delete(memberId)
+    }
+
     recentMissingDataCloseRef.current = {
       memberId,
       present: pendingAttendanceAction?.present,
       at: Date.now()
     }
+    
+    isMissingDataModalOpenRef.current = false
     setShowMissingDataModal(false)
     setMissingDataMember(null)
     setMissingFields([])
     setMissingDates([])
     setPendingAttendanceAction(null)
-    
-    // Clear loading state for this member when modal closes
-    if (memberId) {
-      setAttendanceLoading(prev => ({ ...prev, [memberId]: false }))
-    }
   }
 
   // Bulk Transfer Modal state
@@ -332,46 +342,60 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
+    if (!member) return false
+    
+    // 1. Check if modal is already open or opening (SYNC check via Ref)
+    if (isMissingDataModalOpenRef.current) {
+      console.log('Blocking check: Modal already open/opening')
+      return true
+    }
+
+    // 2. Check if this specific member is already locked
+    if (interactionLockRef.current.has(member.id)) {
+      console.log(`Blocking check: Interaction already in progress for member ${member.id}`)
+      return true
+    }
+
+    // 3. Check cooldown to prevent ghost clicks or rapid taps
     const recentClose = recentMissingDataCloseRef.current
     if (
-      recentClose.memberId === member?.id &&
+      recentClose.memberId === member.id &&
       recentClose.present === present &&
       Date.now() - recentClose.at < 2000
     ) {
+      console.log('Blocking check: Cooldown active')
       return true
     }
 
-    // If modal is already open, close it first to reset state
-    if (showMissingDataModal) {
-      // If already open for the same member and action, ignore redundant calls
-      if (missingDataMember?.id === member?.id && pendingAttendanceAction?.present === present) {
-        return true
-      }
-      closeMissingDataModal()
-      // Small delay to allow state to reset before re-opening
-      setTimeout(() => {
-        proceedWithAttendanceCheck(member, present)
-      }, 50)
+    const missingFields = validateMemberData(member)
+    const missingDates = getMissingAttendance(member.id, getPastSundays())
+
+    if (missingFields.length > 0 || missingDates.length > 0) {
+      console.log('Missing data detected, opening modal...')
+      // SET LOCKS IMMEDIATELY
+      isMissingDataModalOpenRef.current = true
+      interactionLockRef.current.add(member.id)
+      
+      proceedWithAttendanceCheck(member, present, missingFields, missingDates)
       return true
     }
-    
-    return proceedWithAttendanceCheck(member, present)
+    return false
   }
   
-  const proceedWithAttendanceCheck = (member, present) => {
-    const fields = validateMemberData(member)
-    const pastSundays = getPastSundays()
-    const dates = getMissingAttendance(member.id, pastSundays)
+  const proceedWithAttendanceCheck = (member, present, fields, dates) => {
+    // If not provided, calculate them (fallback)
+    const missingFieldsToUse = fields || validateMemberData(member)
+    const missingDatesToUse = dates || getMissingAttendance(member.id, getPastSundays())
 
-    if (fields.length > 0 || dates.length > 0) {
+    if (missingFieldsToUse.length > 0 || missingDatesToUse.length > 0) {
       setMissingDataMember(member)
-      setMissingFields(fields)
-      setMissingDates(dates)
+      setMissingFields(missingFieldsToUse)
+      setMissingDates(missingDatesToUse)
       setPendingAttendanceAction({ memberId: member.id, present })
       setShowMissingDataModal(true)
-      return true // Has missing data
+      return true
     }
-    return false // No missing data
+    return false
   }
 
   const onRowTouchStart = (id, e) => {
@@ -1969,7 +1993,7 @@ const Dashboard = ({ isAdmin = false }) => {
                               return (
                                 <>
                                   <button
-                                    onClick={() => handleAttendance(member.id, true)}
+                                    onClick={(e) => { e.stopPropagation(); handleAttendance(member.id, true) }}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isPresentSelected
                                       ? 'bg-orange-600 dark:bg-orange-700 text-white shadow ring-1 ring-orange-300 dark:ring-orange-500'
@@ -1982,7 +2006,7 @@ const Dashboard = ({ isAdmin = false }) => {
                                     {attendanceLoading[member.id] ? '...' : 'Present'}
                                   </button>
                                   <button
-                                    onClick={() => handleAttendance(member.id, false)}
+                                    onClick={(e) => { e.stopPropagation(); handleAttendance(member.id, false) }}
                                     disabled={attendanceLoading[member.id]}
                                     className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap sm:text-sm md:text-sm ${isAbsentSelected
                                       ? 'bg-red-600 dark:bg-red-700 text-white shadow ring-1 ring-red-300 dark:ring-red-500'

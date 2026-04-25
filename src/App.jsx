@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense, memo } from 'react'
+import React, { useState, useEffect, useRef, lazy, Suspense, memo } from 'react'
 import { ToastContainer, Slide, toast } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
@@ -152,7 +152,8 @@ function AppContent({ isMobile }) {
   const [developerMissingFields, setDeveloperMissingFields] = useState([])
   const [developerMissingDates, setDeveloperMissingDates] = useState([])
   const [developerPendingAttendanceAction, setDeveloperPendingAttendanceAction] = useState(null)
-  const recentDeveloperMissingDataCloseRef = React.useRef({ memberId: null, present: null, at: 0 })
+  const recentDeveloperMissingDataCloseRef = useRef({ memberId: null, present: null, at: 0 })
+  const isDeveloperMissingDataModalOpeningRef = useRef(false)
   const [showMonthModal, setShowMonthModal] = useState(false)
   const [showAIChat, setShowAIChat] = useState(false)
   const [navigateToSettingsSection, setNavigateToSettingsSection] = useState(null)
@@ -192,6 +193,7 @@ function AppContent({ isMobile }) {
       present: developerPendingAttendanceAction?.present ?? null,
       at: Date.now()
     }
+    isDeveloperMissingDataModalOpeningRef.current = false
     setShowDeveloperMissingDataModal(false)
     setDeveloperMissingDataMember(null)
     setDeveloperMissingFields([])
@@ -281,26 +283,21 @@ function AppContent({ isMobile }) {
         return false
       }
 
-      const openModal = () => {
-        setDeveloperMissingDataMember(resolvedMember)
-        setDeveloperMissingFields(fields)
-        setDeveloperMissingDates(dates)
-        setDeveloperPendingAttendanceAction({ memberId: resolvedMember.id, present })
-        setShowDeveloperMissingDataModal(true)
-      }
-
-      if (showDeveloperMissingDataModal) {
-        // If already open for the same member and action, ignore redundant calls
+      if (isDeveloperMissingDataModalOpeningRef.current || showDeveloperMissingDataModal) {
+        // If already open or opening, ignore redundant calls
         if (developerMissingDataMember?.id === resolvedMember.id && 
             developerPendingAttendanceAction?.present === present) {
           return true
         }
-        clearDeveloperMissingDataState()
-        setTimeout(openModal, 50)
-      } else {
-        openModal()
+        return true
       }
 
+      isDeveloperMissingDataModalOpeningRef.current = true
+      setDeveloperMissingDataMember(resolvedMember)
+      setDeveloperMissingFields(fields)
+      setDeveloperMissingDates(dates)
+      setDeveloperPendingAttendanceAction({ memberId: resolvedMember.id, present })
+      setShowDeveloperMissingDataModal(true)
       return true
     }
     window.openCreateMonth = () => setShowMonthModal(true)
