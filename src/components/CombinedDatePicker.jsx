@@ -55,7 +55,7 @@ const CombinedDatePicker = ({
   }, [value])
 
   const updatePosition = () => {
-    if (containerRef.current && isOpen) {
+    if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect()
       // Check if there is enough space below, otherwise open upwards
       const spaceBelow = window.innerHeight - rect.bottom
