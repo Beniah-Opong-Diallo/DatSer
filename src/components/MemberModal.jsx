@@ -391,15 +391,22 @@ const MemberModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
-      <div className={`shadow-2xl ring-1 max-w-md w-[96%] sm:w-full mx-auto max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in ${isOverrideMode
-        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
-        : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
-        }`} data-testid="add-member-modal"> 
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
+      {/* Drag handle for mobile */}
+      <div className="flex justify-center pt-3 pb-1 sm:hidden absolute left-0 right-0" style={{ top: 'calc(10vh)' }}>
+      </div>
+      <div className={`shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
+        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
+        : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
+        }`} data-testid="add-member-modal">
+        {/* Drag handle - visible on mobile */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
         {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b flex-shrink-0 transition-all duration-300 ${isOverrideMode
-          ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700 rounded-t-3xl'
-          : 'border-gray-200 dark:border-gray-700 rounded-t-xl'
+        <div className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode
+          ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
+          : 'border-gray-200 dark:border-gray-700'
           }`}>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Add New Member</h2>
           <div className="flex items-center gap-2">

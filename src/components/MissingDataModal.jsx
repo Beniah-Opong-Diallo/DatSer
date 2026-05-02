@@ -742,7 +742,7 @@ const MissingDataModal = ({
                 </div>
 
                 {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 flex gap-3 z-10 rounded-b-2xl sm:rounded-b-xl safe-area-bottom">
+                <div className="sticky bottom-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 flex gap-3 z-10 rounded-b-none sm:rounded-b-xl safe-area-bottom">
                     <button
                         onClick={onClose}
                         className="flex-1 sm:flex-none px-4 py-3 sm:py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-colors min-h-[48px] sm:min-h-[40px] font-medium"
