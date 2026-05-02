@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Calendar } from 'lucide-react'
 
 const MONTHS = [
@@ -22,7 +23,9 @@ const CombinedDatePicker = ({
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState({})
   const containerRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   const pickerId = String(name || label || placeholder || 'date')
     .toLowerCase()
@@ -51,16 +54,62 @@ const CombinedDatePicker = ({
     setYearInput(parsed.year)
   }, [value])
 
-  // Close on click outside
+  const updatePosition = () => {
+    if (containerRef.current && isOpen) {
+      const rect = containerRef.current.getBoundingClientRect()
+      // Check if there is enough space below, otherwise open upwards
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      const dropdownHeight = 240 // approximate height
+
+      const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+      
+      setDropdownStyle({
+        position: 'fixed',
+        top: openUpwards ? 'auto' : `${rect.bottom + 6}px`,
+        bottom: openUpwards ? `${window.innerHeight - rect.top + 6}px` : 'auto',
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        zIndex: 999999
+      })
+    }
+  }
+
+  const toggleDropdown = () => {
+    if (disabled) return
+    if (!isOpen) {
+      updatePosition()
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
+    }
+  }
+
+  // Close on click outside or reposition on scroll/resize
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false)
-      }
+      if (containerRef.current && containerRef.current.contains(e.target)) return
+      if (dropdownRef.current && dropdownRef.current.contains(e.target)) return
+      setIsOpen(false)
     }
+
+    const handleScrollOrResize = (e) => {
+      // Don't close if scrolling inside the dropdown itself
+      if (dropdownRef.current && dropdownRef.current.contains(e.target)) return
+      updatePosition()
+    }
+
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+      // Use capture phase to catch all scrolls in the document
+      window.addEventListener('scroll', handleScrollOrResize, true)
+      window.addEventListener('resize', handleScrollOrResize)
+      
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+        window.removeEventListener('scroll', handleScrollOrResize, true)
+        window.removeEventListener('resize', handleScrollOrResize)
+      }
     }
   }, [isOpen])
 
@@ -139,7 +188,7 @@ const CombinedDatePicker = ({
       {/* Trigger button */}
       <button
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         disabled={disabled}
         data-testid={`combined-date-picker-${pickerId}-toggle`}
         className={`
@@ -181,12 +230,13 @@ const CombinedDatePicker = ({
         </div>
       </button>
 
-      {/* Inline picker panel */}
-      {isOpen && (
+      {/* Portal dropdown panel directly to body so it escapes all modal contexts */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
+          ref={dropdownRef}
           data-testid={`combined-date-picker-${pickerId}-dropdown`}
-          className="absolute z-50 w-full bottom-full mb-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
-          style={{ minWidth: '220px' }}
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+          style={{ ...dropdownStyle, minWidth: '220px', transformOrigin: dropdownStyle.bottom !== 'auto' ? 'bottom' : 'top' }}
         >
           {/* Day + Year row */}
           <div className="flex items-center gap-2 px-3 pt-3 pb-2">
@@ -245,7 +295,8 @@ const CombinedDatePicker = ({
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {error && (
