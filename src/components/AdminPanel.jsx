@@ -29,11 +29,33 @@ import {
   Shield,
   Lock,
   LogIn,
-  ArrowLeft
+  ArrowLeft,
+  Phone,
+  MessageCircle,
+  Send,
+  UserCheck,
+  UserX
 } from 'lucide-react'
 import TagManager from './TagManager'
 
 
+const normalizeSundayDate = (dateValue) => {
+  if (dateValue instanceof Date) {
+    const y = dateValue.getFullYear()
+    const m = String(dateValue.getMonth() + 1).padStart(2, '0')
+    const d = String(dateValue.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  return dateValue
+}
+
+const getMemberName = (member) => member?.full_name || member?.['Full Name'] || member?.name || 'Unknown'
+const getMemberPhone = (member) => member?.['Phone Number'] || member?.phone_number || member?.phone || member?.Phone || ''
+const cleanPhoneDigits = (phone) => String(phone || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '')
+const getWhatsAppDigits = (phone) => {
+  const cleaned = cleanPhoneDigits(phone).replace(/^\+/, '')
+  return cleaned.startsWith('0') ? `233${cleaned.slice(1)}` : cleaned
+}
 
 const AdminPanel = ({ setCurrentView, onBack }) => {
   const {
@@ -74,6 +96,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   const AUTO_LOCK_MINUTES = 15 // Auto-lock after 15 minutes of inactivity
   const [isGoogleAuthing, setIsGoogleAuthing] = useState(false)
   const [showOverview, setShowOverview] = useState(false)
+  const [followUpMessage, setFollowUpMessage] = useState('Hi {name}, we missed you at teen ministry this month. Are you able to come this Sunday?')
 
   // Auto-lock timer - locks admin panel after inactivity
   useEffect(() => {
@@ -436,19 +459,17 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
 
   // Get month display name
   const monthDisplayName = currentTable ? currentTable.replace('_', ' ') : 'No Month Selected'
+  const buildFollowUpMessage = (record) => encodeURIComponent(
+    followUpMessage
+      .replaceAll('{name}', record.name)
+      .replaceAll('{rate}', `${record.rate}%`)
+      .replaceAll('{month}', monthDisplayName)
+  )
 
   // Calculate quick stats
   const stats = useMemo(() => {
     // Get all sunday dates for this month
-    const sundayDates = availableSundayDates?.map(d => {
-      if (d instanceof Date) {
-        const y = d.getFullYear()
-        const m = String(d.getMonth() + 1).padStart(2, '0')
-        const day = String(d.getDate()).padStart(2, '0')
-        return `${y}-${m}-${day}`
-      }
-      return d
-    }) || []
+    const sundayDates = availableSundayDates?.map(normalizeSundayDate) || []
 
     let totalPresent = 0
     let totalAbsent = 0
@@ -483,6 +504,50 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       sundaysCompleted: sundayStats.filter(s => s.marked).length,
       totalSundays: sundayDates.length
     }
+  }, [members, attendanceData, availableSundayDates])
+
+  const attendanceFollowUps = useMemo(() => {
+    const sundayDates = (availableSundayDates || []).map(normalizeSundayDate).filter(Boolean)
+    const totalSundays = sundayDates.length
+
+    const records = members.map((member) => {
+      let present = 0
+      let absent = 0
+      let missing = 0
+
+      sundayDates.forEach((dateKey) => {
+        const status = attendanceData[dateKey]?.[member.id]
+        if (status === true) present++
+        else if (status === false) absent++
+        else missing++
+      })
+
+      const marked = present + absent
+      const rate = totalSundays > 0 ? Math.round((present / totalSundays) * 100) : 0
+      const category = rate >= 75 ? 'regular' : rate >= 40 ? 'watch' : 'followUp'
+      const phone = getMemberPhone(member)
+
+      return {
+        id: member.id,
+        name: getMemberName(member),
+        phone,
+        phoneDigits: cleanPhoneDigits(phone),
+        whatsappDigits: getWhatsAppDigits(phone),
+        present,
+        absent,
+        missing,
+        marked,
+        rate,
+        category,
+        badge: member['Badge Type'] || 'newcomer'
+      }
+    })
+
+    const regular = records.filter((record) => record.category === 'regular').sort((a, b) => b.rate - a.rate || b.present - a.present)
+    const watch = records.filter((record) => record.category === 'watch').sort((a, b) => a.rate - b.rate)
+    const followUp = records.filter((record) => record.category === 'followUp').sort((a, b) => a.rate - b.rate || b.absent - a.absent || b.missing - a.missing)
+
+    return { totalSundays, regular, watch, followUp }
   }, [members, attendanceData, availableSundayDates])
 
   // Get top attendees
@@ -934,6 +999,105 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 )
               })}
             </div>
+          </div>
+        </div>
+
+        {/* Attendance Follow-up */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '280ms' }}>
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Phone className="w-5 h-5 text-emerald-500" />
+              Attendance Follow-up
+            </h3>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-green-50 dark:bg-green-900/20 p-3 text-center">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{attendanceFollowUps.regular.length}</p>
+                <p className="text-xs font-medium text-green-700 dark:text-green-300">Regular</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 p-3 text-center">
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{attendanceFollowUps.watch.length}</p>
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Watch</p>
+              </div>
+              <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3 text-center">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{attendanceFollowUps.followUp.length}</p>
+                <p className="text-xs font-medium text-red-700 dark:text-red-300">Follow up</p>
+              </div>
+            </div>
+
+            <textarea
+              value={followUpMessage}
+              onChange={(event) => setFollowUpMessage(event.target.value)}
+              rows={3}
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="Message template"
+            />
+
+            {attendanceFollowUps.totalSundays === 0 ? (
+              <p className="text-center text-gray-400 py-4">No Sundays available for this month yet</p>
+            ) : (
+              <div className="space-y-3">
+                {attendanceFollowUps.followUp.slice(0, 6).map((record) => {
+                  const encodedMessage = buildFollowUpMessage(record)
+                  const hasPhone = record.phoneDigits.length > 0
+                  return (
+                    <div key={record.id} className="rounded-xl border border-red-100 dark:border-red-900/40 bg-red-50/70 dark:bg-red-900/10 p-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <UserX className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">{record.name}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {record.present}/{attendanceFollowUps.totalSundays} present, {record.rate}% rate
+                            {record.phone ? ` - ${record.phone}` : ' - no phone saved'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {hasPhone ? (
+                            <>
+                              <a href={`tel:${record.phoneDigits}`} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" title="Call">
+                                <Phone className="w-4 h-4" />
+                              </a>
+                              <a href={`sms:${record.phoneDigits}?&body=${encodedMessage}`} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Text message">
+                                <MessageCircle className="w-4 h-4" />
+                              </a>
+                              <a href={`https://wa.me/${record.whatsappDigits}?text=${encodedMessage}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20" title="WhatsApp">
+                                <Send className="w-4 h-4" />
+                              </a>
+                            </>
+                          ) : (
+                            <span className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-500 dark:text-gray-300">No phone</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {attendanceFollowUps.followUp.length === 0 && (
+                  <div className="rounded-xl border border-green-100 dark:border-green-900/40 bg-green-50/70 dark:bg-green-900/10 p-3 flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-green-500" />
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">Everyone is above the follow-up line for this month.</p>
+                  </div>
+                )}
+
+                {attendanceFollowUps.regular.length > 0 && (
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Regular this month</p>
+                    <div className="flex flex-wrap gap-2">
+                      {attendanceFollowUps.regular.slice(0, 8).map((record) => (
+                        <span key={record.id} className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300">
+                          <UserCheck className="w-3 h-3" />
+                          {record.name} {record.rate}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

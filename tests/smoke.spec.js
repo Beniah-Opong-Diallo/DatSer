@@ -14,7 +14,15 @@ const openDeveloperMode = async (page) => {
     window.openSettings?.()
   })
   const developerModeEntry = page.getByRole('button', { name: /developer mode launch flows quickly/i })
-  await expect(developerModeEntry).toBeVisible()
+  try {
+    await expect(developerModeEntry).toBeVisible({ timeout: 5000 })
+  } catch {
+    const settingsButton = page.getByRole('button', { name: /^settings$/i }).first()
+    if (await settingsButton.isVisible()) {
+      await settingsButton.click()
+    }
+    await expect(developerModeEntry).toBeVisible()
+  }
   await developerModeEntry.click()
   await expect(page.getByRole('heading', { name: 'Developer Mode' }).first()).toBeVisible()
 }
@@ -109,20 +117,22 @@ test.describe('Preflight smoke', () => {
 
     await page.getByTestId('dev-notification-stack-test').click()
     const toasts = page.locator('.datser-toast-stack .dev-stack-test-toast')
-    await expect(toasts).toHaveCount(5)
+    await expect(toasts).toHaveCount(4)
 
     const toastMetrics = await toasts.evaluateAll((nodes) => nodes.map((node) => {
       const rect = node.getBoundingClientRect()
       const style = window.getComputedStyle(node)
       return {
         top: rect.top,
+        bottom: rect.bottom,
         opacity: Number.parseFloat(style.opacity)
       }
     }))
 
-    expect(Math.abs(toastMetrics[1].top - toastMetrics[0].top)).toBeLessThan(40)
-    expect(toastMetrics[4].top - toastMetrics[0].top).toBeLessThan(90)
-    expect(toastMetrics[4].opacity).toBeLessThan(toastMetrics[0].opacity)
+    const stackHeight = toastMetrics[toastMetrics.length - 1].bottom - toastMetrics[0].top
+    expect(toastMetrics[0].top).toBeLessThanOrEqual(24)
+    expect(stackHeight).toBeLessThanOrEqual(240)
+    expect(Math.min(...toastMetrics.map((metric) => metric.opacity))).toBeGreaterThan(0.95)
   })
 
   test('developer mode launches create month and carry-over options switch cleanly', async ({ page }) => {

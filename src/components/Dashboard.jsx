@@ -74,6 +74,7 @@ const Dashboard = ({ isAdmin = false }) => {
     validateMemberData,
     getPastSundays,
     getMissingAttendance,
+    missingInfoPromptEnabled,
     isCollaborator,
     dataOwnerId,
     user,
@@ -324,13 +325,16 @@ const Dashboard = ({ isAdmin = false }) => {
     }
   }, [longPressSelectedIds, dashboardTab])
 
-  // Check for missing data before marking attendance
   const checkMissingDataBeforeAttendance = (member, present) => {
+    if (!missingInfoPromptEnabled) {
+      return false
+    }
+
     const recentClose = recentMissingDataCloseRef.current
     if (
       recentClose.memberId === member?.id &&
       recentClose.present === present &&
-      Date.now() - recentClose.at < 750
+      Date.now() - recentClose.at < 5000
     ) {
       return true
     }
@@ -2769,23 +2773,22 @@ const Dashboard = ({ isAdmin = false }) => {
       {/* Missing Data Modal */}
       {showMissingDataModal && missingDataMember && (
         <Suspense fallback={null}>
-            <MissingDataModal
-              member={missingDataMember}
-              missingFields={missingFields}
-              missingDates={missingDates}
-              pendingAttendanceAction={pendingAttendanceAction}
-              selectedAttendanceDate={selectedAttendanceDate}
-              onClose={closeMissingDataModal}
-              onSave={async () => {
-                closeMissingDataModal()
-                // Force refresh attendance data for the date that was just saved
-                // Use selectedAttendanceDate if available, otherwise use selectedSundayDate
-                const dateToRefresh = selectedAttendanceDate ? getDateString(selectedAttendanceDate) : selectedSundayDate
-                if (dateToRefresh) {
-                  const freshMap = await fetchAttendanceForDate(new Date(dateToRefresh))
+          <MissingDataModal
+            member={missingDataMember}
+            missingFields={missingFields}
+            missingDates={missingDates}
+            pendingAttendanceAction={pendingAttendanceAction}
+            selectedAttendanceDate={selectedAttendanceDate}
+            onClose={closeMissingDataModal}
+            onSave={async () => {
+              // Close modal first, THEN do async refresh so ghost touches can't re-open
+              closeMissingDataModal()
+              // Refresh attendance data for the saved date
+              const dateToRefresh = selectedAttendanceDate ? getDateString(selectedAttendanceDate) : selectedSundayDate
+              if (dateToRefresh) {
+                const freshMap = await fetchAttendanceForDate(new Date(dateToRefresh))
                 setAttendanceData(prev => ({ ...prev, [dateToRefresh]: freshMap || {} }))
               }
-              // Also force refresh members to ensure any updated data is reflected (with cache bypass)
               await forceRefreshMembersSilent()
             }}
           />

@@ -33,6 +33,8 @@ const MissingDataModal = ({
     const [isOverrideMode, setIsOverrideMode] = useState(false)
     const [showLevelDropdown, setShowLevelDropdown] = useState(false)
     const isSaveInFlightRef = useRef(false)
+    // Tracks whether we have already initiated closing to block ghost-click re-opens
+    const isClosingRef = useRef(false)
 
     const levelOptions = [
         'JHS1', 'JHS2', 'JHS3',
@@ -187,32 +189,24 @@ const MissingDataModal = ({
     }
 
     const handleSave = async () => {
-        if (isSaveInFlightRef.current) {
+        if (isSaveInFlightRef.current || isClosingRef.current) {
             return
         }
 
         setHasAttemptedSave(true)
 
-        console.log('=== SAVE BUTTON CLICKED ===')
-        console.log('isOverrideMode:', isOverrideMode)
-        console.log('Form complete?', isFormComplete())
-        console.log('Missing fields:', missingFields)
-        console.log('Form data:', formData)
-        console.log('Attendance data:', attendanceData)
-        console.log('Pending attendance action:', pendingAttendanceAction)
-
         // In override mode, skip validation
         if (!isOverrideMode && !isFormComplete()) {
-            console.log('Form not complete, showing error')
             toast.error('Please fill in all highlighted fields')
             setIsSaving(false)
             return
         }
 
+        // Mark as in-flight immediately to block any re-entry
         isSaveInFlightRef.current = true
+        isClosingRef.current = true
         setIsSaving(true)
         setSaveError(null)
-        console.log('Starting save process...')
 
         try {
             // Update member data if there are missing fields
@@ -322,7 +316,6 @@ const MissingDataModal = ({
                 }
             }
 
-            console.log('All updates complete!')
             const updatedSnapshot = {
                 ...member,
                 ...(missingFields.includes('Phone Number') ? { 'Phone Number': formData.phoneNumber } : {}),
@@ -335,6 +328,9 @@ const MissingDataModal = ({
             }
 
             toast.success(isOverrideMode ? 'Attendance saved (Override)' : 'Missing data saved successfully!')
+            setIsSaving(false)
+            isSaveInFlightRef.current = false
+            // Call onSave which will close the modal – isClosingRef stays true to block ghost re-opens
             if (onSave) {
                 await onSave(updatedSnapshot)
             } else {
@@ -347,11 +343,12 @@ const MissingDataModal = ({
             toast.error(`Failed to save data: ${errorMsg}`)
             setIsSaving(false)
             isSaveInFlightRef.current = false
+            isClosingRef.current = false
         }
     }
     return (
-        <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-center justify-center p-4 z-[60] backdrop-animate">
-            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 rounded-3xl animate-scale-in ${isOverrideMode
+        <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
+            <div className={`w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 sm:rounded-xl rounded-t-2xl animate-scale-in ${isOverrideMode
                 ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
                 }`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -360,39 +357,43 @@ const MissingDataModal = ({
                         display: none;
                     }
                 `}</style>
-                <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-3xl ${isOverrideMode
+                {/* Drag handle for mobile sheet style */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                    <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                </div>
+                <div className={`sticky top-0 border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode
                     ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}>
-                    <div className="flex items-center gap-2">
-                        <AlertCircle className={`w-5 h-5 ${isOverrideMode ? 'text-orange-500' : 'text-orange-500'}`} />
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                            Complete Missing Information
+                    <div className="flex items-center gap-2 min-w-0">
+                        <AlertCircle className={`w-4 h-4 flex-shrink-0 ${isOverrideMode ? 'text-orange-500' : 'text-orange-500'}`} />
+                        <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
+                            Complete Missing Info
                         </h2>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                             type="button"
                             data-testid="missing-data-override-toggle"
                             onClick={() => setIsOverrideMode(!isOverrideMode)}
-                            className={`px-3 py-1 rounded text-xs border transition-colors ${isOverrideMode
+                            className={`px-2.5 py-1.5 rounded-lg text-xs border transition-colors min-h-[36px] touch-target ${isOverrideMode
                                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
                                 }`}
                             title="Toggle Override Mode (Bypass Validation)"
                         >
-                            {isOverrideMode ? 'Override Active' : 'Override'}
+                            {isOverrideMode ? '✓ Override' : 'Override'}
                         </button>
                         <button
                             onClick={onClose}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
                         >
                             <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                         </button>
                     </div>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
                     {saveError && (
                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
                             <div className="flex items-center gap-2 text-red-800 dark:text-red-200 font-medium mb-1">
@@ -700,41 +701,38 @@ const MissingDataModal = ({
                                             <div className={`text-sm font-medium mb-2 ${isMissing ? 'text-red-800 dark:text-red-200' : 'text-gray-700 dark:text-gray-300'}`}>
                                                 {dateLabel} {isMissing && '(Required)'}
                                             </div>
-                                            <div className="flex space-x-2">
-                                                <button
-                                                    type="button"
-                                                    data-testid={`missing-data-attendance-${dateKey}-present`}
-                                                    onClick={() => handleAttendanceChange(dateKey, true)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, true)}
-                                                    className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === true
-                                                        ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
-                                                        : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
-                                                        }`}
-                                                >
-                                                    Present
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    data-testid={`missing-data-attendance-${dateKey}-absent`}
-                                                    onClick={() => handleAttendanceChange(dateKey, false)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, false)}
-                                                    className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${attendanceData[dateKey] === false
-                                                        ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
-                                                        : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
-                                                        }`}
-                                                >
-                                                    Absent
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    data-testid={`missing-data-attendance-${dateKey}-clear`}
-                                                    onClick={() => handleAttendanceChange(dateKey, null)}
-                                                    onTouchStart={() => handleAttendanceChange(dateKey, null)}
-                                                    className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
-                                                >
-                                                    Clear
-                                                </button>
-                                            </div>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        data-testid={`missing-data-attendance-${dateKey}-present`}
+                        onClick={() => handleAttendanceChange(dateKey, true)}
+                        className={`flex-1 py-2 text-sm rounded-xl font-semibold transition-all duration-150 min-h-[44px] ${attendanceData[dateKey] === true
+                            ? 'bg-green-600 text-white shadow-md ring-2 ring-green-300 dark:ring-green-500'
+                            : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500'
+                            }`}
+                    >
+                        Present
+                    </button>
+                    <button
+                        type="button"
+                        data-testid={`missing-data-attendance-${dateKey}-absent`}
+                        onClick={() => handleAttendanceChange(dateKey, false)}
+                        className={`flex-1 py-2 text-sm rounded-xl font-semibold transition-all duration-150 min-h-[44px] ${attendanceData[dateKey] === false
+                            ? 'bg-red-600 text-white shadow-md ring-2 ring-red-300 dark:ring-red-500'
+                            : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500'
+                            }`}
+                    >
+                        Absent
+                    </button>
+                    <button
+                        type="button"
+                        data-testid={`missing-data-attendance-${dateKey}-clear`}
+                        onClick={() => handleAttendanceChange(dateKey, null)}
+                        className="px-3 py-2 text-sm rounded-xl bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-500 min-h-[44px]"
+                    >
+                        ×
+                    </button>
+                </div>
                                         </div>
                                     )
                                 })}
@@ -744,10 +742,10 @@ const MissingDataModal = ({
                 </div>
 
                 {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3 z-10 rounded-b-3xl">
+                <div className="sticky bottom-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 flex gap-3 z-10 rounded-b-2xl sm:rounded-b-xl safe-area-bottom">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors btn-press"
+                        className="flex-1 sm:flex-none px-4 py-3 sm:py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-colors min-h-[48px] sm:min-h-[40px] font-medium"
                         disabled={isSaving}
                     >
                         Cancel
@@ -755,9 +753,9 @@ const MissingDataModal = ({
                     <button
                         data-testid="missing-data-save"
                         onClick={handleSave}
-                        className={`px-6 py-2 rounded-lg font-medium transition-colors btn-press ${isSaving
+                        className={`flex-1 sm:flex-none px-6 py-3 sm:py-2 rounded-xl font-semibold transition-colors min-h-[48px] sm:min-h-[40px] ${isSaving
                             ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
-                            : (isOverrideMode ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white')
+                            : (isOverrideMode ? 'bg-orange-600 active:bg-orange-700 text-white shadow-sm' : 'bg-primary-600 active:bg-primary-700 text-white shadow-sm')
                             }`}
                         disabled={isSaving}
                     >

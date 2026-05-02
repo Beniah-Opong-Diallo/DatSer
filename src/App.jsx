@@ -75,7 +75,11 @@ const CustomCloseButton = ({ closeToast }) => {
   if (showCloseAll) {
     return (
       <button
+        type="button"
+        className="datser-toast-close-all"
         onClick={handleCloseAll}
+        onMouseLeave={handleCancelCloseAll}
+        aria-label="Close all notifications"
         style={{
           background: '#dc2626',
           color: '#fff',
@@ -100,6 +104,7 @@ const CustomCloseButton = ({ closeToast }) => {
   return (
     <button
       type="button"
+      className="datser-toast-close"
       onMouseDown={handleStart}
       onMouseUp={handleEnd}
       onMouseLeave={() => { if (timerRef.current) clearTimeout(timerRef.current); }}
@@ -269,7 +274,7 @@ function AppContent({ isMobile }) {
       if (
         recentClose.memberId === resolvedMember.id &&
         recentClose.present === present &&
-        Date.now() - recentClose.at < 750
+        Date.now() - recentClose.at < 5000
       ) {
         return true
       }
@@ -626,8 +631,10 @@ function AppContent({ isMobile }) {
 
       <ToastContainer
         className="datser-toast-stack"
+        toastClassName="datser-toast"
+        bodyClassName="datser-toast-body"
         position={isMobile ? 'top-center' : 'bottom-right'}
-        autoClose={3000}
+        autoClose={3200}
         transition={Slide}
         hideProgressBar={false}
         newestOnTop
@@ -637,9 +644,10 @@ function AppContent({ isMobile }) {
         draggable={false}
         closeButton={CustomCloseButton}
         pauseOnHover
+        limit={4}
         style={isMobile
-          ? { top: 'calc(env(safe-area-inset-top) + 8px)' }
-          : { bottom: 'calc(env(safe-area-inset-bottom) + 8px)' }}
+          ? { top: 'calc(env(safe-area-inset-top) + 10px)' }
+          : { bottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}
       />
     </div>
   )

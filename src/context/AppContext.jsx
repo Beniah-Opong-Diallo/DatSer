@@ -313,9 +313,33 @@ export const AppProvider = ({ children }) => {
   })
 
   // Auto-All-Dates feature (auto-mark all dates up to today)
-  const [autoAllDatesEnabled, setAutoAllDatesEnabled] = useState(() => {
+  const [autoAllDatesEnabledState, setAutoAllDatesEnabledState] = useState(() => {
     return localStorage.getItem('autoAllDatesEnabled') === 'true'
   })
+  const setAutoAllDatesEnabled = useCallback((nextValue) => {
+    setAutoAllDatesEnabledState((currentValue) => {
+      const resolvedValue = typeof nextValue === 'function' ? nextValue(currentValue) : nextValue
+      const enabled = Boolean(resolvedValue)
+      localStorage.setItem('autoAllDatesEnabled', enabled.toString())
+      return enabled
+    })
+  }, [])
+  const autoAllDatesEnabled = autoAllDatesEnabledState
+
+  // Missing-info prompt before attendance (optional per device/browser)
+  const [missingInfoPromptEnabledState, setMissingInfoPromptEnabledState] = useState(() => {
+    const savedValue = localStorage.getItem('missingInfoPromptEnabled')
+    return savedValue === null ? true : savedValue === 'true'
+  })
+  const setMissingInfoPromptEnabled = useCallback((nextValue) => {
+    setMissingInfoPromptEnabledState((currentValue) => {
+      const resolvedValue = typeof nextValue === 'function' ? nextValue(currentValue) : nextValue
+      const enabled = Boolean(resolvedValue)
+      localStorage.setItem('missingInfoPromptEnabled', enabled.toString())
+      return enabled
+    })
+  }, [])
+  const missingInfoPromptEnabled = missingInfoPromptEnabledState
 
   // Admin-locked default date ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â forces collaborators to a specific date
   const [lockedDefaultDate, setLockedDefaultDate] = useState(null)
@@ -4326,6 +4350,8 @@ export const AppProvider = ({ children }) => {
     getMissingAttendance,
     autoAllDatesEnabled,
     setAutoAllDatesEnabled,
+    missingInfoPromptEnabled,
+    setMissingInfoPromptEnabled,
     isDeveloperBypass,
     hasAccess,
     isCollaborator,
@@ -4361,7 +4387,7 @@ export const AppProvider = ({ children }) => {
     toggleMemberBadge, memberHasBadge, setAndSaveAttendanceDate,
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
-    autoAllDatesEnabled, setAutoAllDatesEnabled, isDeveloperBypass,
+    autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, isDeveloperBypass,
     hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil,
     setPersonalCalendarMode, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate, sendAdminPeriodBroadcast
