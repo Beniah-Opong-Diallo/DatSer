@@ -348,20 +348,19 @@ const MissingDataModal = ({
     }
     return (
         <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
-            <div className={`w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto transition-all duration-300 scrollbar-hide ring-1 sm:rounded-xl rounded-t-2xl animate-scale-in ${isOverrideMode
+            {/* Modal sheet: flex-col so header+footer never scroll */}
+            <div className={`w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 ring-1 sm:rounded-xl rounded-t-2xl rounded-b-none sm:rounded-b-xl animate-scale-in ${isOverrideMode
                 ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
-                }`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <style>{`
-                    .scrollbar-hide::-webkit-scrollbar {
-                        display: none;
-                    }
-                `}</style>
-                {/* Drag handle for mobile sheet style */}
-                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                }`}>
+
+                {/* Drag handle - mobile only */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
                     <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
                 </div>
-                <div className={`sticky top-0 border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between z-10 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode
+
+                {/* Sticky header */}
+                <div className={`flex-shrink-0 border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode
                     ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}>
@@ -393,6 +392,8 @@ const MissingDataModal = ({
                     </div>
                 </div>
 
+                {/* Scrollable content — grows to fill remaining space */}
+                <div className="flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
                     {saveError && (
                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
@@ -739,10 +740,12 @@ const MissingDataModal = ({
                             </div>
                         </div>
                     )}
-                </div>
+                </div>{/* end scrollable content */}
+                </div>{/* end inner scroll wrapper */}
 
-                {/* Footer with Save button */}
-                <div className="sticky bottom-0 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4 flex gap-3 z-10 rounded-b-none sm:rounded-b-xl safe-area-bottom">
+                {/* Footer — always pinned at bottom, never scrolls */}
+                <div className={`flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 pt-3 flex gap-3 rounded-b-none sm:rounded-b-xl ${isOverrideMode ? 'bg-orange-50/95 dark:bg-orange-900/95' : 'bg-white dark:bg-gray-800'}`}
+                    style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}>
                     <button
                         onClick={onClose}
                         className="flex-1 sm:flex-none px-4 py-3 sm:py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-colors min-h-[48px] sm:min-h-[40px] font-medium"

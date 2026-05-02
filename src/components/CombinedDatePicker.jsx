@@ -185,7 +185,7 @@ const CombinedDatePicker = ({
       {isOpen && (
         <div
           data-testid={`combined-date-picker-${pickerId}-dropdown`}
-          className="absolute z-50 w-full mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+          className="absolute z-50 w-full bottom-full mb-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
           style={{ minWidth: '220px' }}
         >
           {/* Day + Year row */}
