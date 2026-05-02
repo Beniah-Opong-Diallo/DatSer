@@ -20,6 +20,7 @@ const CombinedDatePicker = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [dropdownStyle, setDropdownStyle] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
   const containerRef = useRef(null)
   const dropdownRef = useRef(null)
 
@@ -28,6 +29,13 @@ const CombinedDatePicker = ({
   const [selectedDate, setSelectedDate] = useState(null)
   const [viewDate, setViewDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('grid')
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     if (value) {
@@ -47,14 +55,16 @@ const CombinedDatePicker = ({
   const toggleDropdown = () => {
     if (disabled) return
     if (!isOpen) {
-      if (containerRef.current) {
+      const mobile = window.innerWidth < 640
+      
+      if (!mobile && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
         const spaceBelow = window.innerHeight - rect.bottom
         const spaceAbove = rect.top
         const dropdownHeight = 360
         const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
         
-        const dropdownWidth = 320
+        const dropdownWidth = 340 // Wider for desktop
         let calcLeft = rect.left
         if (calcLeft + dropdownWidth > window.innerWidth - 16) {
           calcLeft = window.innerWidth - dropdownWidth - 16
@@ -80,15 +90,16 @@ const CombinedDatePicker = ({
 
   useEffect(() => {
     const handleClickOutside = (e) => {
+      if (isMobile) return // Handled by overlay click on mobile
       if (containerRef.current && containerRef.current.contains(e.target)) return
       if (dropdownRef.current && dropdownRef.current.contains(e.target)) return
       setIsOpen(false)
     }
-    if (isOpen) {
+    if (isOpen && !isMobile) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isOpen])
+  }, [isOpen, isMobile])
 
   const handleSave = () => {
     if (selectedDate) {
@@ -157,6 +168,16 @@ const CombinedDatePicker = ({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
+      <style>{`
+        @keyframes slideUpSheet {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        .animate-slide-up-sheet {
+          animation: slideUpSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+      
       {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</label>}
       
       <button
@@ -187,118 +208,141 @@ const CombinedDatePicker = ({
       </button>
 
       {isOpen && typeof document !== 'undefined' && createPortal(
-        <div
-          ref={dropdownRef}
-          data-testid={`combined-date-picker-${pickerId}-dropdown`}
-          className="bg-white dark:bg-[#202022] border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col font-sans"
-          style={{ ...dropdownStyle, transformOrigin: dropdownStyle.bottom !== 'auto' ? 'bottom' : 'top' }}
-        >
-          {viewMode === 'grid' ? (
-            <>
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                <button 
-                  onClick={() => setViewMode('wheels')}
-                  className="flex items-center gap-1 text-[17px] font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-500 transition-colors group"
-                >
-                  {MONTHS[currentMonth]} {currentYear}
-                  <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setViewDate(new Date(currentYear, currentMonth - 1, 1))} className="text-primary-600 dark:text-primary-500 hover:opacity-70 p-1">
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
-                  <button onClick={() => setViewDate(new Date(currentYear, currentMonth + 1, 1))} className="text-primary-600 dark:text-primary-500 hover:opacity-70 p-1">
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Days Header */}
-              <div className="grid grid-cols-7 px-2 pb-2">
-                {DAYS.map(d => (
-                  <div key={d} className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 text-center tracking-wider">{d}</div>
-                ))}
-              </div>
-
-              {/* Days Grid */}
-              <div className="grid grid-cols-7 px-2 pb-2 gap-y-1">
-                {days.map((day, idx) => (
-                  <div key={idx} className="flex items-center justify-center h-10">
-                    {day && (
-                      <button
-                        onClick={() => onDayClick(day)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-[17px] transition-all
-                          ${isSelected(day) 
-                            ? 'bg-primary-600 dark:bg-primary-500 text-white font-semibold shadow-sm' 
-                            : isToday(day)
-                              ? 'text-primary-600 dark:text-primary-400 font-semibold hover:bg-gray-100 dark:hover:bg-white/10'
-                              : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-white/10'
-                          }
-                        `}
-                      >
-                        {day}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col h-[340px]">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-transparent">
-                 <button onClick={() => setViewMode('grid')} className="text-primary-600 dark:text-primary-500 font-medium flex items-center text-[15px] hover:opacity-70 transition-opacity">
-                   <ChevronLeft className="w-5 h-5 -ml-1" /> Back
-                 </button>
-                 <span className="font-semibold text-gray-900 dark:text-gray-100">Select Month & Year</span>
-                 <div className="w-16"></div>
-              </div>
-              <div className="flex-1 flex px-2 overflow-hidden bg-white dark:bg-[#1a1a1c]">
-                {/* Months Scroll */}
-                <div className="flex-1 overflow-y-auto border-r border-gray-200 dark:border-gray-800 p-2 space-y-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  {MONTHS.map((m, i) => (
-                    <button 
-                      key={m} 
-                      onClick={() => { setViewDate(new Date(currentYear, i, 1)); setViewMode('grid'); }}
-                      className={`w-full py-2.5 text-center text-[16px] rounded-lg transition-colors ${currentMonth === i ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-                {/* Years Scroll */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                  {years.map(y => (
-                    <button 
-                      key={y} 
-                      onClick={() => { setViewDate(new Date(y, currentMonth, 1)); setViewMode('grid'); }}
-                      className={`w-full py-2.5 text-center text-[16px] rounded-lg transition-colors ${currentYear === y ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
-                    >
-                      {y}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <>
+          {/* Mobile Overlay */}
+          {isMobile && (
+            <div 
+              className="fixed inset-0 bg-black/60 z-[999998] backdrop-animate"
+              onClick={() => setIsOpen(false)}
+            />
           )}
 
-          {/* Footer (Cancel / Save) */}
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-[#1c1c1e]">
-            <button 
-              onClick={handleCancel}
-              className="text-[16px] text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors font-medium px-2 py-1"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleSave}
-              disabled={!selectedDate}
-              className="text-[16px] text-primary-600 dark:text-primary-500 hover:text-primary-700 dark:hover:text-primary-400 transition-colors font-semibold px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save
-            </button>
+          {/* Dropdown / Bottom Sheet */}
+          <div
+            ref={dropdownRef}
+            data-testid={`combined-date-picker-${pickerId}-dropdown`}
+            className={`
+              bg-white dark:bg-[#1c1c1e] shadow-2xl overflow-hidden font-sans z-[999999] flex flex-col
+              ${isMobile 
+                ? 'fixed bottom-0 left-0 right-0 w-full rounded-t-2xl animate-slide-up-sheet pb-safe' 
+                : 'border border-gray-200 dark:border-gray-700/60 rounded-xl animate-scale-in'
+              }
+            `}
+            style={isMobile ? { paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' } : { ...dropdownStyle, transformOrigin: dropdownStyle.bottom !== 'auto' ? 'bottom' : 'top' }}
+          >
+            {isMobile && (
+              <div className="flex justify-center pt-3 pb-1 flex-shrink-0 bg-white dark:bg-[#1c1c1e]">
+                <div className="w-10 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
+              </div>
+            )}
+
+            {viewMode === 'grid' ? (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                  <button 
+                    onClick={() => setViewMode('wheels')}
+                    className="flex items-center gap-1 text-[17px] font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-500 transition-colors group"
+                  >
+                    {MONTHS[currentMonth]} {currentYear}
+                    <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setViewDate(new Date(currentYear, currentMonth - 1, 1))} className="text-primary-600 dark:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full p-1.5 transition-colors">
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => setViewDate(new Date(currentYear, currentMonth + 1, 1))} className="text-primary-600 dark:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full p-1.5 transition-colors">
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Days Header */}
+                <div className="grid grid-cols-7 px-3 pb-2">
+                  {DAYS.map(d => (
+                    <div key={d} className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 text-center tracking-wider">{d}</div>
+                  ))}
+                </div>
+
+                {/* Days Grid */}
+                <div className="grid grid-cols-7 px-3 pb-4 gap-y-2 gap-x-1">
+                  {days.map((day, idx) => (
+                    <div key={idx} className="flex items-center justify-center h-10">
+                      {day && (
+                        <button
+                          onClick={() => onDayClick(day)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-[17px] transition-all
+                            ${isSelected(day) 
+                              ? 'bg-primary-600 dark:bg-primary-500 text-white font-semibold shadow-md' 
+                              : isToday(day)
+                                ? 'text-primary-600 dark:text-primary-400 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800'
+                                : 'text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'
+                            }
+                          `}
+                        >
+                          {day}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col h-[380px]">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800/60">
+                   <button onClick={() => setViewMode('grid')} className="text-primary-600 dark:text-primary-500 font-medium flex items-center text-[16px] hover:opacity-70 transition-opacity">
+                     <ChevronLeft className="w-5 h-5 -ml-1" /> Back
+                   </button>
+                   <span className="font-semibold text-gray-900 dark:text-gray-100 text-[16px]">Select Month & Year</span>
+                   <div className="w-16"></div>
+                </div>
+                <div className="flex-1 flex px-3 overflow-hidden bg-white dark:bg-[#151515]">
+                  {/* Months Scroll */}
+                  <div className="flex-1 overflow-y-auto border-r border-gray-100 dark:border-gray-800/60 p-2 space-y-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {MONTHS.map((m, i) => (
+                      <button 
+                        key={m} 
+                        onClick={() => { setViewDate(new Date(currentYear, i, 1)); setViewMode('grid'); }}
+                        className={`w-full py-3 text-center text-[16px] rounded-xl transition-colors ${currentMonth === i ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Years Scroll */}
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {years.map(y => (
+                      <button 
+                        key={y} 
+                        onClick={() => { setViewDate(new Date(y, currentMonth, 1)); setViewMode('grid'); }}
+                        className={`w-full py-3 text-center text-[16px] rounded-xl transition-colors ${currentYear === y ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer (Cancel / Save) */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800/60 bg-gray-50/50 dark:bg-[#1a1a1c]">
+              <button 
+                onClick={handleCancel}
+                className="text-[17px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors font-medium px-4 py-2 bg-gray-200/50 dark:bg-gray-800/50 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={!selectedDate}
+                className="text-[17px] text-white bg-primary-600 hover:bg-primary-700 transition-colors font-semibold px-8 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                Save
+              </button>
+            </div>
           </div>
-        </div>,
+        </>,
         document.body
       )}
       {error && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
