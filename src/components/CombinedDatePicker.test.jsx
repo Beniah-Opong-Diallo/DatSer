@@ -1,9 +1,19 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CombinedDatePicker from './CombinedDatePicker'
 
 describe('CombinedDatePicker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 4, 6))
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
   it('emits an event-style payload when name is provided', () => {
     const handleChange = vi.fn()
 
@@ -17,14 +27,14 @@ describe('CombinedDatePicker', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /select date/i }))
-    fireEvent.click(screen.getByText('12', { selector: 'span' }))
-    fireEvent.click(screen.getByText('April', { selector: 'span' }))
-    fireEvent.click(screen.getByText('2024', { selector: 'span' }))
+    const dropdown = screen.getByTestId('combined-date-picker-date-of-birth-dropdown')
+    fireEvent.click(within(dropdown).getByRole('button', { name: '12' }))
+    fireEvent.click(within(dropdown).getByRole('button', { name: 'Save' }))
 
     expect(handleChange).toHaveBeenCalledWith({
       target: {
         name: 'date_of_birth',
-        value: '2024-04-12'
+        value: '2026-05-12'
       }
     })
   })
@@ -41,10 +51,10 @@ describe('CombinedDatePicker', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /select date/i }))
-    fireEvent.click(screen.getByText('5', { selector: 'span' }))
-    fireEvent.click(screen.getByText('May', { selector: 'span' }))
-    fireEvent.click(screen.getByText('2023', { selector: 'span' }))
+    const dropdown = screen.getByTestId('combined-date-picker-date-of-birth-dropdown')
+    fireEvent.click(within(dropdown).getByRole('button', { name: '5' }))
+    fireEvent.click(within(dropdown).getByRole('button', { name: 'Save' }))
 
-    expect(handleChange).toHaveBeenCalledWith('2023-05-05')
+    expect(handleChange).toHaveBeenCalledWith('2026-05-05')
   })
 })

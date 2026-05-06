@@ -83,6 +83,18 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
   }
 
   const sundayDates = generateSundayDates(currentTable)
+  const selectedDateKey = selectedAttendanceDate
+    ? `${selectedAttendanceDate.getFullYear()}-${String(selectedAttendanceDate.getMonth() + 1).padStart(2, '0')}-${String(selectedAttendanceDate.getDate()).padStart(2, '0')}`
+    : null
+  const visibleSelectedDateKey = selectedDateKey && sundayDates.includes(selectedDateKey)
+    ? selectedDateKey
+    : null
+  const visibleSelectedDate = visibleSelectedDateKey
+    ? (() => {
+      const [year, month, day] = visibleSelectedDateKey.split('-').map(Number)
+      return new Date(year, month - 1, day)
+    })()
+    : null
 
   const isEditedMember = (member) => {
     // Check attendanceData map
@@ -129,22 +141,37 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
         return filteredMembers.length
       }
 
+      if (dashboardTab === 'edited' && visibleSelectedDateKey) {
+        const map = attendanceData[visibleSelectedDateKey] || {}
+        return filteredMembers.filter(member => {
+          const value = map[member.id]
+          return value === true || value === false
+        }).length
+      }
+
       // Edited tab: member has any attendance entry (present/absent)
       return filteredMembers.filter(isEditedMember).length
     } catch {
       return filteredMembers?.length ?? 0
     }
-  }, [filteredMembers, dashboardTab, attendanceData, searchTerm, sundayDates])
+  }, [filteredMembers, dashboardTab, attendanceData, searchTerm, sundayDates, visibleSelectedDateKey])
 
   // Count of edited members (has attendance marked true/false for any date)
   const editedCount = useMemo(() => {
     try {
       if (!filteredMembers || filteredMembers.length === 0) return 0
+      if (visibleSelectedDateKey) {
+        const map = attendanceData[visibleSelectedDateKey] || {}
+        return filteredMembers.filter(member => {
+          const value = map[member.id]
+          return value === true || value === false
+        }).length
+      }
       return filteredMembers.filter(isEditedMember).length
     } catch {
       return 0
     }
-  }, [filteredMembers, attendanceData, sundayDates])
+  }, [filteredMembers, attendanceData, sundayDates, visibleSelectedDateKey])
 
   const currentMonthTable = `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][liveClock.getMonth()]}_${liveClock.getFullYear()}`
   const liveSundayDate = (() => {
@@ -163,10 +190,7 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
     return sunday
   })()
   const liveSundayDateKey = `${liveSundayDate.getFullYear()}-${String(liveSundayDate.getMonth() + 1).padStart(2, '0')}-${String(liveSundayDate.getDate()).padStart(2, '0')}`
-  const selectedDateKey = selectedAttendanceDate
-    ? `${selectedAttendanceDate.getFullYear()}-${String(selectedAttendanceDate.getMonth() + 1).padStart(2, '0')}-${String(selectedAttendanceDate.getDate()).padStart(2, '0')}`
-    : null
-  const isCalendarLive = currentTable === currentMonthTable && selectedDateKey === liveSundayDateKey
+  const isCalendarLive = currentTable === currentMonthTable && visibleSelectedDateKey === liveSundayDateKey
   const hasStickyMonth = Boolean(ownerStickyMonth)
   const isStickyMonthLive = isCollaborator && hasStickyMonth && currentTable === ownerStickyMonth
   const isStickyMonthMismatch = isCollaborator && hasStickyMonth && currentTable !== ownerStickyMonth
@@ -327,10 +351,10 @@ const Header = ({ currentView, setCurrentView, isAdmin, setIsAdmin, onAddMember,
         <div className="md:border-t border-gray-200 dark:border-gray-700">
           <div className="mx-auto px-3 sm:px-4 py-1.5 md:py-1">
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-4 py-1.5 rounded-full bg-gray-100/95 dark:bg-gray-700/95 text-xs sm:text-sm leading-none text-gray-700 dark:text-gray-300 shadow-sm w-fit mx-auto">
-              {selectedAttendanceDate && (
+              {visibleSelectedDate && (
                 <>
                   <span className="inline-flex items-center font-medium whitespace-nowrap">
-                    {selectedAttendanceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {visibleSelectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                   <span className="text-gray-400/80">•</span>
                 </>

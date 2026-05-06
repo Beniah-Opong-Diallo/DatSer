@@ -61,8 +61,9 @@ const CombinedDatePicker = ({
         const rect = containerRef.current.getBoundingClientRect()
         const spaceBelow = window.innerHeight - rect.bottom
         const spaceAbove = rect.top
-        const dropdownHeight = 360
+        const dropdownHeight = 430
         const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+        const insideModal = Boolean(containerRef.current.closest('[data-testid="add-member-modal"], [data-testid="edit-member-modal"], [data-testid="missing-data-modal"]'))
         
         const dropdownWidth = 340 // Wider for desktop
         let calcLeft = rect.left
@@ -71,11 +72,14 @@ const CombinedDatePicker = ({
         }
         calcLeft = Math.max(16, calcLeft)
 
+        const unclampedTop = rect.bottom + 8
+        const clampedTop = Math.max(16, Math.min(unclampedTop, window.innerHeight - dropdownHeight - 16))
+
         setDropdownStyle({
           position: 'fixed',
-          top: openUpwards ? 'auto' : `${rect.bottom + 8}px`,
-          bottom: openUpwards ? `${window.innerHeight - rect.top + 8}px` : 'auto',
-          left: `${calcLeft}px`,
+          top: insideModal ? `${Math.max(16, Math.round((window.innerHeight - dropdownHeight) / 2))}px` : (openUpwards ? 'auto' : `${clampedTop}px`),
+          bottom: insideModal ? 'auto' : (openUpwards ? `${window.innerHeight - rect.top + 8}px` : 'auto'),
+          left: insideModal ? `${Math.max(16, Math.round((window.innerWidth - dropdownWidth) / 2))}px` : `${calcLeft}px`,
           width: `${dropdownWidth}px`,
           zIndex: 999999
         })

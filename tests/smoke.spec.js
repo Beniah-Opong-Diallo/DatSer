@@ -88,14 +88,19 @@ test.describe('Preflight smoke', () => {
     await page.getByPlaceholder('Enter full name').fill('Smoke Member')
     await page.getByText('Female').click()
     await page.getByRole('button', { name: /select date/i }).click()
+    const currentPickerLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    await page.getByRole('button', { name: new RegExp(currentPickerLabel, 'i') }).click()
     await page.getByText('January', { exact: true }).click()
-    await page.getByText(String(new Date().getFullYear() - 1), { exact: true }).click()
+    const currentYear = new Date().getFullYear()
+    await page.getByRole('button', { name: new RegExp(`January ${currentYear}`, 'i') }).click()
+    await page.getByText(String(currentYear - 1), { exact: true }).click()
     await page.locator('div').filter({ hasText: /^15$/ }).first().click()
+    await page.getByTestId('combined-date-picker-date-of-birth-dropdown').getByRole('button', { name: 'Save' }).click()
 
     await expect(page.getByRole('button', { name: /january 15,/i })).toBeVisible()
     await expect(page.getByText('Something went wrong')).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Cancel' }).click()
+    await page.getByTestId('add-member-modal').getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByRole('heading', { name: 'Add New Member' })).toHaveCount(0)
   })
 

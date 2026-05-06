@@ -333,7 +333,6 @@ const Dashboard = ({ isAdmin = false }) => {
     const recentClose = recentMissingDataCloseRef.current
     if (
       recentClose.memberId === member?.id &&
-      recentClose.present === present &&
       Date.now() - recentClose.at < 5000
     ) {
       return true
@@ -906,9 +905,9 @@ const Dashboard = ({ isAdmin = false }) => {
   useEffect(() => {
     if (selectedAttendanceDate) {
       const key = getDateString(selectedAttendanceDate)
-      setSelectedSundayDate(key)
+      setSelectedSundayDate(sundayDates.includes(key) ? key : null)
     }
-  }, [selectedAttendanceDate])
+  }, [selectedAttendanceDate, sundayDates])
 
   // Clear selections when month changes
   useEffect(() => {
@@ -1461,10 +1460,10 @@ const Dashboard = ({ isAdmin = false }) => {
               const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               const map = attendanceData[dateStr]
               const presentCount = map
-                ? Object.values(map).filter(v => v === true).length
+                ? members.filter(member => map[member.id] === true).length
                 : 0
               const absentCount = map
-                ? Object.values(map).filter(v => v === false).length
+                ? members.filter(member => map[member.id] === false).length
                 : 0
               return (
                 <button
@@ -1505,9 +1504,8 @@ const Dashboard = ({ isAdmin = false }) => {
                 const map = attendanceData[selectedSundayDate] || {}
                 const presentMembers = members.filter(m => map[m.id] === true)
                 const absentMembers = members.filter(m => map[m.id] === false)
-                // Count from map values directly to include all records
-                const presentCount = Object.values(map).filter(v => v === true).length
-                const absentCount = Object.values(map).filter(v => v === false).length
+                const presentCount = presentMembers.length
+                const absentCount = absentMembers.length
 
                 // Sort by action timestamp (most recent first), fallback to name
                 const sortByTimestamp = (a, b) => {

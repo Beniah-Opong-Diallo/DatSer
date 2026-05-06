@@ -537,21 +537,24 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-[60] backdrop-animate"
+      className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate"
       onClick={() => { selection(); onClose() }}
     >
       <div 
-        className={`shadow-2xl ring-1 max-w-md w-full mx-4 max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in ${overrideMode
-        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700 rounded-3xl'
-        : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700 rounded-xl'
+        className={`shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${overrideMode
+        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
+        : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
         }`}
         data-testid="edit-member-modal"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
         {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b flex-shrink-0 transition-all duration-300 ${overrideMode
-          ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700 rounded-t-3xl'
-          : 'border-gray-200 dark:border-gray-700 rounded-t-xl'
+        <div className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${overrideMode
+          ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
+          : 'border-gray-200 dark:border-gray-700'
           }`}>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Member</h2>
           <div className="flex items-center gap-2">
@@ -576,7 +579,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -694,7 +697,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           </div>
 
           {/* Date of Birth and Age */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Date of Birth */}
             <div>
               <CombinedDatePicker
@@ -822,12 +825,12 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                     <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       {formattedDate}
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:space-x-2">
                       <button
                         type="button"
                         data-testid={`edit-form-attendance-${date}-present`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
-                        className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === true
+                        className={`min-h-[40px] px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === true
                           ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
                           }`}
@@ -838,7 +841,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                         type="button"
                         data-testid={`edit-form-attendance-${date}-absent`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
-                        className={`px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === false
+                        className={`min-h-[40px] px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === false
                           ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
                           }`}
@@ -849,7 +852,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                         type="button"
                         data-testid={`edit-form-attendance-${date}-clear`}
                         onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: null }))}
-                        className="px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+                        className="min-h-[40px] px-3 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                       >
                         Clear
                       </button>
@@ -1079,11 +1082,11 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           </div>
 
           {/* Form Actions */}
-          <div className="flex space-x-3 pt-4">
+          <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex space-x-3">
             <button
                   type="button"
                   onClick={() => { selection(); onClose() }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
+                  className="flex-1 min-h-[48px] px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
                 >
                   Cancel
                 </button>
@@ -1091,7 +1094,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
               type="submit"
               disabled={loading || !formData.full_name}
               data-testid="edit-form-submit"
-              className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${overrideMode
+              className={`flex-1 min-h-[48px] px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${overrideMode
                 ? 'bg-orange-600 hover:bg-orange-700'
                 : 'bg-primary-600 hover:bg-primary-700'
                 }`}

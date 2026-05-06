@@ -431,8 +431,8 @@ const MemberModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Scrollable Form Area */}
-        < div className="overflow-y-auto no-scrollbar" >
-          <form onSubmit={handleSubmit} noValidate className="p-6 space-y-6">
+        <div className="overflow-y-auto no-scrollbar flex-1" >
+          <form onSubmit={handleSubmit} noValidate className="p-4 sm:p-6 space-y-5 sm:space-y-6">
             {/* Section: Member Information */}
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
@@ -538,7 +538,7 @@ const MemberModal = ({ isOpen, onClose }) => {
               </div>
 
               {/* Date of Birth and Age */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Date of Birth */}
                 <div>
                   <CombinedDatePicker
@@ -641,15 +641,15 @@ const MemberModal = ({ isOpen, onClose }) => {
                     })
 
                     return (
-                      <div key={date} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors duration-200">
+                      <div key={date} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors duration-200">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                           {dateLabel}
                         </span>
-                        <div className="flex space-x-2">
+                        <div className="grid grid-cols-3 gap-2 sm:flex sm:space-x-2">
                           <button
                             type="button"
                             onClick={() => { selection(); setSundayAttendance(prev => ({ ...prev, [date]: true })) }}
-                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === true
+                            className={`min-h-[40px] px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === true
                               ? 'bg-green-600 text-white shadow-sm'
                               : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
                               }`}
@@ -659,7 +659,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => { selection(); setSundayAttendance(prev => ({ ...prev, [date]: false })) }}
-                            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === false
+                            className={`min-h-[40px] px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === false
                               ? 'bg-red-600 text-white shadow-sm'
                               : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
                               }`}
@@ -669,7 +669,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           <button
                             type="button"
                             onClick={() => { selection(); setSundayAttendance(prev => ({ ...prev, [date]: null })) }}
-                            className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+                            className="min-h-[40px] px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
                           >
                             Clear
                           </button>
@@ -882,11 +882,11 @@ const MemberModal = ({ isOpen, onClose }) => {
               </div>
 
               {/* Form Actions */}
-              <div className="flex space-x-3 pt-4">
+              <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex space-x-3">
                 <button
                   type="button"
                   onClick={() => { selection(); onClose() }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
+                  className="flex-1 min-h-[48px] px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
                 >
                   Cancel
                 </button>
@@ -894,7 +894,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                   type="submit"
                   disabled={loading}
                   data-testid="member-form-submit"
-                  className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${isOverrideMode
+                  className={`flex-1 min-h-[48px] px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${isOverrideMode
                     ? 'bg-orange-600 hover:bg-orange-700'
                     : 'bg-primary-600 hover:bg-primary-700'
                     }`}
@@ -904,7 +904,7 @@ const MemberModal = ({ isOpen, onClose }) => {
               </div>
             </div>
           </form>
-        </div >
+        </div>
 
 
 

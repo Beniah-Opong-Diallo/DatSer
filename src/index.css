@@ -1247,6 +1247,29 @@ details[open] summary~* {
   [data-testid="missing-data-modal"] > div {
     margin-bottom: 0;
   }
+
+  [data-testid="missing-data-modal"],
+  [data-testid="add-member-modal"],
+  [data-testid="edit-member-modal"] {
+    touch-action: manipulation;
+  }
+
+  [data-testid="missing-data-modal"] input,
+  [data-testid="missing-data-modal"] textarea,
+  [data-testid="missing-data-modal"] select,
+  [data-testid="add-member-modal"] input,
+  [data-testid="add-member-modal"] textarea,
+  [data-testid="add-member-modal"] select,
+  [data-testid="edit-member-modal"] input,
+  [data-testid="edit-member-modal"] textarea,
+  [data-testid="edit-member-modal"] select {
+    font-size: 16px !important;
+  }
+
+  [data-testid="add-member-modal"] form,
+  [data-testid="edit-member-modal"] form {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
 }
 
 /* iOS overscroll fix on modals */
