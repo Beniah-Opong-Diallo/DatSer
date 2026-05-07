@@ -3,6 +3,15 @@ import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import { useAuth } from './AuthContext'
+import {
+  clearAllOfflineData,
+  getOfflineSnapshot,
+  getPendingOfflineChanges,
+  queueOfflineChange,
+  removeOfflineChange,
+  saveOfflineSnapshot,
+  updateOfflineChangeStatus
+} from '../utils/offlineStore'
 
 const AppContext = createContext()
 
@@ -63,6 +72,25 @@ const getLocalDateString = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+const getAttendanceColumnNameForDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `attendance_${year}_${month}_${day}`
+}
+
+const makeOfflineChangeId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+const isBrowserOnline = () => {
+  if (typeof navigator === 'undefined') return true
+  return navigator.onLine !== false
 }
 
 const toLocalStartOfDay = (date) => {
@@ -303,6 +331,113 @@ export const AppProvider = ({ children }) => {
   const [monthlyTables, setMonthlyTables] = useState(FALLBACK_MONTHLY_TABLES)
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState(null)
   const [availableSundayDates, setAvailableSundayDates] = useState([])
+  const [isOnline, setIsOnline] = useState(isBrowserOnline)
+  const [offlineCacheMeta, setOfflineCacheMeta] = useState(null)
+  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const [offlinePendingChanges, setOfflinePendingChanges] = useState([])
+  const [offlineStatusMessage, setOfflineStatusMessage] = useState('')
+  const [isPreparingOffline, setIsPreparingOffline] = useState(false)
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false)
+
+  const refreshOfflineStatus = useCallback(async () => {
+    try {
+      const [snapshotRecord, pendingChanges] = await Promise.all([
+        getOfflineSnapshot().catch(() => null),
+        getPendingOfflineChanges().catch(() => [])
+      ])
+
+      const snapshot = snapshotRecord?.snapshot
+      setOfflineCacheMeta(snapshotRecord ? {
+        cached_at: snapshotRecord.cached_at,
+        member_count: snapshot?.members?.length || 0,
+        table_count: snapshot?.monthlyTables?.length || 0,
+        attendance_date_count: snapshot?.attendanceData ? Object.keys(snapshot.attendanceData).length : 0
+      } : null)
+      setOfflinePendingChanges(pendingChanges)
+      setPendingSyncCount(pendingChanges.length)
+    } catch (error) {
+      console.warn('Unable to refresh offline status:', error)
+    }
+  }, [])
+
+  const applyOfflineSnapshot = useCallback((snapshotRecord) => {
+    const snapshot = snapshotRecord?.snapshot || snapshotRecord
+    if (!snapshot) return false
+
+    if (Array.isArray(snapshot.members)) {
+      setMembers(snapshot.members)
+    }
+    if (Array.isArray(snapshot.monthlyTables) && snapshot.monthlyTables.length > 0) {
+      setMonthlyTables(snapshot.monthlyTables)
+    }
+    if (snapshot.currentTable) {
+      setCurrentTable(snapshot.currentTable)
+    }
+    if (snapshot.attendanceData && typeof snapshot.attendanceData === 'object') {
+      setAttendanceData(snapshot.attendanceData)
+    }
+    if (snapshot.selectedAttendanceDate) {
+      const date = new Date(snapshot.selectedAttendanceDate)
+      if (!Number.isNaN(date.getTime())) {
+        setSelectedAttendanceDate(date)
+      }
+    }
+
+    return true
+  }, [])
+
+  useEffect(() => {
+    refreshOfflineStatus()
+  }, [refreshOfflineStatus])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      setOfflineStatusMessage('Back online - review pending changes before syncing.')
+      refreshOfflineStatus()
+    }
+    const handleOffline = () => {
+      setIsOnline(false)
+      setOfflineStatusMessage('Offline Mode - using local data when available.')
+      refreshOfflineStatus()
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [refreshOfflineStatus])
+
+  useEffect(() => {
+    if (isOnline) return
+
+    let cancelled = false
+    const loadCachedData = async () => {
+      const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+      if (!cancelled && snapshotRecord) {
+        applyOfflineSnapshot(snapshotRecord)
+      }
+    }
+
+    loadCachedData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [applyOfflineSnapshot, isOnline])
+
+  useEffect(() => {
+    if (!isOnline || pendingSyncCount > 0 || !offlineStatusMessage) return undefined
+
+    const timeoutId = setTimeout(() => setOfflineStatusMessage(''), 6000)
+    return () => clearTimeout(timeoutId)
+  }, [isOnline, offlineStatusMessage, pendingSyncCount])
+
   // Global dashboard tab state (mobile header controls All/Edited)
   const [dashboardTab, setDashboardTab] = useState('all')
 
@@ -341,7 +476,7 @@ export const AppProvider = ({ children }) => {
   }, [])
   const missingInfoPromptEnabled = missingInfoPromptEnabledState
 
-  // Admin-locked default date ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â forces collaborators to a specific date
+  // Admin-locked default date forces collaborators to a specific date
   const [lockedDefaultDate, setLockedDefaultDate] = useState(null)
   const suppressDateBroadcastRef = useRef(false)
   const personalCalendarMode = preferences?.calendar_mode === 'manual' ? 'manual' : 'auto'
@@ -799,7 +934,7 @@ export const AppProvider = ({ children }) => {
 
         if (!isRealOwner) {
           // Random user with no data and not a collaborator - DENY ACCESS
-          appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ User is NOT an owner and NOT a collaborator - ACCESS DENIED')
+          appContextLog('Access denied: user is not an owner or collaborator')
         setIsCollaborator(false)
         setIsAdminCollaborator(false)
           setDataOwnerId(null)
@@ -808,7 +943,7 @@ export const AppProvider = ({ children }) => {
           return null
         }
 
-        appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ User is a verified owner')
+        appContextLog('User is a verified owner')
         setIsCollaborator(false)
         setDataOwnerId(user.id)
         setOwnerEmail(null)
@@ -820,7 +955,7 @@ export const AppProvider = ({ children }) => {
       }
 
       // User is a collaborator - they should see the owner's data
-      appContextLog('ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ User IS a collaborator!')
+      appContextLog('User is a collaborator')
       appContextLog('Owner ID:', data.owner_id)
       appContextLog('Status:', data.status)
       setIsCollaborator(true)
@@ -979,6 +1114,17 @@ export const AppProvider = ({ children }) => {
         setLoading(true)
       }
       appContextLog(`Fetching members from table: ${tableName} for user: ${user?.id}`)
+
+      if (!isOnline) {
+        const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+        if (snapshotRecord && applyOfflineSnapshot(snapshotRecord)) {
+          if (!background) {
+            setLoading(false)
+            toast.info('Offline Mode: loaded cached DatSer data.')
+          }
+          return
+        }
+      }
 
       if (isDeveloperBypass || !isSupabaseConfigured()) {
         appContextLog('Using mock data - Supabase not configured')
@@ -1704,6 +1850,128 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  const syncNormalizedAttendanceRecord = async (memberId, effectiveDate, present) => {
+    if (isDeveloperBypass || !isSupabaseConfigured() || !supabase) return
+
+    const ownerId = dataOwnerId || user?.id
+    if (!ownerId || !memberId || !effectiveDate) return
+
+    const status = present === null ? 'unknown' : present ? 'present' : 'absent'
+    const member = members.find(m => m.id === memberId)
+
+    if (member) {
+      try {
+        const fullName = member.full_name || member['Full Name'] || member.name || 'Unknown'
+        const { error: memberSyncError } = await supabase.rpc('upsert_follow_up_member', {
+          p_owner_id: ownerId,
+          p_member_id: memberId,
+          p_full_name: fullName,
+          p_phone_number: member.phone_number || member['Phone Number'] || member.phone || null,
+          p_parent_phone_number: member.parent_phone_number || member['Parent Phone Number'] || null,
+          p_age_group: member.age_group || member['Age Group'] || member.current_level || member['Current Level'] || null,
+          p_gender: member.gender || member.Gender || null,
+          p_ministry_group: member.ministry_group || member['Ministry Group'] || null,
+          p_created_at: member.created_at || member.inserted_at || null
+        })
+
+        if (memberSyncError) throw memberSyncError
+      } catch (memberSyncError) {
+        const message = memberSyncError?.message || ''
+        const missingMemberSync =
+          memberSyncError?.code === '42883' ||
+          memberSyncError?.code === '42P01' ||
+          message.includes('upsert_follow_up_member') ||
+          message.includes('members')
+
+        if (!missingMemberSync) {
+          console.warn('Normalized member sync failed, continuing attendance sync:', memberSyncError)
+        }
+      }
+    }
+
+    try {
+      const { error } = await supabase.rpc('upsert_attendance_record', {
+        p_owner_id: ownerId,
+        p_service_date: getLocalDateString(effectiveDate),
+        p_member_id: memberId,
+        p_status: status,
+        p_marked_by: user?.id || null,
+        p_title: 'Sunday Service'
+      })
+
+      if (error) throw error
+    } catch (error) {
+      const message = error?.message || ''
+      const missingBackend =
+        error?.code === '42883' ||
+        error?.code === '42P01' ||
+        message.includes('upsert_attendance_record') ||
+        message.includes('upsert_follow_up_member') ||
+        message.includes('attendance_sessions') ||
+        message.includes('attendance_records')
+
+      if (missingBackend) {
+        console.info('Attendance follow-up backend migration has not been applied yet; monthly attendance was still saved.')
+      } else {
+        console.warn('Monthly attendance saved, but normalized follow-up sync failed:', error)
+      }
+    }
+  }
+
+  const applyLocalAttendanceState = useCallback((memberIds, effectiveDate, present, attendanceColumn) => {
+    const ids = Array.isArray(memberIds) ? memberIds : [memberIds]
+    const dateKey = getLocalDateString(effectiveDate)
+    const columnName = attendanceColumn || getAttendanceColumnNameForDate(effectiveDate)
+    const attendanceValue = present === null ? null : (present ? 'Present' : 'Absent')
+    const updates = {}
+
+    ids.forEach((id) => {
+      updates[id] = present
+    })
+
+    setMembers((prev) => prev.map((member) =>
+      ids.includes(member.id)
+        ? { ...member, [columnName]: attendanceValue }
+        : member
+    ))
+
+    setAttendanceData((prev) => ({
+      ...prev,
+      [dateKey]: {
+        ...prev[dateKey],
+        ...updates
+      }
+    }))
+  }, [])
+
+  const queueOfflineAttendanceChanges = useCallback(async (memberIds, effectiveDate, present, actionType = 'attendance_mark') => {
+    const ids = Array.isArray(memberIds) ? memberIds : [memberIds]
+    const serviceDate = getLocalDateString(effectiveDate)
+    const createdAt = new Date().toISOString()
+
+    applyLocalAttendanceState(ids, effectiveDate, present)
+
+    await Promise.all(ids.map((memberId) => queueOfflineChange({
+      local_change_id: makeOfflineChangeId(),
+      action_type: actionType,
+      member_id: memberId,
+      session_id: serviceDate,
+      service_date: serviceDate,
+      table_name: currentTable,
+      attendance_status: present === null ? 'unknown' : (present ? 'present' : 'absent'),
+      present,
+      timestamp: createdAt,
+      created_at: createdAt,
+      sync_status: 'pending'
+    })))
+
+    await refreshOfflineStatus()
+    setOfflineStatusMessage(`${ids.length} attendance change${ids.length === 1 ? '' : 's'} saved offline.`)
+    toast.info(`${ids.length} attendance change${ids.length === 1 ? '' : 's'} saved offline. Sync when back online.`)
+
+    return { success: true, offline: true }
+  }, [applyLocalAttendanceState, currentTable, refreshOfflineStatus])
+
   // Mark attendance for a member in monthly table
   const markAttendance = async (memberId, date, present) => {
     try {
@@ -1712,16 +1980,13 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'No valid Sunday found for this month' }
       }
 
+      if (!isOnline) {
+        return queueOfflineAttendanceChanges(memberId, effectiveDate, present)
+      }
+
       if (isDeveloperBypass || !isSupabaseConfigured()) {
         // Demo mode - update local state
-        const dateKey = getLocalDateString(effectiveDate)
-        setAttendanceData(prev => ({
-          ...prev,
-          [dateKey]: {
-            ...prev[dateKey],
-            [memberId]: present
-          }
-        }))
+        applyLocalAttendanceState(memberId, effectiveDate, present)
         toast.success('Attendance marked! (Demo Mode)')
         return { success: true }
       }
@@ -1753,25 +2018,10 @@ export const AppProvider = ({ children }) => {
         { action: `Save attendance in ${currentTable}` }
       )
 
-      // Update local state for members - ensure name is preserved
-      setMembers(prev => prev.map(member =>
-        member.id === memberId
-          ? { ...member, [attendanceColumn]: present === null ? null : (present ? 'Present' : 'Absent') }
-          : member
-      ))
+      await syncNormalizedAttendanceRecord(memberId, effectiveDate, present)
 
-      // Update local state for attendanceData (for real-time UI updates)
-      const year = effectiveDate.getFullYear()
-      const month = String(effectiveDate.getMonth() + 1).padStart(2, '0')
-      const day = String(effectiveDate.getDate()).padStart(2, '0')
-      const dateKey = `${year}-${month}-${day}`
-      setAttendanceData(prev => ({
-        ...prev,
-        [dateKey]: {
-          ...prev[dateKey],
-          [memberId]: present
-        }
-      }))
+      // Update local state for members and attendanceData (for real-time UI updates)
+      applyLocalAttendanceState(memberId, effectiveDate, present, attendanceColumn)
 
       invalidateMembersCacheRefs(membersCacheRef, searchCacheRef, currentTable)
 
@@ -1878,7 +2128,7 @@ export const AppProvider = ({ children }) => {
       }
 
       if (badgesAssigned > 0) {
-        toast.success(`ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â° End of month: ${badgesAssigned} member${badgesAssigned > 1 ? 's' : ''} earned Regular Member badge!`)
+        toast.success(`End of month: ${badgesAssigned} member${badgesAssigned > 1 ? 's' : ''} earned Regular Member badge!`)
       }
       processedEndOfMonthRef.current.add(currentTable)
     } catch (error) {
@@ -1894,20 +2144,13 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'No valid Sunday found for this month' }
       }
 
+      if (!isOnline) {
+        return queueOfflineAttendanceChanges(memberIds, effectiveDate, present, 'bulk_attendance_mark')
+      }
+
       if (!isSupabaseConfigured()) {
         // Demo mode - update local state
-        const dateKey = getLocalDateString(effectiveDate)
-        const updates = {}
-        memberIds.forEach(id => {
-          updates[id] = present
-        })
-        setAttendanceData(prev => ({
-          ...prev,
-          [dateKey]: {
-            ...prev[dateKey],
-            ...updates
-          }
-        }))
+        applyLocalAttendanceState(memberIds, effectiveDate, present)
         toast.success('Bulk attendance marked! (Demo Mode)')
         return { success: true }
       }
@@ -1937,26 +2180,8 @@ export const AppProvider = ({ children }) => {
         throw new Error(`Failed to update ${errors.length} records`)
       }
 
-      // Update local state for members
-      setMembers(prev => prev.map(member =>
-        memberIds.includes(member.id)
-          ? { ...member, [attendanceColumn]: attendanceValue }
-          : member
-      ))
-
-      // Update local state for attendanceData (for real-time UI updates)
-      const dateKey = getLocalDateString(effectiveDate)
-      const updates = {}
-      memberIds.forEach(id => {
-        updates[id] = present
-      })
-      setAttendanceData(prev => ({
-        ...prev,
-        [dateKey]: {
-          ...prev[dateKey],
-          ...updates
-        }
-      }))
+      // Update local state for members and attendanceData (for real-time UI updates)
+      applyLocalAttendanceState(memberIds, effectiveDate, present, attendanceColumn)
 
       // Check if month is complete and process badges
       if (badgeProcessingEnabled) {
@@ -2512,7 +2737,7 @@ export const AppProvider = ({ children }) => {
 
       console.log(`[DELETE] VERIFIED - member ${memberId} successfully removed from ${currentTable}`)
 
-      // Confirmed deleted ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â now update local state
+      // Confirmed deleted - now update local state
       setMembers(prevMembers => {
         const updated = prevMembers.filter(member => member.id !== memberId)
         console.log(`[DELETE] Members state updated: ${prevMembers.length} -> ${updated.length}`)
@@ -2795,7 +3020,7 @@ export const AppProvider = ({ children }) => {
 
   const handleMissingTable = useCallback(async (tableName) => {
     if (!tableName) return
-    console.warn(`Table ${tableName} missing in Supabase ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ syncing local state`)
+    console.warn(`Table ${tableName} missing in Supabase - syncing local state`)
 
     if (isSupabaseConfigured() && user?.id) {
       try {
@@ -3880,7 +4105,7 @@ export const AppProvider = ({ children }) => {
       if (currentTable && monthlyTables.includes(currentTable)) {
         return
       }
-      // Current table is invalid ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â try localStorage, then DEFAULT_TABLE, then latest
+      // Current table is invalid - try localStorage, then DEFAULT_TABLE, then latest
       const saved = localStorage.getItem('selectedMonthTable')
       // Only override if we have real data from Supabase (not just fallback)
       // If saved month exists and we're still on fallback, wait for real data to load
@@ -4136,6 +4361,168 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  const prepareOfflineData = async () => {
+    if (!isOnline) {
+      toast.error('Go online before preparing offline data.')
+      return { success: false, error: 'offline' }
+    }
+
+    setIsPreparingOffline(true)
+    try {
+      if (currentTable) {
+        await Promise.all([
+          fetchMembers(currentTable, { forceRefresh: true, background: true }).catch((error) => {
+            console.warn('Offline preparation could not refresh members:', error)
+          }),
+          loadAllAttendanceData().catch((error) => {
+            console.warn('Offline preparation could not refresh attendance:', error)
+          })
+        ])
+      }
+
+      const cachedAt = await saveOfflineSnapshot({
+        members,
+        monthlyTables,
+        currentTable,
+        attendanceData,
+        selectedAttendanceDate: selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null,
+        workspace: preferences?.workspace_name || null,
+        saved_at: new Date().toISOString()
+      })
+
+      await refreshOfflineStatus()
+      setOfflineStatusMessage('Offline data is ready.')
+      toast.success('Offline data is ready on this device.')
+      return { success: true, cachedAt }
+    } catch (error) {
+      console.error('Failed to prepare offline data:', error)
+      toast.error(error?.message || 'Failed to prepare offline data.')
+      return { success: false, error }
+    } finally {
+      setIsPreparingOffline(false)
+    }
+  }
+
+  const clearOfflineCacheData = async () => {
+    setIsPreparingOffline(true)
+    try {
+      await clearAllOfflineData()
+      await refreshOfflineStatus()
+      setOfflineStatusMessage('Offline cache cleared.')
+      toast.success('Offline cache cleared.')
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to clear offline cache:', error)
+      toast.error(error?.message || 'Failed to clear offline cache.')
+      return { success: false, error }
+    } finally {
+      setIsPreparingOffline(false)
+    }
+  }
+
+  const syncOfflineChanges = async () => {
+    if (!isOnline) {
+      toast.info('You are offline. Sync will be available when the connection returns.')
+      return { success: false, error: 'offline' }
+    }
+
+    setIsSyncingOffline(true)
+    try {
+      const pendingChanges = await getPendingOfflineChanges()
+      let synced = 0
+      let conflicts = 0
+      let waitingForMonth = 0
+      let failed = 0
+
+      for (const change of pendingChanges) {
+        if (!change || change.sync_status === 'conflict') {
+          conflicts += 1
+          continue
+        }
+
+        if (change.action_type !== 'attendance_mark' && change.action_type !== 'bulk_attendance_mark') {
+          await updateOfflineChangeStatus(change.local_change_id, {
+            sync_status: 'unsupported',
+            error: 'This offline change type is not supported yet.'
+          })
+          failed += 1
+          continue
+        }
+
+        if (change.table_name && change.table_name !== currentTable) {
+          await updateOfflineChangeStatus(change.local_change_id, {
+            sync_status: 'waiting_for_month',
+            error: `Switch to ${change.table_name.replace('_', ' ')} to sync this change.`
+          })
+          waitingForMonth += 1
+          continue
+        }
+
+        const effectiveDate = normalizeDateToSundayForTable(new Date(change.service_date), currentTable)
+        if (!effectiveDate) {
+          await updateOfflineChangeStatus(change.local_change_id, {
+            sync_status: 'failed',
+            error: 'Could not resolve the attendance Sunday for this change.'
+          })
+          failed += 1
+          continue
+        }
+
+        try {
+          const serverAttendance = await fetchAttendanceForDate(effectiveDate)
+          const serverValue = serverAttendance?.[change.member_id]
+
+          if (typeof serverValue === 'boolean' && serverValue !== change.present) {
+            await updateOfflineChangeStatus(change.local_change_id, {
+              sync_status: 'conflict',
+              server_value: serverValue,
+              error: 'Server attendance changed while this device was offline.'
+            })
+            conflicts += 1
+            continue
+          }
+
+          if (serverValue === change.present) {
+            await removeOfflineChange(change.local_change_id)
+            synced += 1
+            continue
+          }
+
+          const result = await markAttendance(change.member_id, effectiveDate, change.present)
+          if (result?.success) {
+            await removeOfflineChange(change.local_change_id)
+            synced += 1
+          } else {
+            await updateOfflineChangeStatus(change.local_change_id, {
+              sync_status: 'failed',
+              error: result?.error || 'Sync failed.'
+            })
+            failed += 1
+          }
+        } catch (error) {
+          await updateOfflineChangeStatus(change.local_change_id, {
+            sync_status: 'failed',
+            error: error?.message || 'Sync failed.'
+          })
+          failed += 1
+        }
+      }
+
+      await refreshOfflineStatus()
+
+      if (conflicts || failed || waitingForMonth) {
+        toast.warn(`Sync finished: ${synced} synced, ${conflicts} conflict${conflicts === 1 ? '' : 's'}, ${failed + waitingForMonth} still pending.`)
+      } else {
+        toast.success(synced ? `${synced} offline change${synced === 1 ? '' : 's'} synced.` : 'No offline changes to sync.')
+      }
+
+      setOfflineStatusMessage(`${synced} synced, ${conflicts + failed + waitingForMonth} still pending.`)
+      return { success: conflicts === 0 && failed === 0, synced, conflicts, failed, waitingForMonth }
+    } finally {
+      setIsSyncingOffline(false)
+    }
+  }
+
   // Load attendance and badge data when table changes
   useEffect(() => {
     if (currentTable) {
@@ -4352,6 +4739,17 @@ export const AppProvider = ({ children }) => {
     setAutoAllDatesEnabled,
     missingInfoPromptEnabled,
     setMissingInfoPromptEnabled,
+    isOnline,
+    offlineCacheMeta,
+    pendingSyncCount,
+    offlinePendingChanges,
+    offlineStatusMessage,
+    isPreparingOffline,
+    isSyncingOffline,
+    prepareOfflineData,
+    clearOfflineCacheData,
+    syncOfflineChanges,
+    refreshOfflineStatus,
     isDeveloperBypass,
     hasAccess,
     isCollaborator,
@@ -4388,6 +4786,8 @@ export const AppProvider = ({ children }) => {
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, isDeveloperBypass,
+    isOnline, offlineCacheMeta, pendingSyncCount, offlinePendingChanges, offlineStatusMessage, isPreparingOffline, isSyncingOffline,
+    prepareOfflineData, clearOfflineCacheData, syncOfflineChanges, refreshOfflineStatus,
     hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil,
     setPersonalCalendarMode, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,
     lockedDefaultDate, saveLockedDefaultDate, setCollaboratorOverride, fetchLockedDefaultDate, sendAdminPeriodBroadcast

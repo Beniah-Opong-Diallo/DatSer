@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
@@ -37,6 +37,13 @@ import {
   UserX
 } from 'lucide-react'
 import TagManager from './TagManager'
+import {
+  DEFAULT_FOLLOW_UP_TEMPLATE,
+  FOLLOW_UP_STAGES,
+  FOLLOW_UP_TABS,
+  buildSuggestedMessage,
+  calculateAttendanceFollowUps
+} from '../utils/attendanceFollowUp'
 
 
 const normalizeSundayDate = (dateValue) => {
@@ -96,7 +103,11 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   const AUTO_LOCK_MINUTES = 15 // Auto-lock after 15 minutes of inactivity
   const [isGoogleAuthing, setIsGoogleAuthing] = useState(false)
   const [showOverview, setShowOverview] = useState(false)
-  const [followUpMessage, setFollowUpMessage] = useState('Hi {name}, we missed you at teen ministry this month. Are you able to come this Sunday?')
+  const [followUpMessage, setFollowUpMessage] = useState(DEFAULT_FOLLOW_UP_TEMPLATE)
+  const [activeFollowUpTab, setActiveFollowUpTab] = useState('follow_up')
+  const [followUpRecords, setFollowUpRecords] = useState([])
+  const [isSavingFollowUp, setIsSavingFollowUp] = useState(false)
+  const followUpOwnerId = dataOwnerId || user?.id
 
   // Auto-lock timer - locks admin panel after inactivity
   useEffect(() => {
@@ -132,6 +143,101 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       window.removeEventListener('click', updateActivity)
     }
   }, [isAuthenticated])
+
+  const loadFollowUpRecords = useCallback(async () => {
+    if (!isAuthenticated || !followUpOwnerId || !isSupabaseConfigured() || !supabase) {
+      setFollowUpRecords([])
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_follow_up_records', {
+        p_owner_id: followUpOwnerId
+      })
+
+      if (error) throw error
+      setFollowUpRecords(Array.isArray(data) ? data : [])
+    } catch (error) {
+      const message = error?.message || ''
+      const backendMissing =
+        error?.code === '42883' ||
+        error?.code === '42P01' ||
+        message.includes('get_follow_up_records') ||
+        message.includes('follow_up_records')
+
+      if (backendMissing) {
+        setFollowUpRecords([])
+        return
+      }
+
+      console.warn('Failed to load follow-up records:', error)
+    }
+  }, [followUpOwnerId, isAuthenticated, isSupabaseConfigured])
+
+  useEffect(() => {
+    loadFollowUpRecords()
+  }, [loadFollowUpRecords])
+
+  const saveFollowUpStage = async (record, stage, contactMethod = 'admin', response = '') => {
+    if (!record?.id) return
+    if (!followUpOwnerId || !isSupabaseConfigured() || !supabase) {
+      toast.info('Follow-up notes will save after Supabase is connected.')
+      return
+    }
+
+    setIsSavingFollowUp(true)
+    try {
+      const payload = {
+        p_owner_id: followUpOwnerId,
+        p_member_id: record.id,
+        p_reason: record.followUpReason,
+        p_follow_up_status: stage,
+        p_contact_method: contactMethod,
+        p_response: response || null,
+        p_next_action_date: null
+      }
+
+      const { error } = await supabase.rpc('upsert_follow_up_record', payload)
+
+      if (error) {
+        const backendMissing =
+          error?.code === '42883' ||
+          error?.code === '42P01' ||
+          String(error?.message || '').includes('upsert_follow_up_record')
+
+        if (!backendMissing) throw error
+
+        const { error: insertError } = await supabase
+          .from('follow_up_records')
+          .insert({
+            owner_id: followUpOwnerId,
+            member_id: record.id,
+            reason: record.followUpReason,
+            follow_up_status: stage,
+            message_sent: stage === 'message_sent',
+            contacted_by: user?.id || null,
+            contact_method: contactMethod,
+            response: response || null
+          })
+
+        if (insertError) throw insertError
+      }
+
+      toast.success('Follow-up updated')
+      await loadFollowUpRecords()
+    } catch (error) {
+      console.error('Failed to save follow-up record:', error)
+      toast.error('Failed to save follow-up update')
+    } finally {
+      setIsSavingFollowUp(false)
+    }
+  }
+
+  const addFollowUpNote = async (record) => {
+    const note = window.prompt(`Add a note for ${record.name}`)
+    if (!note || !note.trim()) return
+    await saveFollowUpStage(record, 'responded', 'note', note.trim())
+  }
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault()
@@ -460,10 +566,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   // Get month display name
   const monthDisplayName = currentTable ? currentTable.replace('_', ' ') : 'No Month Selected'
   const buildFollowUpMessage = (record) => encodeURIComponent(
-    followUpMessage
-      .replaceAll('{name}', record.name)
-      .replaceAll('{rate}', `${record.rate}%`)
-      .replaceAll('{month}', monthDisplayName)
+    buildSuggestedMessage(followUpMessage, record).replaceAll('{month}', monthDisplayName)
   )
 
   // Calculate quick stats
@@ -506,49 +609,13 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     }
   }, [members, attendanceData, availableSundayDates])
 
-  const attendanceFollowUps = useMemo(() => {
-    const sundayDates = (availableSundayDates || []).map(normalizeSundayDate).filter(Boolean)
-    const totalSundays = sundayDates.length
-
-    const records = members.map((member) => {
-      let present = 0
-      let absent = 0
-      let missing = 0
-
-      sundayDates.forEach((dateKey) => {
-        const status = attendanceData[dateKey]?.[member.id]
-        if (status === true) present++
-        else if (status === false) absent++
-        else missing++
-      })
-
-      const marked = present + absent
-      const rate = totalSundays > 0 ? Math.round((present / totalSundays) * 100) : 0
-      const category = rate >= 75 ? 'regular' : rate >= 40 ? 'watch' : 'followUp'
-      const phone = getMemberPhone(member)
-
-      return {
-        id: member.id,
-        name: getMemberName(member),
-        phone,
-        phoneDigits: cleanPhoneDigits(phone),
-        whatsappDigits: getWhatsAppDigits(phone),
-        present,
-        absent,
-        missing,
-        marked,
-        rate,
-        category,
-        badge: member['Badge Type'] || 'newcomer'
-      }
-    })
-
-    const regular = records.filter((record) => record.category === 'regular').sort((a, b) => b.rate - a.rate || b.present - a.present)
-    const watch = records.filter((record) => record.category === 'watch').sort((a, b) => a.rate - b.rate)
-    const followUp = records.filter((record) => record.category === 'followUp').sort((a, b) => a.rate - b.rate || b.absent - a.absent || b.missing - a.missing)
-
-    return { totalSundays, regular, watch, followUp }
-  }, [members, attendanceData, availableSundayDates])
+  const attendanceFollowUps = useMemo(() => calculateAttendanceFollowUps({
+    members,
+    attendanceData,
+    availableSundayDates: (availableSundayDates || []).map(normalizeSundayDate).filter(Boolean),
+    followUpRecords,
+    messageTemplate: followUpMessage
+  }), [members, attendanceData, availableSundayDates, followUpRecords, followUpMessage])
 
   // Get top attendees
   const topAttendees = useMemo(() => {
@@ -658,6 +725,9 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
       setIsProcessingBadges(false)
     }
   }
+
+  const activeFollowUpRecords = attendanceFollowUps.buckets?.[activeFollowUpTab] || []
+  const priorityFollowUpCount = attendanceFollowUps.follow_up.length + attendanceFollowUps.inactive.length
 
   // Password protection screen
   if (!isAuthenticated) {
@@ -1005,13 +1075,18 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
         {/* Attendance Follow-up */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '280ms' }}>
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Phone className="w-5 h-5 text-emerald-500" />
-              Attendance Follow-up
-            </h3>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Phone className="w-5 h-5 text-emerald-500" />
+                Attendance Follow-up
+              </h3>
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                Last {Math.min(attendanceFollowUps.totalSundays, 12)} Sundays checked
+              </span>
+            </div>
           </div>
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-xl bg-green-50 dark:bg-green-900/20 p-3 text-center">
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">{attendanceFollowUps.regular.length}</p>
                 <p className="text-xs font-medium text-green-700 dark:text-green-300">Regular</p>
@@ -1021,8 +1096,12 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
                 <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Watch</p>
               </div>
               <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3 text-center">
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{attendanceFollowUps.followUp.length}</p>
-                <p className="text-xs font-medium text-red-700 dark:text-red-300">Follow up</p>
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{priorityFollowUpCount}</p>
+                <p className="text-xs font-medium text-red-700 dark:text-red-300">Need care</p>
+              </div>
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 p-3 text-center">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{attendanceFollowUps.contacted.length}</p>
+                <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Contacted</p>
               </div>
             </div>
 
@@ -1038,62 +1117,154 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
               <p className="text-center text-gray-400 py-4">No Sundays available for this month yet</p>
             ) : (
               <div className="space-y-3">
-                {attendanceFollowUps.followUp.slice(0, 6).map((record) => {
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {FOLLOW_UP_TABS.map((tab) => {
+                    const isActive = activeFollowUpTab === tab.id
+                    const count = attendanceFollowUps.buckets?.[tab.id]?.length || 0
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveFollowUpTab(tab.id)}
+                        className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+                          isActive
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
+                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-300 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {tab.label} <span className="ml-1 opacity-70">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {activeFollowUpRecords.slice(0, 12).map((record) => {
                   const encodedMessage = buildFollowUpMessage(record)
-                  const hasPhone = record.phoneDigits.length > 0
+                  const message = buildSuggestedMessage(followUpMessage, record).replaceAll('{month}', monthDisplayName)
+                  const phone = record.phone || getMemberPhone(record.member)
+                  const phoneDigits = cleanPhoneDigits(phone)
+                  const whatsappDigits = getWhatsAppDigits(phone)
+                  const phoneHref = phoneDigits ? `tel:${phoneDigits}` : undefined
+                  const whatsappHref = whatsappDigits ? `https://wa.me/${whatsappDigits}?text=${encodedMessage}` : undefined
                   return (
-                    <div key={record.id} className="rounded-xl border border-red-100 dark:border-red-900/40 bg-red-50/70 dark:bg-red-900/10 p-3">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <UserX className="w-4 h-4 text-red-500 flex-shrink-0" />
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">{record.name}</p>
+                    <div key={record.id} className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {record.category === 'regular' || record.category === 'resolved' ? (
+                                  <UserCheck className="h-4 w-4 shrink-0 text-green-500" />
+                                ) : (
+                                  <UserX className="h-4 w-4 shrink-0 text-amber-500" />
+                                )}
+                                <p className="truncate font-semibold text-gray-900 dark:text-white">{record.name}</p>
+                              </div>
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                {phone || 'No phone saved'}
+                              </p>
+                            </div>
+                            <select
+                              value={record.followUpStage || 'not_contacted'}
+                              onChange={(event) => saveFollowUpStage(record, event.target.value, 'stage')}
+                              disabled={isSavingFollowUp}
+                              className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                            >
+                              {FOLLOW_UP_STAGES.map((stage) => (
+                                <option key={stage.id} value={stage.id}>{stage.label}</option>
+                              ))}
+                            </select>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {record.present}/{attendanceFollowUps.totalSundays} present, {record.rate}% rate
-                            {record.phone ? ` - ${record.phone}` : ' - no phone saved'}
-                          </p>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <div className="rounded-lg bg-white p-2 dark:bg-gray-800">
+                              <p className="text-gray-400">Rate</p>
+                              <p className="font-bold text-gray-900 dark:text-white">{record.attendanceRate}%</p>
+                            </div>
+                            <div className="rounded-lg bg-white p-2 dark:bg-gray-800">
+                              <p className="text-gray-400">Last attended</p>
+                              <p className="font-bold text-gray-900 dark:text-white">{record.lastAttendedDate || 'None'}</p>
+                            </div>
+                            <div className="rounded-lg bg-white p-2 dark:bg-gray-800">
+                              <p className="text-gray-400">Missed row</p>
+                              <p className="font-bold text-gray-900 dark:text-white">{record.consecutiveAbsences}</p>
+                            </div>
+                            <div className="rounded-lg bg-white p-2 dark:bg-gray-800">
+                              <p className="text-gray-400">Checked</p>
+                              <p className="font-bold text-gray-900 dark:text-white">{record.totalSessionsChecked}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-white p-3 text-xs dark:bg-gray-800">
+                            <p className="font-semibold text-gray-700 dark:text-gray-200">{record.followUpReason}</p>
+                            <p className="mt-2 text-gray-500 dark:text-gray-400">{message}</p>
+                            <p className="mt-2 text-gray-400">
+                              Present {record.presentCount} / Absent {record.absentCount} / Excused {record.excusedCount}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {hasPhone ? (
-                            <>
-                              <a href={`tel:${record.phoneDigits}`} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" title="Call">
-                                <Phone className="w-4 h-4" />
-                              </a>
-                              <a href={`sms:${record.phoneDigits}?&body=${encodedMessage}`} className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Text message">
-                                <MessageCircle className="w-4 h-4" />
-                              </a>
-                              <a href={`https://wa.me/${record.whatsappDigits}?text=${encodedMessage}`} target="_blank" rel="noreferrer" className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20" title="WhatsApp">
-                                <Send className="w-4 h-4" />
-                              </a>
-                            </>
+
+                        <div className="grid grid-cols-2 gap-2 sm:flex lg:flex-col lg:min-w-[150px]">
+                          {phoneHref ? (
+                            <a
+                              href={phoneHref}
+                              onClick={() => saveFollowUpStage(record, 'called', 'call')}
+                              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/50 dark:bg-gray-800 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+                              title="Call"
+                            >
+                              <Phone className="h-4 w-4" />
+                              Call
+                            </a>
                           ) : (
-                            <span className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-500 dark:text-gray-300">No phone</span>
+                            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-400 dark:bg-gray-800">
+                              No phone
+                            </span>
                           )}
+                          {whatsappHref ? (
+                            <a
+                              href={whatsappHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => saveFollowUpStage(record, 'message_sent', 'whatsapp')}
+                              className="inline-flex items-center justify-center gap-2 rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 hover:bg-green-50 dark:border-green-900/50 dark:bg-gray-800 dark:text-green-300 dark:hover:bg-green-900/20"
+                              title="WhatsApp"
+                            >
+                              <Send className="h-4 w-4" />
+                              WhatsApp
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-400 dark:bg-gray-800">
+                              No WhatsApp
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => saveFollowUpStage(record, 'message_sent', 'manual')}
+                            disabled={isSavingFollowUp}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-900/50 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-900/20"
+                          >
+                            <Check className="h-4 w-4" />
+                            Contacted
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addFollowUpNote(record)}
+                            disabled={isSavingFollowUp}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            Add note
+                          </button>
                         </div>
                       </div>
                     </div>
                   )
                 })}
 
-                {attendanceFollowUps.followUp.length === 0 && (
+                {activeFollowUpRecords.length === 0 && (
                   <div className="rounded-xl border border-green-100 dark:border-green-900/40 bg-green-50/70 dark:bg-green-900/10 p-3 flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-green-500" />
-                    <p className="text-sm font-medium text-green-700 dark:text-green-300">Everyone is above the follow-up line for this month.</p>
-                  </div>
-                )}
-
-                {attendanceFollowUps.regular.length > 0 && (
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Regular this month</p>
-                    <div className="flex flex-wrap gap-2">
-                      {attendanceFollowUps.regular.slice(0, 8).map((record) => (
-                        <span key={record.id} className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300">
-                          <UserCheck className="w-3 h-3" />
-                          {record.name} {record.rate}%
-                        </span>
-                      ))}
-                    </div>
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">No members in this follow-up tab right now.</p>
                   </div>
                 )}
               </div>

@@ -29,6 +29,7 @@ const CombinedDatePicker = ({
   const [selectedDate, setSelectedDate] = useState(null)
   const [viewDate, setViewDate] = useState(new Date())
   const [viewMode, setViewMode] = useState('grid')
+  const [monthYearStartDate, setMonthYearStartDate] = useState(null)
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640)
@@ -86,6 +87,7 @@ const CombinedDatePicker = ({
       }
       
       setViewMode('grid')
+      setMonthYearStartDate(null)
       setIsOpen(true)
     } else {
       setIsOpen(false)
@@ -119,13 +121,37 @@ const CombinedDatePicker = ({
   }
 
   const handleCancel = () => {
+    setViewMode('grid')
+    setMonthYearStartDate(null)
     setIsOpen(false)
     if (value) {
       const parts = value.split('-')
-      if (parts.length === 3) setSelectedDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])))
+      if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+        setSelectedDate(date)
+        setViewDate(date)
+      }
     } else {
       setSelectedDate(null)
     }
+  }
+
+  const openMonthYearSelector = () => {
+    setMonthYearStartDate(viewDate)
+    setViewMode('wheels')
+  }
+
+  const handleMonthYearCancel = () => {
+    if (monthYearStartDate) {
+      setViewDate(monthYearStartDate)
+    }
+    setMonthYearStartDate(null)
+    setViewMode('grid')
+  }
+
+  const handleMonthYearApply = () => {
+    setMonthYearStartDate(null)
+    setViewMode('grid')
   }
 
   const handleClear = (e) => {
@@ -244,12 +270,17 @@ const CombinedDatePicker = ({
               <>
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                  <button 
-                    onClick={() => setViewMode('wheels')}
-                    className="flex items-center gap-1 text-[17px] font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-500 transition-colors group"
+                  <button
+                    type="button"
+                    onClick={openMonthYearSelector}
+                    aria-label={`${MONTHS[currentMonth]} ${currentYear}. Tap to change month and year`}
+                    className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/80 px-3 py-2 text-left text-gray-900 dark:text-gray-100 hover:border-primary-300 hover:bg-primary-50/70 dark:hover:bg-primary-500/10 transition-colors group"
                   >
-                    {MONTHS[currentMonth]} {currentYear}
-                    <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors" />
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-[16px] font-semibold">{MONTHS[currentMonth]} {currentYear}</span>
+                      <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">Tap to change month/year</span>
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors" />
                   </button>
                   <div className="flex items-center gap-3">
                     <button onClick={() => setViewDate(new Date(currentYear, currentMonth - 1, 1))} className="text-primary-600 dark:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full p-1.5 transition-colors">
@@ -294,11 +325,13 @@ const CombinedDatePicker = ({
             ) : (
               <div className="flex flex-col h-[380px]">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800/60">
-                   <button onClick={() => setViewMode('grid')} className="text-primary-600 dark:text-primary-500 font-medium flex items-center text-[16px] hover:opacity-70 transition-opacity">
-                     <ChevronLeft className="w-5 h-5 -ml-1" /> Back
+                   <button type="button" onClick={handleMonthYearCancel} className="text-gray-600 dark:text-gray-400 font-medium flex items-center text-[16px] hover:opacity-70 transition-opacity">
+                     <ChevronLeft className="w-5 h-5 -ml-1" /> Cancel
                    </button>
                    <span className="font-semibold text-gray-900 dark:text-gray-100 text-[16px]">Select Month & Year</span>
-                   <div className="w-16"></div>
+                   <button type="button" onClick={handleMonthYearApply} className="text-primary-600 dark:text-primary-500 font-semibold text-[16px] hover:opacity-70 transition-opacity">
+                     Done
+                   </button>
                 </div>
                 <div className="flex-1 flex px-3 overflow-hidden bg-white dark:bg-[#151515]">
                   {/* Months Scroll */}
@@ -306,7 +339,7 @@ const CombinedDatePicker = ({
                     {MONTHS.map((m, i) => (
                       <button 
                         key={m} 
-                        onClick={() => { setViewDate(new Date(currentYear, i, 1)); setViewMode('grid'); }}
+                        onClick={() => { setViewDate(new Date(currentYear, i, 1)); }}
                         className={`w-full py-3 text-center text-[16px] rounded-xl transition-colors ${currentMonth === i ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
                       >
                         {m}
@@ -318,7 +351,7 @@ const CombinedDatePicker = ({
                     {years.map(y => (
                       <button 
                         key={y} 
-                        onClick={() => { setViewDate(new Date(y, currentMonth, 1)); setViewMode('grid'); }}
+                        onClick={() => { setViewDate(new Date(y, currentMonth, 1)); }}
                         className={`w-full py-3 text-center text-[16px] rounded-xl transition-colors ${currentYear === y ? 'text-primary-700 dark:text-primary-400 font-bold bg-primary-50 dark:bg-primary-500/10' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'}`}
                       >
                         {y}
@@ -332,17 +365,17 @@ const CombinedDatePicker = ({
             {/* Footer (Cancel / Save) */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800/60 bg-gray-50/50 dark:bg-[#1a1a1c]">
               <button 
-                onClick={handleCancel}
+                onClick={viewMode === 'wheels' ? handleMonthYearCancel : handleCancel}
                 className="text-[17px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors font-medium px-4 py-2 bg-gray-200/50 dark:bg-gray-800/50 rounded-xl"
               >
-                Cancel
+                {viewMode === 'wheels' ? 'Back' : 'Cancel'}
               </button>
               <button 
-                onClick={handleSave}
-                disabled={!selectedDate}
+                onClick={viewMode === 'wheels' ? handleMonthYearApply : handleSave}
+                disabled={viewMode === 'grid' && !selectedDate}
                 className="text-[17px] text-white bg-primary-600 hover:bg-primary-700 transition-colors font-semibold px-8 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
-                Save
+                {viewMode === 'wheels' ? 'Apply' : 'Save'}
               </button>
             </div>
           </div>

@@ -7,7 +7,7 @@ const reactHooksRules = reactHooks.configs.recommended?.rules ?? {}
 
 export default [
   {
-    ignores: ['dist', 'node_modules']
+    ignores: ['dist', 'node_modules', 'android/app/src/main/assets/public', 'android/**/build']
   },
   {
     files: ['**/*.{js,jsx}'],

@@ -6,7 +6,10 @@ export default defineConfig({
   base: '/',
   server: {
     port: 3000,
-    host: true
+    host: true,
+    watch: {
+      ignored: ['**/android/**', '**/dist/**']
+    }
   },
   test: {
     exclude: ['node_modules/**', 'tests/**', 'test-results/**']

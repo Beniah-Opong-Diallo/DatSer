@@ -175,7 +175,7 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
           <div className="fixed inset-0 md:absolute md:inset-auto md:right-0 md:mt-2 md:w-72 z-[9999] md:rounded-xl border-0 md:border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl overflow-hidden animate-scale-in flex flex-col">
 
             {/* Mobile Header with Close Button */}
-            <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="mobile-panel-header-safe md:hidden flex items-center justify-between px-4 pb-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Profile</h2>
               <button
                 onClick={() => { selection(); setShowDropdown(false) }}
@@ -315,7 +315,7 @@ const LoginButton = ({ onCreateMonth, onToggleAIChat, setCurrentView, setDashboa
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-4 md:py-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+            <div className="mobile-panel-footer-safe px-4 pt-3 md:pt-2 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
               <p className="text-xs md:text-[10px] text-gray-400 text-center">
                 Datser v1.0 • TMH Teen Ministry
               </p>

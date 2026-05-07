@@ -92,8 +92,8 @@ test.describe('Preflight smoke', () => {
     await page.getByRole('button', { name: new RegExp(currentPickerLabel, 'i') }).click()
     await page.getByText('January', { exact: true }).click()
     const currentYear = new Date().getFullYear()
-    await page.getByRole('button', { name: new RegExp(`January ${currentYear}`, 'i') }).click()
     await page.getByText(String(currentYear - 1), { exact: true }).click()
+    await page.getByTestId('combined-date-picker-date-of-birth-dropdown').getByRole('button', { name: 'Apply' }).click()
     await page.locator('div').filter({ hasText: /^15$/ }).first().click()
     await page.getByTestId('combined-date-picker-date-of-birth-dropdown').getByRole('button', { name: 'Save' }).click()
 

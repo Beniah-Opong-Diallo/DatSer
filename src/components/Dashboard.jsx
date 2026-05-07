@@ -1401,14 +1401,14 @@ const Dashboard = ({ isAdmin = false }) => {
   }
 
   return (
-    <div className="space-y-2 pb-12 max-w-7xl mx-auto px-0 sm:px-4">
+    <div className="space-y-2 pb-24 md:pb-12 max-w-7xl mx-auto px-0 sm:px-4">
       {/* Header removed; summary now shown in sticky Header */}
 
       {/* Desktop tab navigation removed; use mobile segmented control in Header */}
 
       {/* Edited Members: Sundays Quick View */}
       {dashboardTab === 'edited' && (
-        <div ref={sundaysRef} className="block mt-8 sm:mt-10 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 shadow-sm w-[96%] sm:w-full mx-auto">
+        <div ref={sundaysRef} className="block mt-4 sm:mt-10 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 shadow-sm w-[96%] sm:w-full mx-auto">
           {/* Header - stacked on mobile, inline on desktop */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1647,7 +1647,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {dashboardTab === 'duplicates' && (
-        <div className={`rounded-lg border p-3 sm:p-4 mt-4 sm:mt-10 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+        <div className={`rounded-lg border p-3 sm:p-4 mt-3 sm:mt-10 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className={`text-base sm:text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Duplicate Names</h3>
           </div>
@@ -1802,7 +1802,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Members List */}
-      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-10 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${searchTerm ? '' : 'transition-colors duration-200'} grid-animate`}>
+      <div className={`${longPressSelectedIds.size > 0 ? '' : 'mt-4 sm:mt-10'} grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${searchTerm ? '' : 'transition-colors duration-200'} grid-animate`}>
         {/* Calculate displayed members based on search and pagination */}
         {(() => {
           // Get tab-filtered members first
@@ -2939,7 +2939,7 @@ const Dashboard = ({ isAdmin = false }) => {
       )}
 
       {/* Bottom Search Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30 safe-area-bottom">
+      <div className="bottom-search-bar bottom-control-safe fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30 safe-area-x">
         <div className="mx-auto px-3 sm:px-4 py-3">
           <div className="flex items-center gap-2">
             {dashboardTab === 'edited' ? (
@@ -3016,7 +3016,7 @@ const Dashboard = ({ isAdmin = false }) => {
       </div>
 
       {/* Add padding to prevent content from being hidden behind bottom search bar */}
-      <div className="h-12" />
+      <div className="h-24 md:h-12" />
     </div>
   )
 }

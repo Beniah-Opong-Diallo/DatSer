@@ -57,4 +57,32 @@ describe('CombinedDatePicker', () => {
 
     expect(handleChange).toHaveBeenCalledWith('2026-05-05')
   })
+
+  it('keeps month/year selection open until the user applies it', () => {
+    const handleChange = vi.fn()
+
+    render(
+      <CombinedDatePicker
+        value=""
+        onChange={handleChange}
+        label="Date of Birth"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /select date/i }))
+    const dropdown = screen.getByTestId('combined-date-picker-date-of-birth-dropdown')
+
+    fireEvent.click(within(dropdown).getByRole('button', { name: /tap to change month and year/i }))
+    expect(within(dropdown).getByText('Select Month & Year')).toBeTruthy()
+
+    fireEvent.click(within(dropdown).getByRole('button', { name: 'February' }))
+    expect(within(dropdown).getByText('Select Month & Year')).toBeTruthy()
+
+    fireEvent.click(within(dropdown).getByRole('button', { name: '2020' }))
+    expect(within(dropdown).getByText('Select Month & Year')).toBeTruthy()
+
+    fireEvent.click(within(dropdown).getByRole('button', { name: 'Apply' }))
+
+    expect(within(dropdown).getByRole('button', { name: /tap to change month and year/i }).textContent).toContain('February 2020')
+  })
 })

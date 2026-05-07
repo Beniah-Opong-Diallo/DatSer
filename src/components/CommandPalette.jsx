@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Search, UserPlus, Settings, Moon, Sun, Download, Home, X, Users, LogOut, Zap, Eye, Monitor, Palette, Building2, Database, TrendingUp, HelpCircle, AlertTriangle } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
-import { APP_VIEWS, SETTINGS_SECTIONS } from '../config/navigation.js'
+import {
+    APP_VIEWS,
+    SETTINGS_SECTIONS,
+    getVisibleSettingsSearchItems,
+    searchSettingsIndex
+} from '../config/navigation.js'
 
 const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNavigateToSettingsSection }) => {
     const [isOpen, setIsOpen] = useState(false)
@@ -17,7 +22,7 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (!commandKEnabled) return
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'k') {
                 e.preventDefault()
                 setIsOpen(prev => !prev)
             }
@@ -102,12 +107,15 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
         }
     }))
 
-    const settingsActions = SETTINGS_SECTIONS.map(sec => ({
-        id: `settings-${sec.id}`,
-        label: `Settings → ${sec.label}`,
+    const settingsSections = SETTINGS_SECTIONS.filter(section => !section.requiresDeveloper || import.meta.env.DEV)
+
+    const settingsSectionActions = settingsSections.map(sec => ({
+        id: 'settings-' + sec.id,
+        label: 'Settings > ' + sec.label,
         icon: sec.icon,
         category: 'settings',
-        aliases: sec.keywords || '',
+        description: sec.content || '',
+        aliases: (sec.keywords || '') + ' ' + (sec.content || ''),
         action: () => {
             setCurrentView('settings')
             if (onNavigateToSettingsSection) onNavigateToSettingsSection(sec.id)
@@ -115,13 +123,47 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
         }
     }))
 
-    const actions = [...navActions, ...settingsActions, ...defaultActions]
-
-    const filteredActions = actions.filter(action => {
-        const target = `${action.label} ${action.aliases || ''}`.toLowerCase()
-        return target.includes(query.toLowerCase())
+    const settingsItemActions = getVisibleSettingsSearchItems(import.meta.env.DEV).map(item => {
+        const section = settingsSections.find(candidate => candidate.id === item.section)
+        return {
+            id: 'setting-item-' + item.id,
+            label: 'Settings > ' + item.label,
+            icon: item.icon || section?.icon || Settings,
+            category: 'settings',
+            description: item.description,
+            shortcut: item.shortcut,
+            aliases: [
+                item.keywords,
+                item.description,
+                item.shortcut,
+                section?.label,
+                section?.keywords,
+                section?.content
+            ].filter(Boolean).join(' '),
+            action: () => {
+                setCurrentView('settings')
+                if (onNavigateToSettingsSection) {
+                    onNavigateToSettingsSection({ section: item.section, settingId: item.id })
+                }
+                setIsOpen(false)
+            }
+        }
     })
-    
+
+    const actions = [...navActions, ...settingsSectionActions, ...settingsItemActions, ...defaultActions]
+
+    const filteredActions = query.trim()
+        ? [
+            ...actions.filter(action => {
+                const target = (action.label + ' ' + (action.description || '') + ' ' + (action.aliases || '') + ' ' + (action.shortcut || '')).toLowerCase()
+                return query.toLowerCase().split(/\s+/).filter(Boolean).every(token => target.includes(token))
+            }),
+            ...searchSettingsIndex(query, getVisibleSettingsSearchItems(import.meta.env.DEV), settingsSections)
+                .map(item => actions.find(action => action.id === 'setting-item-' + item.id))
+                .filter(Boolean)
+        ].filter((action, index, list) => list.findIndex(candidate => candidate.id === action.id) === index)
+        : actions
+
     // Group actions by category
     const groupedActions = filteredActions.reduce((groups, action) => {
         if (!groups[action.category]) {
@@ -255,7 +297,7 @@ const CommandPalette = ({ setCurrentView, onAddMember, isExecutive = false, onNa
                 </div>
 
                 <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 flex justify-between">
-                    <span>Use arrow keys to navigate • Type letters to jump to actions</span>
+                    <span>Use arrow keys to navigate - type to search settings and actions</span>
                     <span>DatSer v1.2</span>
                 </div>
             </div>

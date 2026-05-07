@@ -8,6 +8,8 @@ import Dashboard from './components/Dashboard'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './components/LoginPage'
 import TutorialPromptBar from './components/TutorialPromptBar'
+import AppUpdatePrompt from './components/AppUpdatePrompt'
+import OfflineStatusBanner from './components/OfflineStatusBanner'
 
 // Lazy-loaded components - loaded on demand for faster initial load
 const MemberModal = lazy(() => import('./components/MemberModal'))
@@ -405,7 +407,7 @@ function AppContent({ isMobile }) {
   }
 
   return (
-    <div className={`min-app-vh transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
+    <div className={`min-app-vh app-shell transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
       <Header
         currentView={currentView}
         setCurrentView={setCurrentView}
@@ -449,7 +451,8 @@ function AppContent({ isMobile }) {
         </div>
       )}
 
-      <main className={`mx-auto px-0 sm:px-4 py-6 pt-24 sm:pt-20 md:pt-20 w-full`}>
+      <main className={`app-main-safe ${currentView === 'dashboard' ? 'app-main-dashboard-safe' : ''} mx-auto px-0 sm:px-4 pt-0 pb-6 md:py-6 w-full`}>
+        <OfflineStatusBanner />
         {currentView === 'dashboard' && (
           <Dashboard isAdmin={isAdmin} />
         )}
@@ -628,6 +631,8 @@ function AppContent({ isMobile }) {
           }}
         />
       </Suspense>
+
+      <AppUpdatePrompt />
 
       <ToastContainer
         className="datser-toast-stack"
