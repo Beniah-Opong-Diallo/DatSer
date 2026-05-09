@@ -47,6 +47,7 @@ import {
     getVisibleSettingsSections,
     searchSettingsIndex
 } from '../config/navigation.js'
+import { getInstalledAppInfo } from '../utils/appUpdates.js'
 import ConfirmModal from './ConfirmModal'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 
@@ -114,7 +115,7 @@ const LazyPanelFallback = () => (
 const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMember }) => {
     const { user, signOut, preferences, resetPassword, isDeveloperBypass } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
-    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, isAdminCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate, deleteMember, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, refreshSearch, validateMemberData, getPastSundays, getMissingAttendance, autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil, setPersonalCalendarMode, isOnline, offlineCacheMeta, pendingSyncCount, isPreparingOffline, isSyncingOffline, prepareOfflineData, clearOfflineCacheData, syncOfflineChanges } = useApp()
+    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, isAdminCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate, deleteMember, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, refreshSearch, validateMemberData, getPastSundays, getMissingAttendance, autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil, setPersonalCalendarMode, isOnline, offlineMode, setOfflineMode, isOfflineModeActive, offlineModeStatus, offlineCacheMeta, pendingSyncCount, isPreparingOffline, isSyncingOffline, prepareOfflineData, clearOfflineCacheData, syncOfflineChanges } = useApp()
     const { selection } = useHapticFeedback()
     const isDeveloperToolsEnabled = import.meta.env.DEV
 
@@ -241,12 +242,23 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
     const [isOverrideSaving, setIsOverrideSaving] = useState(false)
     const [dob, setDob] = useState('')
     const [isDobSaving, setIsDobSaving] = useState(false)
+    const [installedAppInfo, setInstalledAppInfo] = useState(null)
 
     useEffect(() => {
         if (user?.user_metadata?.date_of_birth) {
             setDob(user.user_metadata.date_of_birth)
         }
     }, [user])
+
+    useEffect(() => {
+        let cancelled = false
+        getInstalledAppInfo().then((info) => {
+            if (!cancelled) setInstalledAppInfo(info)
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     const handleSaveDob = async () => {
         if (!user) return
@@ -2867,6 +2879,31 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 </div>
             </div>
 
+            <div
+                data-setting-id="app_version"
+                tabIndex={-1}
+                className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 ${getSettingTargetClass('app_version')}`}
+            >
+                <div className="flex items-start gap-3">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                        <Monitor className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">App Version</h4>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            Current install: <span className="font-semibold text-gray-800 dark:text-gray-100">
+                                {installedAppInfo ? `${installedAppInfo.versionName} (${installedAppInfo.versionCode || 'web'})` : 'Loading...'}
+                            </span>
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            APK mode: <span className="font-semibold text-gray-800 dark:text-gray-100">
+                                {installedAppInfo?.runtimeMode || 'Website'}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* Personal Information */}
             <div className="space-y-3">
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
@@ -3776,6 +3813,31 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
         </div>
     )
 
+    const offlineBadgeClass = offlineModeStatus === 'forced-offline'
+        ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'
+        : offlineModeStatus === 'offline'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+            : offlineModeStatus === 'online-unavailable'
+                ? 'bg-red-100 text-red-800 dark:bg-red-900/35 dark:text-red-200'
+                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+    const offlineBadgeDotClass = offlineModeStatus === 'forced-offline'
+        ? 'bg-slate-500'
+        : offlineModeStatus === 'offline'
+            ? 'bg-amber-600'
+            : offlineModeStatus === 'online-unavailable'
+                ? 'bg-red-500'
+                : 'bg-emerald-500'
+    const offlineBadgeLabel = offlineModeStatus === 'forced-offline'
+        ? 'Forced Offline'
+        : offlineModeStatus === 'offline'
+            ? 'Offline'
+            : offlineModeStatus === 'online-unavailable'
+                ? 'Online unavailable'
+                : 'Online'
+    const offlineCardAccentClass = isOfflineModeActive || offlineMode === 'offline'
+        ? 'border-amber-300/90 dark:border-amber-800/70'
+        : 'border-orange-200/80 dark:border-orange-900/60'
+
     const renderDataSection = () => (
         <div className="space-y-4">
             <div>
@@ -3786,7 +3848,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             <div
                 data-setting-id="offline_mode"
                 tabIndex={-1}
-                className={`relative overflow-hidden rounded-2xl border border-orange-200/80 dark:border-orange-900/60 bg-white dark:bg-gray-800 shadow-sm ${getSettingTargetClass('offline_mode')}`}
+                className={`relative overflow-hidden rounded-2xl border ${offlineCardAccentClass} bg-white dark:bg-gray-800 shadow-sm ${getSettingTargetClass('offline_mode')}`}
             >
                 <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-500 via-amber-400 to-orange-600" />
                 <div className="p-4 sm:p-5">
@@ -3799,9 +3861,9 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                 <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <p className="font-semibold text-gray-900 dark:text-white">Offline Mode</p>
-                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isOnline ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-900 text-white dark:bg-gray-700'}`}>
-                                            <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                                            {isOnline ? 'Online' : 'Offline'}
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${offlineBadgeClass}`}>
+                                            <span className={`w-2 h-2 rounded-full ${offlineBadgeDotClass}`} />
+                                            {offlineBadgeLabel}
                                         </span>
                                         {pendingSyncCount > 0 && (
                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
@@ -3813,6 +3875,41 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                     <p className="text-sm text-gray-600 dark:text-gray-300 mt-1.5 max-w-2xl">
                                         Cache members and attendance on this device, then keep attendance changes safe when the APK is offline.
                                     </p>
+                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Mode:</span>
+                                        <div className="inline-grid grid-cols-3 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-900/50">
+                                            {[
+                                                { id: 'auto', label: 'Auto' },
+                                                { id: 'online', label: 'Online' },
+                                                { id: 'offline', label: 'Offline' }
+                                            ].map((mode) => (
+                                                <button
+                                                    key={mode.id}
+                                                    type="button"
+                                                    onClick={() => setOfflineMode(mode.id)}
+                                                    aria-pressed={offlineMode === mode.id}
+                                                    className={`min-h-[36px] rounded-lg px-3 text-sm font-semibold transition-colors ${
+                                                        offlineMode === mode.id
+                                                            ? mode.id === 'offline'
+                                                                ? 'bg-slate-700 text-white shadow-sm dark:bg-slate-500'
+                                                                : mode.id === 'online'
+                                                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                                                    : 'bg-orange-600 text-white shadow-sm'
+                                                            : 'text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                                                    }`}
+                                                >
+                                                    {mode.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {offlineMode === 'auto'
+                                                ? 'Auto switches based on network and cache.'
+                                                : offlineMode === 'online'
+                                                    ? 'Online uses live Supabase data.'
+                                                    : 'Offline uses saved local data and queues attendance.'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3838,7 +3935,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                         {isSyncingOffline ? 'Syncing now' : pendingSyncCount > 0 ? `${pendingSyncCount} waiting` : 'Up to date'}
                                     </p>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {isOnline ? 'Ready when changes exist' : 'Will sync when online'}
+                                        {offlineMode === 'offline' ? 'Switch to Auto or Online to sync' : isOnline ? 'Ready when changes exist' : 'Will sync when online'}
                                     </p>
                                 </div>
                             </div>
@@ -3858,7 +3955,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                                 <button
                                     type="button"
                                     onClick={syncOfflineChanges}
-                                    disabled={isSyncingOffline || !isOnline || pendingSyncCount === 0}
+                                    disabled={isSyncingOffline || !isOnline || offlineMode === 'offline' || pendingSyncCount === 0}
                                     className="min-h-[44px] px-3 py-2 rounded-xl border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-900 hover:bg-orange-50 dark:hover:bg-orange-900/30 disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-gray-800 dark:disabled:text-gray-500 disabled:border-gray-200 dark:disabled:border-gray-700 disabled:cursor-not-allowed text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
                                 >
                                     <RefreshCw className={`w-4 h-4 ${isSyncingOffline ? 'animate-spin' : ''}`} />
@@ -3876,9 +3973,11 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                             </div>
                             <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                                 {isOnline
-                                    ? pendingSyncCount > 0
-                                        ? 'You are online. Sync now to upload pending changes.'
-                                        : 'You are online. Download data before using the APK offline.'
+                                    ? offlineMode === 'offline'
+                                        ? 'Forced Offline is active. Attendance changes will stay in the pending queue.'
+                                        : pendingSyncCount > 0
+                                            ? 'You are online. Sync now to upload pending changes.'
+                                            : 'You are online. Download data before using the APK offline.'
                                     : 'Offline changes stay on this device until you reconnect and sync.'}
                             </p>
                         </div>
@@ -4928,6 +5027,11 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
         account_email: {
             description: 'Current email: ' + (user?.email || 'Not available')
         },
+        app_version: {
+            description: installedAppInfo
+                ? 'Installed: ' + installedAppInfo.versionName + ' (' + (installedAppInfo.versionCode || 'web') + ') - ' + installedAppInfo.runtimeMode
+                : 'View installed APK version and wrapper mode'
+        },
         current_month: {
             description: 'Active: ' + (currentTable?.replace('_', ' ') || 'None')
         },
@@ -4947,7 +5051,7 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
         manage_team: {
             description: 'View and manage ' + collaborators.length + ' collaborator' + (collaborators.length === 1 ? '' : 's')
         }
-    }), [collaborators.length, currentTable, dbUsage, pendingSyncCount, user])
+    }), [collaborators.length, currentTable, dbUsage, installedAppInfo, pendingSyncCount, user])
 
     const allSearchableItems = useMemo(() => visibleRegistryItems.map((item) => {
         const section = sections.find(candidate => candidate.id === item.section)

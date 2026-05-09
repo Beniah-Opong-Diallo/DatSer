@@ -37,6 +37,7 @@ import {
   UserX
 } from 'lucide-react'
 import TagManager from './TagManager'
+import AppUpdatesManager from './AppUpdatesManager'
 import {
   DEFAULT_FOLLOW_UP_TEMPLATE,
   FOLLOW_UP_STAGES,
@@ -74,6 +75,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
     updateMember,
     calculateAttendanceRate,
     isCollaborator,
+    isAdminCollaborator,
+    isDeveloperBypass,
     dataOwnerId,
     isSupabaseConfigured
   } = useApp()
@@ -728,6 +731,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
 
   const activeFollowUpRecords = attendanceFollowUps.buckets?.[activeFollowUpTab] || []
   const priorityFollowUpCount = attendanceFollowUps.follow_up.length + attendanceFollowUps.inactive.length
+  const canManageAppUpdates = isDeveloperBypass || !isCollaborator || isAdminCollaborator
 
   // Password protection screen
   if (!isAuthenticated) {
@@ -736,8 +740,8 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
         <div className="w-full max-w-2xl">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-br from-orange-600 to-orange-800 dark:from-orange-700 dark:to-orange-900 px-4 sm:px-6 py-6 sm:py-8 text-center">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border border-white/20">
+            <div className="bg-gradient-to-br from-orange-600 to-orange-800 dark:from-orange-700 dark:to-orange-900 px-4 sm:px-6 py-4 sm:py-5 text-center">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 border border-white/20">
                 <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
               <h1 className="text-xl sm:text-2xl font-bold text-white">Admin Panel</h1>
@@ -849,9 +853,9 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   return (
     <div className="min-h-screen pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-20 w-full py-3">
+      <div className="sticky top-0 z-20 w-full py-1.5">
         <div className="max-w-4xl mx-auto px-4 relative">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 sm:px-5 sm:py-4 flex items-center justify-between shadow-sm">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 sm:px-5 sm:py-3 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
               <div className="bg-slate-100 dark:bg-slate-700/50 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-600 flex-shrink-0">
                 <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 dark:text-slate-300" />
@@ -975,7 +979,9 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-5">
+
+        <AppUpdatesManager canManage={canManageAppUpdates} userId={user?.id || null} />
 
         {/* Badge Results */}
         {badgeResults && showBadgeResults && (

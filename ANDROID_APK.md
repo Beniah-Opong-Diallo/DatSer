@@ -164,7 +164,44 @@ npm run android:sync
 npm run android:open
 ```
 
-## Direct APK Update Checker
+## Private APK Update Manager
+
+DatSer now has a private APK update manager for Android installs outside Google Play.
+
+Admin upload flow:
+
+```text
+Admin Panel > App Updates
+```
+
+Admins can upload a `.apk`, set `versionName`, `versionCode`, title, release notes, force-update status, and publish/unpublish status. Release metadata is stored in Supabase table `app_releases`; APK files are stored in the Supabase Storage bucket `app-updates`.
+
+Manual Supabase setup:
+
+```text
+supabase/migrations/20260507_app_releases.sql
+```
+
+That migration creates the table, public storage bucket, upload/read policies, and admin checks. If the migration is not applied yet, Android update checks fall back to the legacy `/app-version.json` file below.
+
+## Version Name And Version Code
+
+Android uses both:
+
+- `versionName`: human-readable version, for example `1.0.3`
+- `versionCode`: integer version, for example `3`
+
+Future APK updates must use a higher `versionCode`, the same package name, and the same release signing key.
+
+Current package name:
+
+```text
+com.datser.app
+```
+
+If the package name or signing key changes, Android will not install the APK as an update.
+
+## Direct APK Update Checker Fallback
 
 The website includes:
 
@@ -195,6 +232,18 @@ Fields:
 The update button opens the APK download URL in the Android browser. Android will still ask the user to confirm installation manually.
 
 For the current app version, keep `latestVersion` equal to the installed APK version so users are not prompted immediately.
+
+## Notification System
+
+DatSer uses polished in-app notifications for success, error, warning, info, offline, online, sync, and APK-update messages. They appear bottom-right on desktop/tablet and near the bottom above `env(safe-area-inset-bottom)` on mobile/Android.
+
+Notifications can auto-dismiss, be manually dismissed, and expand when they include details or action buttons. Important states such as force update required or sync failed can stay persistent.
+
+APK update notifications support:
+
+- `Download Update`
+- `Later` when the update is optional
+- `View Details`
 
 ## Offline Mode
 

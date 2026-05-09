@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import { useAuth } from './AuthContext'
+import { notify } from '../utils/notify'
 import {
   clearAllOfflineData,
   getOfflineSnapshot,
@@ -91,6 +92,15 @@ const makeOfflineChangeId = () => {
 const isBrowserOnline = () => {
   if (typeof navigator === 'undefined') return true
   return navigator.onLine !== false
+}
+
+const OFFLINE_MODE_STORAGE_KEY = 'datser_offline_mode'
+const OFFLINE_MODES = ['auto', 'online', 'offline']
+
+const getStoredOfflineMode = () => {
+  if (typeof window === 'undefined') return 'auto'
+  const saved = localStorage.getItem(OFFLINE_MODE_STORAGE_KEY)
+  return OFFLINE_MODES.includes(saved) ? saved : 'auto'
 }
 
 const toLocalStartOfDay = (date) => {
@@ -338,6 +348,37 @@ export const AppProvider = ({ children }) => {
   const [offlineStatusMessage, setOfflineStatusMessage] = useState('')
   const [isPreparingOffline, setIsPreparingOffline] = useState(false)
   const [isSyncingOffline, setIsSyncingOffline] = useState(false)
+  const [offlineMode, setOfflineModeState] = useState(getStoredOfflineMode)
+
+  const setOfflineMode = useCallback((mode) => {
+    const nextMode = OFFLINE_MODES.includes(mode) ? mode : 'auto'
+    setOfflineModeState(nextMode)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(OFFLINE_MODE_STORAGE_KEY, nextMode)
+    }
+    if (nextMode === 'online' && !isBrowserOnline()) {
+      toast.warn('Online mode selected, but internet is unavailable.')
+    } else if (nextMode === 'offline') {
+      setOfflineStatusMessage('Offline Mode - using saved local data.')
+      notify.offline('Offline Mode - using saved local data.', {
+        title: 'Offline Mode',
+        toastId: 'offline-mode-active',
+        persistent: true
+      })
+    } else {
+      toast.info('Offline mode set to Auto.')
+    }
+  }, [])
+
+  const shouldUseOfflineData = offlineMode === 'offline' || (offlineMode === 'auto' && !isOnline)
+  const isOfflineModeActive = shouldUseOfflineData && Boolean(offlineCacheMeta)
+  const offlineModeStatus = offlineMode === 'offline'
+    ? 'forced-offline'
+    : isOfflineModeActive
+      ? 'offline'
+      : isOnline
+        ? 'online'
+        : 'online-unavailable'
 
   const refreshOfflineStatus = useCallback(async () => {
     try {
@@ -351,7 +392,10 @@ export const AppProvider = ({ children }) => {
         cached_at: snapshotRecord.cached_at,
         member_count: snapshot?.members?.length || 0,
         table_count: snapshot?.monthlyTables?.length || 0,
-        attendance_date_count: snapshot?.attendanceData ? Object.keys(snapshot.attendanceData).length : 0
+        attendance_date_count: snapshot?.attendanceData ? Object.keys(snapshot.attendanceData).length : 0,
+        authenticated_user_id: snapshot?.authenticated_user_id || null,
+        data_owner_id: snapshot?.data_owner_id || null,
+        workspace: snapshot?.workspace || null
       } : null)
       setOfflinePendingChanges(pendingChanges)
       setPendingSyncCount(pendingChanges.length)
@@ -363,6 +407,10 @@ export const AppProvider = ({ children }) => {
   const applyOfflineSnapshot = useCallback((snapshotRecord) => {
     const snapshot = snapshotRecord?.snapshot || snapshotRecord
     if (!snapshot) return false
+    if (user?.id && snapshot.authenticated_user_id !== user.id) {
+      console.warn('Ignoring offline snapshot for a different authenticated user.')
+      return false
+    }
 
     if (Array.isArray(snapshot.members)) {
       setMembers(snapshot.members)
@@ -384,7 +432,7 @@ export const AppProvider = ({ children }) => {
     }
 
     return true
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     refreshOfflineStatus()
@@ -393,14 +441,42 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
 
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setIsOnline(true)
-      setOfflineStatusMessage('Back online - review pending changes before syncing.')
-      refreshOfflineStatus()
+      const pendingChanges = await getPendingOfflineChanges().catch(() => [])
+      setOfflineStatusMessage(
+        pendingChanges.length > 0
+          ? `Back online - ${pendingChanges.length} change${pendingChanges.length === 1 ? '' : 's'} waiting to sync.`
+          : 'Back online - review pending changes before syncing.'
+      )
+      notify.online(
+        pendingChanges.length > 0
+          ? `${pendingChanges.length} change${pendingChanges.length === 1 ? '' : 's'} waiting to sync.`
+          : 'Review pending changes before syncing.',
+        { title: 'Back online', toastId: 'back-online' }
+      )
+      await refreshOfflineStatus()
     }
-    const handleOffline = () => {
+    const handleOffline = async () => {
       setIsOnline(false)
-      setOfflineStatusMessage('Offline Mode - using local data when available.')
+      const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+      if (offlineMode === 'auto' && snapshotRecord && applyOfflineSnapshot(snapshotRecord)) {
+        setOfflineStatusMessage('Offline Mode - using saved local data.')
+        notify.offline('Offline Mode - using saved local data.', {
+          title: 'Offline Mode',
+          toastId: 'offline-mode-active',
+          persistent: true
+        })
+      } else if (offlineMode === 'online') {
+        setOfflineStatusMessage('Online mode is selected, but internet is unavailable.')
+        toast.warn('Online mode selected, but internet is unavailable.')
+      } else {
+        setOfflineStatusMessage('Prepare Offline Mode - download data for offline use.')
+        notify.offline('Download data for offline use.', {
+          title: 'Prepare Offline Mode',
+          toastId: 'prepare-offline-mode'
+        })
+      }
       refreshOfflineStatus()
     }
 
@@ -411,16 +487,19 @@ export const AppProvider = ({ children }) => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [refreshOfflineStatus])
+  }, [applyOfflineSnapshot, offlineMode, refreshOfflineStatus])
 
   useEffect(() => {
-    if (isOnline) return
+    if (!shouldUseOfflineData) return
 
     let cancelled = false
     const loadCachedData = async () => {
       const snapshotRecord = await getOfflineSnapshot().catch(() => null)
       if (!cancelled && snapshotRecord) {
         applyOfflineSnapshot(snapshotRecord)
+        if (offlineMode === 'offline') {
+          setOfflineStatusMessage('Offline Mode - using saved local data.')
+        }
       }
     }
 
@@ -429,7 +508,7 @@ export const AppProvider = ({ children }) => {
     return () => {
       cancelled = true
     }
-  }, [applyOfflineSnapshot, isOnline])
+  }, [applyOfflineSnapshot, offlineMode, shouldUseOfflineData])
 
   useEffect(() => {
     if (!isOnline || pendingSyncCount > 0 || !offlineStatusMessage) return undefined
@@ -870,6 +949,20 @@ export const AppProvider = ({ children }) => {
       return null
     }
 
+    if (shouldUseOfflineData) {
+      const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+      const snapshot = snapshotRecord?.snapshot
+      if (shouldUseOfflineData && snapshot?.authenticated_user_id === user.id && applyOfflineSnapshot(snapshotRecord)) {
+        setIsCollaborator(Boolean(snapshot.is_collaborator))
+        setIsAdminCollaborator(Boolean(snapshot.is_admin_collaborator))
+        setDataOwnerId(snapshot.data_owner_id || user.id)
+        setOwnerEmail(snapshot.owner_email || null)
+        setHasAccess(true)
+        setOfflineStatusMessage('Offline Mode - using saved local data.')
+        return snapshot.data_owner_id || user.id
+      }
+    }
+
     try {
       const normalizedEmail = user.email?.trim().toLowerCase()
       let data = null
@@ -993,7 +1086,19 @@ export const AppProvider = ({ children }) => {
       return data.owner_id
     } catch (err) {
       console.error('ERROR in checkCollaboratorStatus:', err)
-      // On error, deny access by default for safety
+      const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+      const snapshot = snapshotRecord?.snapshot
+      if (shouldUseOfflineData && snapshot?.authenticated_user_id === user.id && applyOfflineSnapshot(snapshotRecord)) {
+        setIsCollaborator(Boolean(snapshot.is_collaborator))
+        setIsAdminCollaborator(Boolean(snapshot.is_admin_collaborator))
+        setDataOwnerId(snapshot.data_owner_id || user.id)
+        setOwnerEmail(snapshot.owner_email || null)
+        setHasAccess(true)
+        setOfflineStatusMessage('Offline Mode - using saved local data.')
+        return snapshot.data_owner_id || user.id
+      }
+
+      // On error without a matching offline cache, deny access by default for safety
       setIsCollaborator(false)
       setDataOwnerId(null)
       setHasAccess(false)
@@ -1103,7 +1208,7 @@ export const AppProvider = ({ children }) => {
 
   // Fetch members from current monthly table or use mock data
   const fetchMembers = async (tableName = currentTable, options = {}) => {
-    const { forceRefresh = false, background = false } = options
+    const { forceRefresh = false, background = false, forceOnline = false } = options
     if (!tableName) {
       console.warn('fetchMembers called with null/undefined tableName, skipping')
       setMembers([])
@@ -1115,15 +1220,30 @@ export const AppProvider = ({ children }) => {
       }
       appContextLog(`Fetching members from table: ${tableName} for user: ${user?.id}`)
 
-      if (!isOnline) {
+      if (shouldUseOfflineData && !forceOnline) {
         const snapshotRecord = await getOfflineSnapshot().catch(() => null)
         if (snapshotRecord && applyOfflineSnapshot(snapshotRecord)) {
           if (!background) {
             setLoading(false)
-            toast.info('Offline Mode: loaded cached DatSer data.')
+            notify.offline('Offline Mode - using saved local data.', {
+              title: 'Offline Mode',
+              toastId: 'offline-mode-active',
+              persistent: true
+            })
           }
+          return snapshotRecord?.snapshot?.members || []
+        }
+        if (offlineMode === 'offline') {
+          if (!background) {
+            toast.warn('No offline cache found. Download offline data while online first.')
+          }
+          setLoading(false)
           return
         }
+      }
+
+      if (offlineMode === 'online' && !isOnline && !background) {
+        toast.warn('Online mode selected, but internet is unavailable.')
       }
 
       if (isDeveloperBypass || !isSupabaseConfigured()) {
@@ -1132,7 +1252,7 @@ export const AppProvider = ({ children }) => {
         if (!background) {
           setLoading(false)
         }
-        return
+        return mockMembers
       }
 
       // Check if we have a valid session
@@ -1147,7 +1267,7 @@ export const AppProvider = ({ children }) => {
         if (!background) {
           setLoading(false)
         }
-        return
+        return []
       }
 
       // Serve from cache when fresh (reduces egress)
@@ -1216,6 +1336,7 @@ export const AppProvider = ({ children }) => {
         appContextLog('First few members:', normalizedMembers.slice(0, 3))
         appContextLog('Sample member structure:', normalizedMembers[0])
         // Removed automatic toast notification on page load
+        return normalizedMembers
       }
     } catch (error) {
       console.error('Unexpected error in fetchMembers:', error)
@@ -1967,7 +2088,10 @@ export const AppProvider = ({ children }) => {
 
     await refreshOfflineStatus()
     setOfflineStatusMessage(`${ids.length} attendance change${ids.length === 1 ? '' : 's'} saved offline.`)
-    toast.info(`${ids.length} attendance change${ids.length === 1 ? '' : 's'} saved offline. Sync when back online.`)
+    notify.sync(`${ids.length} attendance change${ids.length === 1 ? '' : 's'} saved offline.`, {
+      title: 'Saved to pending sync',
+      details: 'Sync when you are back online.'
+    })
 
     return { success: true, offline: true }
   }, [applyLocalAttendanceState, currentTable, refreshOfflineStatus])
@@ -1980,8 +2104,12 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'No valid Sunday found for this month' }
       }
 
-      if (!isOnline) {
+      if (shouldUseOfflineData) {
         return queueOfflineAttendanceChanges(memberId, effectiveDate, present)
+      }
+
+      if (offlineMode === 'online' && !isOnline) {
+        toast.warn('Online mode selected, but internet is unavailable.')
       }
 
       if (isDeveloperBypass || !isSupabaseConfigured()) {
@@ -2144,8 +2272,12 @@ export const AppProvider = ({ children }) => {
         return { success: false, error: 'No valid Sunday found for this month' }
       }
 
-      if (!isOnline) {
+      if (shouldUseOfflineData) {
         return queueOfflineAttendanceChanges(memberIds, effectiveDate, present, 'bulk_attendance_mark')
+      }
+
+      if (offlineMode === 'online' && !isOnline) {
+        toast.warn('Online mode selected, but internet is unavailable.')
       }
 
       if (!isSupabaseConfigured()) {
@@ -4211,11 +4343,20 @@ export const AppProvider = ({ children }) => {
   }
 
   // Load all attendance data for all Sunday dates in the current month
-  const loadAllAttendanceData = async () => {
+  const loadAllAttendanceData = async (options = {}) => {
     try {
+      const { forceOnline = false } = options
+      if (shouldUseOfflineData && !forceOnline) {
+        const snapshotRecord = await getOfflineSnapshot().catch(() => null)
+        const snapshot = snapshotRecord?.snapshot
+      if (snapshot?.attendanceData && applyOfflineSnapshot(snapshotRecord)) {
+          return snapshot.attendanceData
+        }
+      }
+
       if (isDeveloperBypass || !isSupabaseConfigured()) {
         console.log('Demo mode - attendance data will be managed locally')
-        return
+        return attendanceData
       }
 
       // Get all attendance columns for the current table
@@ -4223,7 +4364,7 @@ export const AppProvider = ({ children }) => {
 
       if (attendanceColumns.length === 0) {
         appContextLog('No attendance columns found in current table')
-        return
+        return attendanceData
       }
 
       // Build select query for all attendance columns
@@ -4300,9 +4441,11 @@ export const AppProvider = ({ children }) => {
       // Update attendance data state
       setAttendanceData(newAttendanceData)
       console.log('Loaded attendance data for all dates:', Object.keys(newAttendanceData), 'from', allData.length, 'rows')
+      return newAttendanceData
 
     } catch (error) {
       console.error('Error loading attendance data:', error)
+      return attendanceData
     }
   }
 
@@ -4369,30 +4512,47 @@ export const AppProvider = ({ children }) => {
 
     setIsPreparingOffline(true)
     try {
+      let snapshotMembers = members
+      let snapshotAttendanceData = attendanceData
       if (currentTable) {
-        await Promise.all([
-          fetchMembers(currentTable, { forceRefresh: true, background: true }).catch((error) => {
+        const [freshMembers, freshAttendance] = await Promise.all([
+          fetchMembers(currentTable, { forceRefresh: true, background: true, forceOnline: true }).catch((error) => {
             console.warn('Offline preparation could not refresh members:', error)
+            return null
           }),
-          loadAllAttendanceData().catch((error) => {
+          loadAllAttendanceData({ forceOnline: true }).catch((error) => {
             console.warn('Offline preparation could not refresh attendance:', error)
+            return null
           })
         ])
+        if (Array.isArray(freshMembers)) {
+          snapshotMembers = freshMembers
+        }
+        if (freshAttendance && typeof freshAttendance === 'object') {
+          snapshotAttendanceData = freshAttendance
+        }
       }
 
       const cachedAt = await saveOfflineSnapshot({
-        members,
+        members: snapshotMembers,
         monthlyTables,
         currentTable,
-        attendanceData,
+        attendanceData: snapshotAttendanceData,
         selectedAttendanceDate: selectedAttendanceDate ? getLocalDateString(selectedAttendanceDate) : null,
         workspace: preferences?.workspace_name || null,
+        authenticated_user_id: user?.id || null,
+        data_owner_id: dataOwnerId || user?.id || null,
+        is_collaborator: isCollaborator,
+        is_admin_collaborator: isAdminCollaborator,
+        owner_email: ownerEmail || null,
         saved_at: new Date().toISOString()
       })
 
       await refreshOfflineStatus()
       setOfflineStatusMessage('Offline data is ready.')
-      toast.success('Offline data is ready on this device.')
+      notify.success('You can now use the app without internet.', {
+        title: 'Offline data is ready.'
+      })
       return { success: true, cachedAt }
     } catch (error) {
       console.error('Failed to prepare offline data:', error)
@@ -4421,9 +4581,13 @@ export const AppProvider = ({ children }) => {
   }
 
   const syncOfflineChanges = async () => {
-    if (!isOnline) {
+    if (!isOnline || !isBrowserOnline()) {
       toast.info('You are offline. Sync will be available when the connection returns.')
       return { success: false, error: 'offline' }
+    }
+    if (offlineMode === 'offline') {
+      toast.info('Switch to Auto or Online before syncing saved changes.')
+      return { success: false, error: 'forced-offline' }
     }
 
     setIsSyncingOffline(true)
@@ -4511,12 +4675,19 @@ export const AppProvider = ({ children }) => {
       await refreshOfflineStatus()
 
       if (conflicts || failed || waitingForMonth) {
-        toast.warn(`Sync finished: ${synced} synced, ${conflicts} conflict${conflicts === 1 ? '' : 's'}, ${failed + waitingForMonth} still pending.`)
+        notify.error('Changes are still saved locally.', {
+          title: 'Sync failed',
+          persistent: true
+        })
       } else {
-        toast.success(synced ? `${synced} offline change${synced === 1 ? '' : 's'} synced.` : 'No offline changes to sync.')
+        notify.sync(synced ? 'All offline changes synced.' : 'No offline changes to sync.', {
+          title: synced ? 'Sync complete' : 'Sync status'
+        })
       }
 
-      setOfflineStatusMessage(`${synced} synced, ${conflicts + failed + waitingForMonth} still pending.`)
+      setOfflineStatusMessage(conflicts || failed || waitingForMonth
+        ? 'Sync failed - changes are still saved locally.'
+        : (synced ? 'All offline changes synced.' : 'No offline changes to sync.'))
       return { success: conflicts === 0 && failed === 0, synced, conflicts, failed, waitingForMonth }
     } finally {
       setIsSyncingOffline(false)
@@ -4740,6 +4911,11 @@ export const AppProvider = ({ children }) => {
     missingInfoPromptEnabled,
     setMissingInfoPromptEnabled,
     isOnline,
+    offlineMode,
+    setOfflineMode,
+    shouldUseOfflineData,
+    isOfflineModeActive,
+    offlineModeStatus,
     offlineCacheMeta,
     pendingSyncCount,
     offlinePendingChanges,
@@ -4786,7 +4962,8 @@ export const AppProvider = ({ children }) => {
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
     autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, isDeveloperBypass,
-    isOnline, offlineCacheMeta, pendingSyncCount, offlinePendingChanges, offlineStatusMessage, isPreparingOffline, isSyncingOffline,
+    isOnline, offlineMode, setOfflineMode, shouldUseOfflineData, isOfflineModeActive, offlineModeStatus,
+    offlineCacheMeta, pendingSyncCount, offlinePendingChanges, offlineStatusMessage, isPreparingOffline, isSyncingOffline,
     prepareOfflineData, clearOfflineCacheData, syncOfflineChanges, refreshOfflineStatus,
     hasAccess, isCollaborator, isAdminCollaborator, dataOwnerId, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil,
     setPersonalCalendarMode, ownerStickyMonth, ownerStickySundays, adminSyncNotice, acknowledgeAdminSync,

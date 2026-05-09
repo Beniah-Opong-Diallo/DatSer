@@ -1,51 +1,70 @@
 import React, { useEffect, useState } from 'react'
-import { App as CapacitorApp } from '@capacitor/app'
-import { Browser } from '@capacitor/browser'
-import { Capacitor } from '@capacitor/core'
-import { isVersionGreater } from '../utils/versionCompare'
+import { AlertTriangle, Download, Info, X } from 'lucide-react'
+import {
+  fetchLatestAppRelease,
+  getInstalledAppInfo,
+  isAndroidNative,
+  isReleaseNewer,
+  openApkDownload
+} from '../utils/appUpdates'
+import { notify } from '../utils/notify'
 
-const VERSION_FILE = '/app-version.json'
 const SKIP_KEY_PREFIX = 'datser_apk_update_skip_'
 
 function AppUpdatePrompt() {
   const [updateInfo, setUpdateInfo] = useState(null)
+  const [showDetails, setShowDetails] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
     const checkForUpdate = async () => {
-      if (!Capacitor.isNativePlatform()) return
+      if (!isAndroidNative()) return
 
       try {
-        const appInfo = await CapacitorApp.getInfo()
-        const response = await fetch(`${VERSION_FILE}?t=${Date.now()}`, {
-          cache: 'no-store'
+        const appInfo = await getInstalledAppInfo()
+        const release = await fetchLatestAppRelease()
+        if (!release?.apkUrl || !isReleaseNewer(release, appInfo)) return
+
+        const skipKey = `${SKIP_KEY_PREFIX}${release.versionName}_${release.versionCode}`
+        if (!release.forceUpdate && localStorage.getItem(skipKey) === 'true') return
+
+        const nextUpdate = { ...release, appInfo, skipKey }
+        if (cancelled) return
+
+        setUpdateInfo(nextUpdate)
+        notify.update('Version ' + release.versionName + ' is ready to download.', {
+          title: release.forceUpdate ? 'Update required before continuing.' : 'New DatSer update available.',
+          details: release.description,
+          persistent: release.forceUpdate,
+          defaultExpanded: release.forceUpdate,
+          toastId: `apk-update-${release.versionName}-${release.versionCode}`,
+          actions: [
+            {
+              label: 'Download Update',
+              variant: 'primary',
+              dismiss: false,
+              onClick: () => openApkDownload(release.apkUrl)
+            },
+            {
+              label: 'View Details',
+              dismiss: false,
+              onClick: () => setShowDetails(true)
+            },
+            ...(!release.forceUpdate
+              ? [{
+                  label: 'Later',
+                  onClick: () => {
+                    localStorage.setItem(skipKey, 'true')
+                    setUpdateInfo(null)
+                    setShowDetails(false)
+                  }
+                }]
+              : [])
+          ]
         })
-
-        if (!response.ok) return
-
-        const data = await response.json()
-        if (!data?.latestVersion || !data?.apkUrl) return
-
-        const currentVersion = appInfo.version || '0.0.0'
-        if (!isVersionGreater(data.latestVersion, currentVersion)) return
-
-        const latestVersion = String(data.latestVersion)
-        if (!data.forceUpdate && localStorage.getItem(`${SKIP_KEY_PREFIX}${latestVersion}`) === 'true') {
-          return
-        }
-
-        if (!cancelled) {
-          setUpdateInfo({
-            currentVersion,
-            latestVersion,
-            apkUrl: String(data.apkUrl),
-            forceUpdate: Boolean(data.forceUpdate),
-            message: data.message || 'A new DatSer app update is available.'
-          })
-        }
-      } catch {
-        // Update checks must never interrupt normal app usage.
+      } catch (error) {
+        console.warn('APK update check failed:', error)
       }
     }
 
@@ -56,48 +75,77 @@ function AppUpdatePrompt() {
     }
   }, [])
 
-  if (!updateInfo) return null
+  if (!updateInfo || (!updateInfo.forceUpdate && !showDetails)) return null
 
-  const openUpdate = async () => {
-    try {
-      await Browser.open({ url: updateInfo.apkUrl })
-    } catch {
-      window.open(updateInfo.apkUrl, '_blank', 'noopener,noreferrer')
-    }
-  }
+  const openUpdate = () => openApkDownload(updateInfo.apkUrl)
 
   const skipUpdate = () => {
     if (updateInfo.forceUpdate) return
-    localStorage.setItem(`${SKIP_KEY_PREFIX}${updateInfo.latestVersion}`, 'true')
+    localStorage.setItem(updateInfo.skipKey, 'true')
     setUpdateInfo(null)
+    setShowDetails(false)
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 backdrop-blur-sm sm:items-center">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-sm sm:items-center">
       <div
-        className="w-full max-w-md rounded-[28px] border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        className="w-full max-w-md rounded-[24px] border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
         role="dialog"
         aria-modal={updateInfo.forceUpdate}
         aria-labelledby="datser-apk-update-title"
       >
         <div className="mb-4 flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-lg font-bold text-orange-700 dark:bg-orange-900/50 dark:text-orange-200">
-            D
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+            updateInfo.forceUpdate
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200'
+              : 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-200'
+          }`}>
+            {updateInfo.forceUpdate ? <AlertTriangle className="h-5 w-5" /> : <Download className="h-5 w-5" />}
           </div>
-          <div>
-            <h2 id="datser-apk-update-title" className="text-lg font-bold text-gray-950 dark:text-white">
-              {updateInfo.forceUpdate ? 'Update required' : 'App update available'}
-            </h2>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h2 id="datser-apk-update-title" className="text-lg font-bold text-gray-950 dark:text-white">
+                {updateInfo.forceUpdate ? 'Update required before continuing.' : 'New DatSer update available.'}
+              </h2>
+              {!updateInfo.forceUpdate && (
+                <button
+                  type="button"
+                  onClick={() => setShowDetails(false)}
+                  className="grid h-8 w-8 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  aria-label="Close update details"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
-              {updateInfo.message}
+              Version {updateInfo.versionName} is ready to download.
             </p>
           </div>
         </div>
 
-        <div className="mb-5 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-          Current version: <span className="font-semibold">{updateInfo.currentVersion}</span>
-          <span className="mx-2 text-gray-400">/</span>
-          Latest version: <span className="font-semibold">{updateInfo.latestVersion}</span>
+        <div className="mb-4 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+          <p className="font-semibold">{updateInfo.title}</p>
+          <p className="mt-1 text-gray-600 dark:text-gray-300">{updateInfo.description}</p>
+          <p className="mt-3 flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            Android will open the APK download or installer flow. You will still confirm Install or Update manually.
+          </p>
+        </div>
+
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+          <div>
+            <p className="text-gray-400">Current</p>
+            <p className="font-semibold text-gray-900 dark:text-white">
+              {updateInfo.appInfo.versionName} ({updateInfo.appInfo.versionCode || 'web'})
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-400">Latest</p>
+            <p className="font-semibold text-gray-900 dark:text-white">
+              {updateInfo.versionName} ({updateInfo.versionCode})
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -115,7 +163,7 @@ function AppUpdatePrompt() {
             onClick={openUpdate}
             className="rounded-2xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-600/20 transition hover:bg-orange-700"
           >
-            Download update
+            Download Update
           </button>
         </div>
       </div>

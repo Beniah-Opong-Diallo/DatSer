@@ -98,7 +98,7 @@ const CustomCloseButton = ({ closeToast }) => {
           animation: 'fadeInToast 0.15s ease-out',
         }}
       >
-        🗑 Close All
+        Close All
       </button>
     );
   }
@@ -126,7 +126,7 @@ const CustomCloseButton = ({ closeToast }) => {
         WebkitUserSelect: 'none',
       }}
     >
-      ✕
+      x
     </button>
   );
 }
@@ -407,7 +407,7 @@ function AppContent({ isMobile }) {
   }
 
   return (
-    <div className={`min-app-vh app-shell transition-colors duration-200 ios-overscroll-none ${isMobile ? 'mobile-toast-top' : ''}`}>
+    <div className="min-app-vh app-shell transition-colors duration-200 ios-overscroll-none">
       <Header
         currentView={currentView}
         setCurrentView={setCurrentView}
@@ -452,7 +452,12 @@ function AppContent({ isMobile }) {
       )}
 
       <main className={`app-main-safe ${currentView === 'dashboard' ? 'app-main-dashboard-safe' : ''} mx-auto px-0 sm:px-4 pt-0 pb-6 md:py-6 w-full`}>
-        <OfflineStatusBanner />
+        <OfflineStatusBanner
+          onOpenOfflineSettings={() => {
+            setCurrentView('settings')
+            setNavigateToSettingsSection({ section: 'data', settingId: 'offline_mode' })
+          }}
+        />
         {currentView === 'dashboard' && (
           <Dashboard isAdmin={isAdmin} />
         )}
@@ -638,7 +643,7 @@ function AppContent({ isMobile }) {
         className="datser-toast-stack"
         toastClassName="datser-toast"
         bodyClassName="datser-toast-body"
-        position={isMobile ? 'top-center' : 'bottom-right'}
+        position="top-center"
         autoClose={3200}
         transition={Slide}
         hideProgressBar={false}
@@ -649,10 +654,7 @@ function AppContent({ isMobile }) {
         draggable={false}
         closeButton={CustomCloseButton}
         pauseOnHover
-        limit={4}
-        style={isMobile
-          ? { top: 'calc(env(safe-area-inset-top) + 10px)' }
-          : { bottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}
+        limit={6}
       />
     </div>
   )

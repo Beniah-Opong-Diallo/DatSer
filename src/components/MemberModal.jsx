@@ -10,6 +10,7 @@ import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import DatePicker from './DatePicker'
 import CombinedDatePicker from './CombinedDatePicker'
 import TagSelector from './TagSelector'
+import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
 
 const MemberModal = ({ isOpen, onClose }) => {
   const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
@@ -173,6 +174,12 @@ const MemberModal = ({ isOpen, onClose }) => {
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [isOverrideMode, setIsOverrideMode] = useState(false)
+  const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
+    onDismiss: () => {
+      selection()
+      onClose()
+    }
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -395,13 +402,23 @@ const MemberModal = ({ isOpen, onClose }) => {
       {/* Drag handle for mobile */}
       <div className="flex justify-center pt-3 pb-1 sm:hidden absolute left-0 right-0" style={{ top: 'calc(10vh)' }}>
       </div>
-      <div className={`shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
+      <div
+        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
         ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
-        }`} data-testid="add-member-modal">
+        }`}
+        data-testid="add-member-modal"
+        style={sheetStyle}
+      >
         {/* Drag handle - visible on mobile */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        <div
+          className="mobile-sheet-drag-zone flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"
+          role="button"
+          tabIndex={0}
+          aria-label="Drag down to close"
+          {...dragHandleProps}
+        >
+          <div className="mobile-sheet-drag-handle w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
         </div>
         {/* Header */}
         <div className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode

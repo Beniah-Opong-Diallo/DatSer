@@ -10,6 +10,7 @@ import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import DatePicker from './DatePicker'
 import CombinedDatePicker from './CombinedDatePicker'
 import TagSelector from './TagSelector'
+import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
 
 const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
   const { updateMember, markAttendance, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, currentTable, attendanceData, members, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
@@ -235,6 +236,12 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     parent_phone_1: '',
     parent_name_2: '',
     parent_phone_2: ''
+  })
+  const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
+    onDismiss: () => {
+      selection()
+      onClose()
+    }
   })
 
   const handleSubmit = async (e) => {
@@ -540,16 +547,23 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
       className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate"
       onClick={() => { selection(); onClose() }}
     >
-      <div 
-        className={`shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${overrideMode
-        ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
+      <div
+        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${overrideMode
+        ? 'bg-orange-50 dark:bg-orange-900 ring-orange-300 dark:ring-orange-700'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
         }`}
         data-testid="edit-member-modal"
+        style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        <div
+          className="mobile-sheet-drag-zone flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"
+          role="button"
+          tabIndex={0}
+          aria-label="Drag down to close"
+          {...dragHandleProps}
+        >
+          <div className="mobile-sheet-drag-handle w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
         </div>
         {/* Header */}
         <div className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${overrideMode
@@ -579,7 +593,8 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <form onSubmit={handleSubmit} className={`flex flex-col flex-1 min-h-0 ${overrideMode ? 'bg-orange-50 dark:bg-orange-900' : 'bg-white dark:bg-gray-800'}`}>
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 scrollbar-hide overscroll-contain" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
           {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1081,8 +1096,13 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
             />
           </div>
 
+          </div>
+
           {/* Form Actions */}
-          <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex space-x-3">
+          <div
+            className={`flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 pt-3 flex space-x-3 rounded-b-none sm:rounded-b-xl ${overrideMode ? 'bg-orange-50 dark:bg-orange-900' : 'bg-white dark:bg-gray-800'}`}
+            style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}
+          >
             <button
                   type="button"
                   onClick={() => { selection(); onClose() }}

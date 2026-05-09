@@ -147,6 +147,14 @@ export const SETTINGS_SEARCH_INDEX = [
         icon: Mail
     },
     {
+        id: 'app_version',
+        section: 'account',
+        label: 'App Version',
+        description: 'View installed APK version and wrapper mode',
+        keywords: 'version apk android local bundled live wrapper update build versionCode versionName',
+        icon: Monitor
+    },
+    {
         id: 'date_of_birth',
         section: 'account',
         label: 'Date of Birth',

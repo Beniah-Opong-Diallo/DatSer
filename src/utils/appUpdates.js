@@ -1,0 +1,199 @@
+import { App as CapacitorApp } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
+import { supabase } from '../lib/supabase'
+import { compareVersions } from './versionCompare'
+
+export const APP_UPDATES_BUCKET = 'app-updates'
+export const APK_FILE_LIMIT_BYTES = 150 * 1024 * 1024
+
+export const isAndroidNative = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+
+export const getRuntimeModeLabel = () => {
+  if (!Capacitor.isNativePlatform()) return 'Website'
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : ''
+  return protocol === 'http:' || protocol === 'https:' ? 'Live Website Wrapper' : 'Local Bundled'
+}
+
+export const getInstalledAppInfo = async () => {
+  if (!Capacitor.isNativePlatform()) {
+    return {
+      versionName: import.meta.env.VITE_APP_VERSION || 'web',
+      versionCode: 0,
+      runtimeMode: 'Website',
+      platform: 'web'
+    }
+  }
+
+  try {
+    const info = await CapacitorApp.getInfo()
+    return {
+      versionName: info.version || '0.0.0',
+      versionCode: Number(info.build || 0),
+      runtimeMode: getRuntimeModeLabel(),
+      platform: Capacitor.getPlatform()
+    }
+  } catch {
+    return {
+      versionName: '0.0.0',
+      versionCode: 0,
+      runtimeMode: getRuntimeModeLabel(),
+      platform: Capacitor.getPlatform()
+    }
+  }
+}
+
+export const normalizeRelease = (release) => {
+  if (!release) return null
+  return {
+    id: release.id || null,
+    versionName: String(release.version_name || release.latestVersion || ''),
+    versionCode: Number(release.version_code || release.versionCode || 0),
+    title: release.title || 'DatSer update',
+    description: release.description || release.message || 'A new DatSer app update is available.',
+    apkUrl: release.apk_url || release.apkUrl || '',
+    forceUpdate: Boolean(release.force_update ?? release.forceUpdate),
+    isActive: Boolean(release.is_active ?? true),
+    publishedAt: release.published_at || release.publishedAt || null,
+    createdAt: release.created_at || release.createdAt || null,
+    createdBy: release.created_by || release.createdBy || null
+  }
+}
+
+export const isReleaseNewer = (release, appInfo) => {
+  if (!release || !appInfo) return false
+  if (release.versionCode && appInfo.versionCode) {
+    return release.versionCode > appInfo.versionCode
+  }
+  return compareVersions(release.versionName, appInfo.versionName) > 0
+}
+
+export const fetchLatestAppRelease = async () => {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('app_releases')
+      .select('*')
+      .eq('is_active', true)
+      .order('version_code', { ascending: false })
+      .order('published_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!error && data) {
+      return normalizeRelease(data)
+    }
+
+    const missingBackend =
+      error?.code === '42P01' ||
+      error?.code === 'PGRST205' ||
+      String(error?.message || '').includes('app_releases')
+    if (error && !missingBackend) {
+      throw error
+    }
+  }
+
+  const response = await fetch(`/app-version.json?t=${Date.now()}`, { cache: 'no-store' })
+  if (!response.ok) return null
+  return normalizeRelease(await response.json())
+}
+
+export const fetchReleaseHistory = async () => {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('app_releases')
+    .select('*')
+    .order('version_code', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    const missingBackend =
+      error?.code === '42P01' ||
+      error?.code === 'PGRST205' ||
+      String(error?.message || '').includes('app_releases')
+    if (missingBackend) return []
+    throw error
+  }
+
+  return (data || []).map(normalizeRelease)
+}
+
+export const validateApkFile = (file) => {
+  if (!file) return 'Choose an APK file first.'
+  if (!file.name?.toLowerCase().endsWith('.apk')) return 'Only .apk files are allowed.'
+  if (file.size > APK_FILE_LIMIT_BYTES) return 'APK is too large. Keep updates under 150 MB.'
+  return null
+}
+
+export const uploadApkRelease = async ({ file, versionName, versionCode, title, description, forceUpdate, isActive, userId }) => {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const validationError = validateApkFile(file)
+  if (validationError) throw new Error(validationError)
+
+  const cleanVersion = String(versionName || '').trim()
+  const numericCode = Number(versionCode)
+  if (!cleanVersion) throw new Error('Version name is required.')
+  if (!Number.isFinite(numericCode) || numericCode < 1) throw new Error('Version code must be a positive number.')
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+  const storagePath = `${cleanVersion}-${numericCode}/${Date.now()}-${safeName}`
+  const { error: uploadError } = await supabase.storage
+    .from(APP_UPDATES_BUCKET)
+    .upload(storagePath, file, {
+      contentType: 'application/vnd.android.package-archive',
+      upsert: false
+    })
+
+  if (uploadError) throw uploadError
+
+  const { data: publicData } = supabase.storage.from(APP_UPDATES_BUCKET).getPublicUrl(storagePath)
+  const apkUrl = publicData?.publicUrl
+  if (!apkUrl) throw new Error('Could not create an APK download URL.')
+
+  const { data, error } = await supabase
+    .from('app_releases')
+    .insert({
+      version_name: cleanVersion,
+      version_code: numericCode,
+      title: title || `DatSer ${cleanVersion}`,
+      description: description || '',
+      apk_url: apkUrl,
+      force_update: Boolean(forceUpdate),
+      is_active: Boolean(isActive),
+      published_at: isActive ? new Date().toISOString() : null,
+      created_by: userId || null
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return normalizeRelease(data)
+}
+
+export const setReleasePublished = async (releaseId, isActive) => {
+  if (!supabase) throw new Error('Supabase is not configured.')
+  const { data, error } = await supabase
+    .from('app_releases')
+    .update({
+      is_active: Boolean(isActive),
+      published_at: isActive ? new Date().toISOString() : null
+    })
+    .eq('id', releaseId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return normalizeRelease(data)
+}
+
+export const openApkDownload = async (apkUrl) => {
+  if (!apkUrl) return
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url: apkUrl })
+      return
+    }
+  } catch {
+    // Fall through to a normal browser window.
+  }
+  window.open(apkUrl, '_blank', 'noopener,noreferrer')
+}

@@ -6,6 +6,7 @@ import CombinedDatePicker from './CombinedDatePicker'
 import { X, AlertCircle, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
+import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
 
 const MissingDataModal = ({
     member,
@@ -35,6 +36,9 @@ const MissingDataModal = ({
     const isSaveInFlightRef = useRef(false)
     // Tracks whether we have already initiated closing to block ghost-click re-opens
     const isClosingRef = useRef(false)
+    const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
+        onDismiss: () => onClose?.()
+    })
 
     const levelOptions = [
         'JHS1', 'JHS2', 'JHS3',
@@ -349,14 +353,23 @@ const MissingDataModal = ({
     return (
         <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
             {/* Modal sheet: flex-col so header+footer never scroll */}
-            <div className={`w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 ring-1 sm:rounded-xl rounded-t-2xl rounded-b-none sm:rounded-b-xl animate-scale-in ${isOverrideMode
-                ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
+            <div
+                className={`mobile-bottom-sheet w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 ring-1 sm:rounded-xl rounded-t-2xl rounded-b-none sm:rounded-b-xl animate-scale-in ${isOverrideMode
+                ? 'bg-orange-50 dark:bg-orange-900 ring-orange-300 dark:ring-orange-700'
                 : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
-                }`}>
+                }`}
+                style={sheetStyle}
+            >
 
                 {/* Drag handle - mobile only */}
-                <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-                    <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                <div
+                    className="mobile-sheet-drag-zone flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Drag down to close"
+                    {...dragHandleProps}
+                >
+                    <div className="mobile-sheet-drag-handle w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
                 </div>
 
                 {/* Sticky header */}
