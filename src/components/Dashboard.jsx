@@ -36,6 +36,62 @@ const getDateString = (date) => {
   return `${year}-${month}-${day}`
 }
 
+const getOrdinalSuffix = (day) => {
+  const value = Number(day)
+  if (!Number.isFinite(value)) return 'th'
+  if (value % 100 >= 11 && value % 100 <= 13) return 'th'
+  switch (value % 10) {
+    case 1:
+      return 'st'
+    case 2:
+      return 'nd'
+    case 3:
+      return 'rd'
+    default:
+      return 'th'
+  }
+}
+
+const normalizeAttendanceValue = (value) => {
+  if (value === true || value === false) return value
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'present') return true
+  if (normalized === 'absent') return false
+  return undefined
+}
+
+const getLegacyAttendanceColumnName = (dateKey) => {
+  if (!dateKey) return null
+  const parts = String(dateKey).split('-')
+  const day = Number(parts[2])
+  if (!Number.isFinite(day)) return null
+  return `Attendance ${day}${getOrdinalSuffix(day)}`
+}
+
+const resolveMemberAttendanceForDate = (member, dateKey, attendanceMap = {}) => {
+  if (!member || !dateKey) return undefined
+
+  if (Object.prototype.hasOwnProperty.call(attendanceMap, member.id)) {
+    const mapValue = normalizeAttendanceValue(attendanceMap[member.id])
+    if (mapValue !== undefined) return mapValue
+  }
+
+  const normalizedDateKey = String(dateKey).replace(/-/g, '_')
+  const newColumnName = `attendance_${normalizedDateKey}`
+  const legacyColumnName = getLegacyAttendanceColumnName(dateKey)
+
+  for (const key in member) {
+    const keyLower = key.toLowerCase()
+    if (keyLower === newColumnName || key === legacyColumnName) {
+      const memberValue = normalizeAttendanceValue(member[key])
+      if (memberValue !== undefined) return memberValue
+    }
+  }
+
+  return undefined
+}
+
 const Dashboard = ({ isAdmin = false }) => {
   const {
     filteredMembers: contextFilteredMembers,
@@ -225,69 +281,121 @@ const Dashboard = ({ isAdmin = false }) => {
     return () => clearTimeout(tid)
   }, [localSearchTerm])
 
-  // Fetch workspace tags and member tags for filtering
-  useEffect(() => {
-    const fetchTags = async () => {
-      const ownerId = dataOwnerId || user?.id
-      if (!ownerId || isDeveloperBypass || !isSupabaseConfigured()) {
-        setWorkspaceTags([])
+  const selectedTagFilters = useMemo(() => (
+    Array.isArray(tagFilter)
+      ? tagFilter.filter(Boolean)
+      : (tagFilter ? [tagFilter] : [])
+  ), [tagFilter])
+  const hasTagFilters = selectedTagFilters.length > 0
+
+  const getTagIdFromEntry = (entry) => {
+    if (!entry) return null
+    if (typeof entry === 'string' || typeof entry === 'number') return String(entry)
+    return entry.id != null ? String(entry.id) : (entry.tag_id != null ? String(entry.tag_id) : null)
+  }
+
+  const getMemberTagIdSet = (memberId) => {
+    const ids = new Set()
+    const addEntries = (entries) => {
+      if (!Array.isArray(entries)) return
+      entries.forEach(entry => {
+        const id = getTagIdFromEntry(entry)
+        if (id) ids.add(id)
+      })
+    }
+    addEntries(allMemberTags[memberId])
+    addEntries(memberTags[memberId])
+    return ids
+  }
+
+  const toggleTagFilter = (tagId) => {
+    const normalizedTagId = String(tagId)
+    setTagFilter(prev => {
+      const current = Array.isArray(prev) ? prev.map(String) : (prev ? [String(prev)] : [])
+      if (current.includes(normalizedTagId)) {
+        const next = current.filter(id => id !== normalizedTagId)
+        return next.length > 0 ? next : null
+      }
+      return [...current, normalizedTagId]
+    })
+  }
+
+  const refreshTagFilters = useCallback(async () => {
+    const ownerId = dataOwnerId || user?.id
+    if (!ownerId || isDeveloperBypass || !isSupabaseConfigured()) {
+      setWorkspaceTags([])
+      setAllMemberTags({})
+      return
+    }
+
+    try {
+      // Fetch workspace tags first so the filter options always render.
+      const { data: tagsData, error: tagsError } = await supabase.rpc('get_workspace_tags', {
+        p_owner_id: ownerId
+      })
+      if (tagsError) {
+        console.error('Error fetching workspace tags:', tagsError)
+        return
+      }
+
+      const nextWorkspaceTags = tagsData || []
+      setWorkspaceTags(nextWorkspaceTags)
+
+      if (!currentTable || !members || members.length === 0) {
         setAllMemberTags({})
         return
       }
-      
-      try {
-        // Fetch workspace tags - do this first and always, regardless of whether members exist
-        const { data: tagsData, error: tagsError } = await supabase.rpc('get_workspace_tags', {
-          p_owner_id: ownerId
-        })
-        if (tagsError) {
-          console.error('Error fetching workspace tags:', tagsError)
-          return
-        }
-        setWorkspaceTags(tagsData || [])
-        
-        // Only fetch member tags if we have members
-        if (!currentTable || !members || members.length === 0) return
-        
-        // Fetch tags for all visible members in this table
-        const memberIds = members.map(m => m.id).filter(Boolean)
-        if (memberIds.length === 0) return
-        
-        // Fetch member_tags for these specific members
-        const { data: memberTagsData, error: memberTagsError } = await supabase
-          .from('member_tags')
-          .select('*')
-          .eq('table_name', currentTable)
-          .in('member_id', memberIds)
-        
-        if (memberTagsError) {
-          console.error('Error fetching member tags:', memberTagsError)
-          return
-        }
-        
-        // Group tags by member_id and fetch full tag details
-        const tagsByMember = {}
-        for (const mt of memberTagsData || []) {
-          if (!tagsByMember[mt.member_id]) {
-            tagsByMember[mt.member_id] = []
-          }
-          // Find the full tag info from workspace tags
-          const fullTag = (tagsData || []).find(t => t.id === mt.tag_id)
-          if (fullTag) {
-            tagsByMember[mt.member_id].push(fullTag)
-          }
-        }
-        
-        // Update the memberTags state for all members
-        setMemberTags(prev => ({ ...prev, ...tagsByMember }))
-        setAllMemberTags(tagsByMember)
-      } catch (error) {
-        console.error('Error fetching tags for filter:', error)
+
+      const memberIds = members.map(m => m.id).filter(Boolean)
+      if (memberIds.length === 0) {
+        setAllMemberTags({})
+        return
       }
+
+      const { data: memberTagsData, error: memberTagsError } = await supabase
+        .from('member_tags')
+        .select('member_id, tag_id')
+        .eq('table_name', currentTable)
+        .in('member_id', memberIds)
+
+      if (memberTagsError) {
+        console.error('Error fetching member tags:', memberTagsError)
+        return
+      }
+
+      const tagById = new Map(nextWorkspaceTags.map(tag => [String(tag.id), tag]))
+      const tagDetailsByMember = {}
+      const tagIdsByMember = {}
+
+      for (const mt of memberTagsData || []) {
+        const memberId = mt.member_id
+        const tagId = mt.tag_id != null ? String(mt.tag_id) : null
+        if (!memberId || !tagId) continue
+
+        if (!tagDetailsByMember[memberId]) tagDetailsByMember[memberId] = []
+        if (!tagIdsByMember[memberId]) tagIdsByMember[memberId] = []
+
+        tagIdsByMember[memberId].push(tagId)
+        tagDetailsByMember[memberId].push(tagById.get(tagId) || { id: tagId, tag_id: tagId, name: 'Tag' })
+      }
+
+      setMemberTags(prev => {
+        const next = { ...prev }
+        memberIds.forEach(memberId => {
+          next[memberId] = tagDetailsByMember[memberId] || []
+        })
+        return next
+      })
+      setAllMemberTags(tagIdsByMember)
+    } catch (error) {
+      console.error('Error fetching tags for filter:', error)
     }
-    
-    fetchTags()
-  }, [dataOwnerId, user?.id, currentTable, isDeveloperBypass, isSupabaseConfigured, members?.length])
+  }, [dataOwnerId, user?.id, currentTable, isDeveloperBypass, isSupabaseConfigured, members])
+
+  // Fetch workspace tags and member tags for filtering.
+  useEffect(() => {
+    refreshTagFilters()
+  }, [refreshTagFilters])
 
   // Handle bulk attendance for long-press selection
   const handleLongPressBulkAction = async (present) => {
@@ -446,26 +554,16 @@ const Dashboard = ({ isAdmin = false }) => {
 
   // Function to check if a member has been edited (has attendance marked for any date)
   const isEditedMember = (member) => {
-    // First check: inspect member record columns from database
-    // This works even before attendanceData is loaded and persists across refreshes
-    // Support both OLD format (Attendance 7th) and NEW format (attendance_2025_12_07)
-    for (const key in member) {
-      const keyLower = key.toLowerCase()
-      const isOldFormat = key.startsWith('Attendance ')
-      const isNewFormat = /^attendance_\d{4}_\d{2}_\d{2}$/.test(keyLower)
-      if (isOldFormat || isNewFormat) {
-        const val = member[key]
-        // Check for any attendance value (Present, Absent, true, false)
-        if (val === 'Present' || val === 'Absent' || val === true || val === false) {
-          return true
-        }
-      }
-    }
+    // First check: inspect member record columns from database. This works before
+    // attendanceData is loaded and supports both old and date-keyed column names.
+    const editedViaRecord = sundayDates.some((dateKey) => (
+      resolveMemberAttendanceForDate(member, dateKey) !== undefined
+    ))
+    if (editedViaRecord) return true
 
     // Second check: attendanceData map (for real-time updates before DB sync)
     const editedViaMaps = sundayDates.some((date) => {
-      const map = attendanceData[date] || {}
-      const v = map[member.id]
+      const v = resolveMemberAttendanceForDate(member, date, attendanceData[date] || {})
       return v === true || v === false
     })
 
@@ -503,13 +601,10 @@ const Dashboard = ({ isAdmin = false }) => {
     }
 
     // Tag filter - use existing memberTags state
-    if (tagFilter) {
+    if (hasTagFilters) {
       filteredMembers = filteredMembers.filter(member => {
-        // Check if member has any tags in the existing memberTags state
-        const memberTagList = memberTags[member.id]
-        if (!memberTagList || !Array.isArray(memberTagList)) return false
-        // Check if any of the member's tags match the filter tag ID
-        return memberTagList.some(tag => tag && String(tag.id) === String(tagFilter))
+        const memberTagIds = getMemberTagIdSet(member.id)
+        return selectedTagFilters.some(tagId => memberTagIds.has(String(tagId)))
       })
     }
 
@@ -569,21 +664,7 @@ const Dashboard = ({ isAdmin = false }) => {
       }
       // Check both attendanceData map AND member record columns for the selected date
       const map = attendanceData[dateKey] || {}
-
-      // Helper to resolve attendance value for a member on this date
-      const getVal = (member) => {
-        if (map[member.id] === true) return true
-        if (map[member.id] === false) return false
-        for (const key in member) {
-          const keyLower = key.toLowerCase()
-          const newMatch = keyLower.match(/^attendance_(\d{4})_(\d{2})_(\d{2})$/)
-          if (newMatch && `${newMatch[1]}-${newMatch[2]}-${newMatch[3]}` === dateKey) {
-            if (member[key] === 'Present') return true
-            if (member[key] === 'Absent') return false
-          }
-        }
-        return undefined
-      }
+      const getVal = (member) => resolveMemberAttendanceForDate(member, dateKey, map)
 
       let filteredByDate = filteredMembers.filter(m => {
         const val = getVal(m)
@@ -641,16 +722,17 @@ const Dashboard = ({ isAdmin = false }) => {
       selectedDatesForCounting.forEach((dateKey) => {
         const map = attendanceData[dateKey] || {}
         for (const m of membersBase) {
-          const val = map[m.id]
+          const val = resolveMemberAttendanceForDate(m, dateKey, map)
           if (val === true) present += 1
           else if (val === false) absent += 1
         }
       })
     } else {
-      // All tab: count from map values directly to include all records
+      // All tab: count only current members so stale/deleted IDs do not inflate totals.
       selectedDatesForCounting.forEach((dateKey) => {
         const map = attendanceData[dateKey] || {}
-        for (const val of Object.values(map)) {
+        for (const member of members) {
+          const val = resolveMemberAttendanceForDate(member, dateKey, map)
           if (val === true) present += 1
           else if (val === false) absent += 1
         }
@@ -684,12 +766,13 @@ const Dashboard = ({ isAdmin = false }) => {
     const counts = {}
     sundayDates.forEach(d => {
       const map = attendanceData[d] || {}
-      Object.entries(map).forEach(([mid, val]) => {
-        if (val === true) counts[mid] = (counts[mid] || 0) + 1
+      members.forEach(member => {
+        const val = resolveMemberAttendanceForDate(member, d, map)
+        if (val === true) counts[member.id] = (counts[member.id] || 0) + 1
       })
     })
     return counts
-  }, [attendanceData, sundayDates])
+  }, [attendanceData, sundayDates, members])
 
   // Smart keep logic for duplicates (prioritize 3+ Sunday attendance)
   const groupKeepId = (members) => {
@@ -816,19 +899,13 @@ const Dashboard = ({ isAdmin = false }) => {
     const editedMembers = members.filter(isEditedMember)
     const acc = {}
     for (const dateStr of sundayDates) {
-      const map = attendanceData[dateStr]
+      const map = attendanceData[dateStr] || {}
       let p = 0
       let a = 0
-      if (map) {
-        for (const m of editedMembers) {
-          const val = map[m.id]
-          if (val === true) p += 1
-          else if (val === false) a += 1
-        }
-      } else {
-        // Fallback: show total edited members before attendance map loads
-        p = editedMembers.length
-        a = 0
+      for (const m of editedMembers) {
+        const val = resolveMemberAttendanceForDate(m, dateStr, map)
+        if (val === true) p += 1
+        else if (val === false) a += 1
       }
       acc[dateStr] = { present: p, absent: a }
     }
@@ -1091,9 +1168,14 @@ const Dashboard = ({ isAdmin = false }) => {
       })
 
       if (error) throw error
+      const nextTags = data || []
       setMemberTags(prev => ({
         ...prev,
-        [memberId]: data || []
+        [memberId]: nextTags
+      }))
+      setAllMemberTags(prev => ({
+        ...prev,
+        [memberId]: nextTags.map(tag => String(tag.id)).filter(Boolean)
       }))
     } catch (error) {
       console.error('Error fetching member tags:', error)
@@ -1458,13 +1540,9 @@ const Dashboard = ({ isAdmin = false }) => {
               const isSelected = selectedSundayDate === dateStr
               const dateObj = new Date(dateStr)
               const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-              const map = attendanceData[dateStr]
-              const presentCount = map
-                ? members.filter(member => map[member.id] === true).length
-                : 0
-              const absentCount = map
-                ? members.filter(member => map[member.id] === false).length
-                : 0
+              const map = attendanceData[dateStr] || {}
+              const presentCount = members.filter(member => resolveMemberAttendanceForDate(member, dateStr, map) === true).length
+              const absentCount = members.filter(member => resolveMemberAttendanceForDate(member, dateStr, map) === false).length
               return (
                 <button
                   key={dateStr}
@@ -1502,8 +1580,8 @@ const Dashboard = ({ isAdmin = false }) => {
                 const dateObj = new Date(selectedSundayDate)
                 const labelFull = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })
                 const map = attendanceData[selectedSundayDate] || {}
-                const presentMembers = members.filter(m => map[m.id] === true)
-                const absentMembers = members.filter(m => map[m.id] === false)
+                const presentMembers = members.filter(m => resolveMemberAttendanceForDate(m, selectedSundayDate, map) === true)
+                const absentMembers = members.filter(m => resolveMemberAttendanceForDate(m, selectedSundayDate, map) === false)
                 const presentCount = presentMembers.length
                 const absentCount = absentMembers.length
 
@@ -2436,9 +2514,13 @@ const Dashboard = ({ isAdmin = false }) => {
               if (editingMember.id && expandedMembers[editingMember.id]) {
                 fetchMemberTags(editingMember.id)
               }
+              refreshTagFilters()
               setEditingMember(null)
             }}
-            onTagsChange={() => { if (editingMember?.id) fetchMemberTags(editingMember.id) }}
+            onTagsChange={() => {
+              if (editingMember?.id) fetchMemberTags(editingMember.id)
+              refreshTagFilters()
+            }}
             member={editingMember}
           />
         </Suspense>
@@ -2449,7 +2531,10 @@ const Dashboard = ({ isAdmin = false }) => {
         <Suspense fallback={null}>
           <MemberModal
             isOpen={showMemberModal}
-            onClose={() => setShowMemberModal(false)}
+            onClose={() => {
+              setShowMemberModal(false)
+              refreshTagFilters()
+            }}
           />
         </Suspense>
       )}
@@ -2894,8 +2979,8 @@ const Dashboard = ({ isAdmin = false }) => {
                     {workspaceTags.map(tag => (
                       <button
                         key={tag.id}
-                        onClick={() => { selection(); setTagFilter(tagFilter === tag.id ? null : tag.id) }}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${tagFilter === tag.id
+                        onClick={() => { selection(); toggleTagFilter(tag.id) }}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${selectedTagFilters.includes(String(tag.id))
                           ? 'bg-primary-600 text-white shadow-md'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
@@ -2922,7 +3007,7 @@ const Dashboard = ({ isAdmin = false }) => {
                   setVisitorFilter(null)
                   setTagFilter(null)
                 }}
-                disabled={!genderFilter && !levelFilter && visitorFilter === null && !tagFilter}
+                disabled={!genderFilter && !levelFilter && visitorFilter === null && !hasTagFilters}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Clear All
@@ -2990,14 +3075,14 @@ const Dashboard = ({ isAdmin = false }) => {
             {/* Filter Button */}
             <button
               onClick={() => { selection(); setShowFilters(!showFilters) }}
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${showFilters || genderFilter || levelFilter || visitorFilter !== null || tagFilter
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-colors ${showFilters || genderFilter || levelFilter || visitorFilter !== null || hasTagFilters
                 ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-700'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               title="Filters"
             >
               <Filter className="w-4 h-4" />
-              {(genderFilter || levelFilter || visitorFilter !== null || tagFilter) && (
+              {(genderFilter || levelFilter || visitorFilter !== null || hasTagFilters) && (
                 <span className="w-2 h-2 bg-primary-500 rounded-full" />
               )}
             </button>

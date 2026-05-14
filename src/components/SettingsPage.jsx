@@ -34,7 +34,10 @@ import {
     Sparkles,
     Plus,
     Archive,
-    BellRing
+    BellRing,
+    GripVertical,
+    ArrowUp,
+    ArrowDown
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -42,6 +45,7 @@ import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
 import { supabase } from '../lib/supabase'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
+import { GUIDED_FORM_FIELD_LABELS, GUIDED_FORM_FIELD_ORDER, normalizeGuidedOrder, sortGuidedSteps } from '../utils/guidedFormSettings'
 import {
     getVisibleSettingsSearchItems,
     getVisibleSettingsSections,
@@ -63,6 +67,193 @@ const AdminControlsModal = React.lazy(() => import('./AdminControlsModal'))
 const ArchiveMonthModal = React.lazy(() => import('./ArchiveMonthModal'))
 const MonthPickerPopup = React.lazy(() => import('./MonthPickerPopup'))
 const CombinedDatePicker = React.lazy(() => import('./CombinedDatePicker'))
+
+const PreviewInput = ({ children, compact = false }) => (
+    <div className={`guided-preview-input ${compact ? 'guided-preview-input-compact' : ''}`}>
+        {children}
+    </div>
+)
+
+const GuidedOrderPreview = ({ settings }) => {
+    const orderedIds = useMemo(() => normalizeGuidedOrder(settings?.guidedOrder), [settings?.guidedOrder])
+    const previewSteps = useMemo(() => sortGuidedSteps(
+        orderedIds.map(id => ({
+            id,
+            enabled: !((id === 'tags' && !settings?.highlightTags) || (id === 'notes' && !settings?.highlightNotes))
+        })),
+        settings
+    ), [orderedIds, settings])
+    const guidableIds = useMemo(() => orderedIds.filter((id) => {
+        if (id === 'tags') return settings?.highlightTags
+        if (id === 'notes') return settings?.highlightNotes
+        return true
+    }), [orderedIds, settings?.highlightNotes, settings?.highlightTags])
+    const [activeIndex, setActiveIndex] = useState(0)
+
+    useEffect(() => {
+        if (activeIndex >= guidableIds.length) setActiveIndex(0)
+    }, [activeIndex, guidableIds.length])
+
+    useEffect(() => {
+        if (!settings?.enabled || guidableIds.length <= 1) return undefined
+        const timer = setInterval(() => {
+            setActiveIndex((current) => (current + 1) % guidableIds.length)
+        }, 1700)
+        return () => clearInterval(timer)
+    }, [guidableIds.length, settings?.enabled])
+
+    const activeId = settings?.enabled ? previewSteps.filter(step => step.enabled !== false)[activeIndex]?.id : null
+
+    const renderPreviewSection = (id) => {
+        const active = activeId === id
+        const isSkipped = (id === 'tags' && !settings?.highlightTags) || (id === 'notes' && !settings?.highlightNotes)
+        const wrapperClass = `guided-preview-section guided-form-field ${active ? 'guided-form-field-active' : ''} ${isSkipped ? 'guided-preview-section-muted' : ''}`
+
+        const cue = active && (
+            <div className={`guided-form-cue ${settings?.pulseNextButton === false ? '' : 'guided-form-cue-pulse'}`} aria-hidden="true">
+                <span>→</span>
+                <span>Next</span>
+            </div>
+        )
+
+        if (id === 'full-name') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Full Name *</label>
+                    <PreviewInput>Enter full name</PreviewInput>
+                </div>
+            )
+        }
+        if (id === 'gender') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Gender *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <PreviewInput compact>Male</PreviewInput>
+                        <PreviewInput compact>Female</PreviewInput>
+                    </div>
+                </div>
+            )
+        }
+        if (id === 'phone') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Phone Number</label>
+                    <PreviewInput>
+                        <span>598999819</span>
+                        <span className="guided-preview-pill">No Phone</span>
+                    </PreviewInput>
+                </div>
+            )
+        }
+        if (id === 'dob') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Date of Birth</label>
+                    <PreviewInput>Select date</PreviewInput>
+                </div>
+            )
+        }
+        if (id === 'age') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Age</label>
+                    <PreviewInput>Age</PreviewInput>
+                </div>
+            )
+        }
+        if (id === 'level') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Current Level</label>
+                    <PreviewInput>Select level</PreviewInput>
+                </div>
+            )
+        }
+        if (id === 'tags') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Tags {isSkipped && <span className="guided-preview-muted-label">not highlighted</span>}</label>
+                    <div className="flex flex-wrap gap-2">
+                        {['Choir Department', 'Dance Department', 'Data Department', 'Media Department', 'Protocol Department', 'Ushering Department'].map(tag => (
+                            <span key={tag} className="guided-preview-chip">{tag}</span>
+                        ))}
+                    </div>
+                </div>
+            )
+        }
+        if (id === 'attendance') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>May 2026 Sunday Attendance (Optional)</label>
+                    <div className="space-y-2">
+                        {[3, 10, 17, 24, 31].map(day => (
+                            <div key={day} className="guided-preview-attendance-row">
+                                <span>Sunday, May {day}, 2026</span>
+                                <div className="flex gap-1">
+                                    <span>Present</span>
+                                    <span>Absent</span>
+                                    <span>Clear</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )
+        }
+        if (id === 'parent') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Parent/Guardian Info</label>
+                    <div className="space-y-2">
+                        <span className="guided-preview-subtitle">Parent/Guardian 1 *</span>
+                        <PreviewInput>Name</PreviewInput>
+                        <PreviewInput><span>Phone Number</span><span className="guided-preview-pill">No Phone</span></PreviewInput>
+                        <span className="guided-preview-subtitle">Parent/Guardian 2 (Optional)</span>
+                        <PreviewInput>Name</PreviewInput>
+                        <PreviewInput><span>Phone Number</span><span className="guided-preview-pill">No Phone</span></PreviewInput>
+                    </div>
+                </div>
+            )
+        }
+        if (id === 'notes') {
+            return (
+                <div key={id} className={wrapperClass}>
+                    {cue}
+                    <label>Notes (Optional) {isSkipped && <span className="guided-preview-muted-label">not highlighted</span>}</label>
+                    <PreviewInput> </PreviewInput>
+                </div>
+            )
+        }
+        return null
+    }
+
+    return (
+        <div className="guided-preview-panel">
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Live Preview</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Preview only. It does not edit member data.</p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full ${settings?.enabled ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    {settings?.enabled ? 'Guide On' : 'Guide Off'}
+                </span>
+            </div>
+            <div className="guided-preview-scroll">
+                {orderedIds.map(renderPreviewSection)}
+            </div>
+        </div>
+    )
+}
 
 const createDeveloperQaQueue = () => ([
     { id: 'open-add', label: 'Open Add Member', status: 'pending' },
@@ -115,13 +306,14 @@ const LazyPanelFallback = () => (
 const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMember }) => {
     const { user, signOut, preferences, resetPassword, isDeveloperBypass } = useAuth()
     const { isDarkMode, toggleTheme, themeMode, setThemeMode, commandKEnabled, setCommandKEnabled } = useTheme()
-    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, isAdminCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate, deleteMember, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, refreshSearch, validateMemberData, getPastSundays, getMissingAttendance, autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil, setPersonalCalendarMode, isOnline, offlineMode, setOfflineMode, isOfflineModeActive, offlineModeStatus, offlineCacheMeta, pendingSyncCount, isPreparingOffline, isSyncingOffline, prepareOfflineData, clearOfflineCacheData, syncOfflineChanges } = useApp()
+    const { members, monthlyTables, currentTable, setCurrentTable, isSupabaseConfigured, createNewMonth, deleteMonthTable, isCollaborator, isAdminCollaborator, dataOwnerId, lockedDefaultDate, setCollaboratorOverride, selectedAttendanceDate, setAndSaveAttendanceDate, deleteMember, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, refreshSearch, validateMemberData, getPastSundays, getMissingAttendance, autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, guidedFormSettings, setGuidedFormSetting, personalCalendarMode, isPersonalManualMode, manualMonthTable, manualSundayDate, manualOverrideUntil, setPersonalCalendarMode, isOnline, offlineMode, setOfflineMode, isOfflineModeActive, offlineModeStatus, offlineCacheMeta, pendingSyncCount, isPreparingOffline, isSyncingOffline, prepareOfflineData, clearOfflineCacheData, syncOfflineChanges } = useApp()
     const { selection } = useHapticFeedback()
     const isDeveloperToolsEnabled = import.meta.env.DEV
 
     const [activeSection, setActiveSection] = useState(null) // null = show main list
     const [searchQuery, setSearchQuery] = useState('')
     const [highlightedSettingId, setHighlightedSettingId] = useState(null)
+    const [guidedOrderDragId, setGuidedOrderDragId] = useState(null)
     const highlightTimerRef = useRef(null)
     const [showHelpCenter, setShowHelpCenter] = useState(false)
     const [archiveMonth, setArchiveMonth] = useState(null) // table name to archive
@@ -213,6 +405,49 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
             toast.info('Missing info popup disabled')
         }
     }
+
+    const toggleGuidedFormSetting = (key, label) => {
+        const newValue = !guidedFormSettings?.[key]
+        setGuidedFormSetting(key, newValue)
+        toast.info(`${label} ${newValue ? 'enabled' : 'disabled'}`)
+    }
+
+    const guidedOrder = useMemo(
+        () => normalizeGuidedOrder(guidedFormSettings?.guidedOrder),
+        [guidedFormSettings?.guidedOrder]
+    )
+
+    const saveGuidedOrder = useCallback((nextOrder) => {
+        setGuidedFormSetting('guidedOrder', normalizeGuidedOrder(nextOrder))
+    }, [setGuidedFormSetting])
+
+    const moveGuidedOrderItem = useCallback((fieldId, direction) => {
+        const currentIndex = guidedOrder.indexOf(fieldId)
+        const nextIndex = currentIndex + direction
+        if (currentIndex < 0 || nextIndex < 0 || nextIndex >= guidedOrder.length) return
+        const nextOrder = [...guidedOrder]
+        const [moved] = nextOrder.splice(currentIndex, 1)
+        nextOrder.splice(nextIndex, 0, moved)
+        saveGuidedOrder(nextOrder)
+        selection()
+    }, [guidedOrder, saveGuidedOrder, selection])
+
+    const moveGuidedOrderItemTo = useCallback((fieldId, targetFieldId) => {
+        if (!fieldId || !targetFieldId || fieldId === targetFieldId) return
+        const nextOrder = [...guidedOrder]
+        const fromIndex = nextOrder.indexOf(fieldId)
+        const toIndex = nextOrder.indexOf(targetFieldId)
+        if (fromIndex < 0 || toIndex < 0) return
+        const [moved] = nextOrder.splice(fromIndex, 1)
+        nextOrder.splice(toIndex, 0, moved)
+        saveGuidedOrder(nextOrder)
+        selection()
+    }, [guidedOrder, saveGuidedOrder, selection])
+
+    const resetGuidedOrder = useCallback(() => {
+        saveGuidedOrder(GUIDED_FORM_FIELD_ORDER)
+        toast.info('Guided order reset')
+    }, [saveGuidedOrder])
 
 
     // Quick Attendance Access toggle removed
@@ -3044,6 +3279,46 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
         </div>
     )
 
+    const renderWorkspacePanel = (panelKey, title, description, iconClassName, icon, children) => {
+        const Icon = icon
+        const panelSettingIds = {
+            overview: 'workspace_stats',
+            controls: 'auto_all_dates',
+            months: 'current_month'
+        }
+        const panelSettingId = panelSettingIds[panelKey]
+
+        return (
+            <div
+                data-setting-id={panelSettingId}
+                tabIndex={-1}
+                className={`bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden ${getSettingTargetClass(panelSettingId)}`}
+            >
+                <button
+                    type="button"
+                    onClick={() => toggleWorkspacePanel(panelKey)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                >
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className={`p-2 rounded-xl ${iconClassName}`}>
+                            <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 dark:text-white">{title}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+                        </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${workspacePanels[panelKey] ? 'rotate-180' : ''}`} />
+                </button>
+                {workspacePanels[panelKey] && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-4 sm:p-5">
+                        {children}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     const renderWorkspaceSection = () => {
         const renderWorkspacePanel = (panelKey, title, description, iconClassName, icon, children) => {
             const Icon = icon
@@ -3124,144 +3399,6 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 </>
             )}
 
-            {renderWorkspacePanel(
-                'controls',
-                'Quick Controls',
-                'The main switches and admin actions without repeated panels.',
-                'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-                Zap,
-                <div className="space-y-3">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
-                    {/* Auto-Sunday Settings */}
-                    <div className="p-4 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                                <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="font-medium text-gray-900 dark:text-white">Automation Settings</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Configure auto-selection and attendance behavior</p>
-                            </div>
-                        </div>
-
-                        {/* Auto-All-Dates Toggle */}
-                        <div
-                            data-setting-id="auto_all_dates"
-                            tabIndex={-1}
-                            className={`flex items-center justify-between ${getSettingTargetClass('auto_all_dates')}`}
-                        >
-                            <div className="flex-1">
-                                <label className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                                    Auto-All-Dates
-                                    {autoAllDatesEnabled && (
-                                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">Active</span>
-                                    )}
-                                </label>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    When enabled, automatically mark all dates up to today as present
-                                </p>
-                            </div>
-                            <button
-                                onClick={toggleAutoAllDates}
-                                disabled={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled
-                                        ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
-                                        : autoAllDatesEnabled
-                                            ? 'bg-primary-600'
-                                            : 'bg-gray-200 dark:bg-gray-600'
-                                    }`}
-                                title={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled ? 'Auto-All-Dates is managed by workspace admin' : 'Toggle Auto-All-Dates'}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoAllDatesEnabled ? 'translate-x-6' : 'translate-x-1'
-                                        }`}
-                                />
-                            </button>
-                        </div>
-
-                        <div
-                            data-setting-id="missing_info_prompt"
-                            tabIndex={-1}
-                            className={`flex items-center justify-between ${getSettingTargetClass('missing_info_prompt')}`}
-                        >
-                            <div className="flex-1">
-                                <label className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                                    Missing Info Popup
-                                    {missingInfoPromptEnabled ? (
-                                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">On</span>
-                                    ) : (
-                                        <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">Off</span>
-                                    )}
-                                </label>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    Ask for missing phone, age, level, or older attendance before marking present or absent
-                                </p>
-                            </div>
-                            <button
-                                onClick={toggleMissingInfoPrompt}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${missingInfoPromptEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'}`}
-                                title="Toggle Missing Info Popup"
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${missingInfoPromptEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                                />
-                            </button>
-                        </div>
-
-                        {/* Collaborator Notice */}
-                        {isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled && (
-                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                                <div className="flex items-start gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                    <div className="text-xs text-amber-700 dark:text-amber-300">
-                                        <p className="font-medium mb-1">Workspace Admin Control</p>
-                                        <p>Automation settings are managed by the workspace administrator. Contact your admin to enable these features.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                    </div>
-
-                    <button
-                        onClick={() => setIsWorkspaceModalOpen(true)}
-                        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                                <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                            </div>
-                            <div className="text-left">
-                                <p className="font-medium text-gray-900 dark:text-white">Edit Workspace</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Change name and preferences</p>
-                            </div>
-                        </div>
-                        <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
-                    </button>
-
-                    {/* Admin Controls (Sticky Month & Sunday) */}
-                    {hasAdminAccess && (
-                        <div
-                            data-setting-id="admin_controls"
-                            tabIndex={-1}
-                            className={`p-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${getSettingTargetClass('admin_controls')}`}
-                            onClick={() => setIsAdminControlsOpen(true)}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                                    <Lock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                                </div>
-                                <div className="text-left">
-                                    <p className="font-medium text-gray-900 dark:text-white">Admin Controls</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Set sticky month and Sunday dates</p>
-                                </div>
-                            </div>
-                            <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
-                        </div>
-                    )}
-                    </div>
-                </div>
-            )}
 
             {renderWorkspacePanel(
                 'months',
@@ -4174,6 +4311,296 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
 
     const renderAccessibilitySection = () => (
         <div className="space-y-4">
+            {renderWorkspacePanel(
+                'controls',
+                'Quick Controls',
+                'The main switches and admin actions without repeated panels.',
+                'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+                Zap,
+                <div className="space-y-3">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+                    {/* Auto-Sunday Settings */}
+                    <div className="p-4 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-medium text-gray-900 dark:text-white">Automation Settings</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Configure auto-selection and attendance behavior</p>
+                            </div>
+                        </div>
+
+                        {/* Auto-All-Dates Toggle */}
+                        <div
+                            data-setting-id="auto_all_dates"
+                            tabIndex={-1}
+                            className={`flex items-center justify-between ${getSettingTargetClass('auto_all_dates')}`}
+                        >
+                            <div className="flex-1">
+                                <label className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                    Auto-All-Dates
+                                    {autoAllDatesEnabled && (
+                                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">Active</span>
+                                    )}
+                                </label>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    When enabled, automatically mark all dates up to today as present
+                                </p>
+                            </div>
+                            <button
+                                onClick={toggleAutoAllDates}
+                                disabled={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled
+                                        ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
+                                        : autoAllDatesEnabled
+                                            ? 'bg-primary-600'
+                                            : 'bg-gray-200 dark:bg-gray-600'
+                                    }`}
+                                title={isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled ? 'Auto-All-Dates is managed by workspace admin' : 'Toggle Auto-All-Dates'}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoAllDatesEnabled ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                />
+                            </button>
+                        </div>
+
+                        <div
+                            data-setting-id="missing_info_prompt"
+                            tabIndex={-1}
+                            className={`flex items-center justify-between ${getSettingTargetClass('missing_info_prompt')}`}
+                        >
+                            <div className="flex-1">
+                                <label className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                    Missing Info Popup
+                                    {missingInfoPromptEnabled ? (
+                                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">On</span>
+                                    ) : (
+                                        <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">Off</span>
+                                    )}
+                                </label>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Ask for missing phone, age, level, or older attendance before marking present or absent
+                                </p>
+                            </div>
+                            <button
+                                onClick={toggleMissingInfoPrompt}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${missingInfoPromptEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'}`}
+                                title="Toggle Missing Info Popup"
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${missingInfoPromptEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                />
+                            </button>
+                        </div>
+
+                        <div
+                            data-setting-id="guided_form_assistant"
+                            tabIndex={-1}
+                            className={`rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-900/10 p-3 space-y-3 ${getSettingTargetClass('guided_form_assistant')}`}
+                        >
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1">
+                                    <label className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                        Guided Form Assistant
+                                        {guidedFormSettings?.enabled ? (
+                                            <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-full">On</span>
+                                        ) : (
+                                            <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">Off</span>
+                                        )}
+                                    </label>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        Highlight the next field in Add Member, Edit Member, and Complete Missing Info.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => toggleGuidedFormSetting('enabled', 'Guided Form Assistant')}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${guidedFormSettings?.enabled ? 'bg-orange-600' : 'bg-gray-200 dark:bg-gray-600'}`}
+                                    title="Toggle Guided Form Assistant"
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${guidedFormSettings?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {[
+                                    ['highlightNotes', 'Highlight Notes Section'],
+                                    ['highlightTags', 'Highlight Tags Section'],
+                                    ['autoFocusNextField', 'Auto Focus Next Field'],
+                                    ['autoScrollToActiveField', 'Auto Scroll To Active Field'],
+                                    ['pulseNextButton', 'Pulse Next Button'],
+                                    ['manualNextAfterTyping', 'Require Tap Next After Typing'],
+                                    ['attendanceAutoPresent', 'Attendance Auto-Present Logic']
+                                ].map(([key, label]) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => toggleGuidedFormSetting(key, label)}
+                                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-left"
+                                    >
+                                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</span>
+                                        <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${guidedFormSettings?.[key] ? 'bg-orange-600' : 'bg-gray-200 dark:bg-gray-600'}`}>
+                                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${guidedFormSettings?.[key] ? 'translate-x-4' : 'translate-x-1'}`} />
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 p-3 space-y-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Show Assistant In</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Choose which forms show the Next guidance button.</p>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    {[
+                                        ['showInAddMember', 'Add New Member'],
+                                        ['showInEditMember', 'Edit Member'],
+                                        ['showInMissingInfo', 'Complete Missing Info']
+                                    ].map(([key, label]) => (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={() => toggleGuidedFormSetting(key, label)}
+                                            className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-left"
+                                        >
+                                            <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</span>
+                                            <span className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${guidedFormSettings?.[key] !== false ? 'bg-orange-600' : 'bg-gray-200 dark:bg-gray-600'}`}>
+                                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${guidedFormSettings?.[key] !== false ? 'translate-x-4' : 'translate-x-1'}`} />
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                                    <div className="flex items-center justify-between gap-3 mb-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-white">Customize Guided Order</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Drag rows or use arrows for mobile sorting.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={resetGuidedOrder}
+                                            className="text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {guidedOrder.map((fieldId, index) => {
+                                            const muted = (fieldId === 'tags' && !guidedFormSettings?.highlightTags) || (fieldId === 'notes' && !guidedFormSettings?.highlightNotes)
+                                            return (
+                                                <div
+                                                    key={fieldId}
+                                                    draggable
+                                                    onDragStart={() => setGuidedOrderDragId(fieldId)}
+                                                    onDragOver={(event) => event.preventDefault()}
+                                                    onDrop={(event) => {
+                                                        event.preventDefault()
+                                                        moveGuidedOrderItemTo(guidedOrderDragId, fieldId)
+                                                        setGuidedOrderDragId(null)
+                                                    }}
+                                                    onDragEnd={() => setGuidedOrderDragId(null)}
+                                                    className={`guided-order-row ${guidedOrderDragId === fieldId ? 'guided-order-row-dragging' : ''}`}
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="guided-order-handle" aria-hidden="true">
+                                                            <GripVertical className="w-4 h-4" />
+                                                        </span>
+                                                        <span className="guided-order-index">{index + 1}</span>
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{GUIDED_FORM_FIELD_LABELS[fieldId]}</p>
+                                                            {muted && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400">Shown in preview, skipped by guide unless enabled</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => moveGuidedOrderItem(fieldId, -1)}
+                                                            disabled={index === 0}
+                                                            className="guided-order-arrow"
+                                                            aria-label={`Move ${GUIDED_FORM_FIELD_LABELS[fieldId]} up`}
+                                                        >
+                                                            <ArrowUp className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => moveGuidedOrderItem(fieldId, 1)}
+                                                            disabled={index === guidedOrder.length - 1}
+                                                            className="guided-order-arrow"
+                                                            aria-label={`Move ${GUIDED_FORM_FIELD_LABELS[fieldId]} down`}
+                                                        >
+                                                            <ArrowDown className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                <GuidedOrderPreview settings={{ ...guidedFormSettings, guidedOrder }} />
+                            </div>
+                        </div>
+
+                        {/* Collaborator Notice */}
+                        {isCollaborator && !isAdminCollaborator && !autoAllDatesEnabled && (
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                                <div className="flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                                        <p className="font-medium mb-1">Workspace Admin Control</p>
+                                        <p>Automation settings are managed by the workspace administrator. Contact your admin to enable these features.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+
+                    <button
+                        onClick={() => setIsWorkspaceModalOpen(true)}
+                        className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                                <Building2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                            </div>
+                            <div className="text-left">
+                                <p className="font-medium text-gray-900 dark:text-white">Edit Workspace</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Change name and preferences</p>
+                            </div>
+                        </div>
+                        <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
+                    </button>
+
+                    {/* Admin Controls (Sticky Month & Sunday) */}
+                    {hasAdminAccess && (
+                        <div
+                            data-setting-id="admin_controls"
+                            tabIndex={-1}
+                            className={`p-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer ${getSettingTargetClass('admin_controls')}`}
+                            onClick={() => setIsAdminControlsOpen(true)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                    <Lock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-medium text-gray-900 dark:text-white">Admin Controls</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Set sticky month and Sunday dates</p>
+                                </div>
+                            </div>
+                            <ChevronLeft className="w-5 h-5 text-gray-400 rotate-180" />
+                        </div>
+                    )}
+                    </div>
+                </div>
+            )}
             {/* Command Menu Settings */}
             <div
                 data-setting-id="command_menu"
@@ -5122,10 +5549,9 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
     // Render main settings list (when no section is active)
     const renderMainList = () => (
         <div className="min-h-screen">
-            <div className="max-w-4xl mx-auto px-3 sm:px-4 pb-8 space-y-3">
-                {/* Header */}
-                <div className="settings-detail-header-safe sticky z-30 -mx-3 sm:-mx-4 bg-white/85 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
-                    <div className="w-full px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-3 sm:gap-4 font-[var(--font-family)]">
+            {/* Header */}
+            <div className="settings-detail-header-safe sticky z-30 w-full sm:-mx-4 sm:w-[calc(100%+2rem)] bg-white/85 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
+                <div className="max-w-4xl mx-auto w-full px-3 sm:px-8 py-2.5 sm:py-3 flex items-center gap-3 sm:gap-4 font-[var(--font-family)]">
                     <button
                         onClick={onBack}
                         className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm touch-target"
@@ -5133,9 +5559,10 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                         <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                     </button>
                     <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
-                    </div>
                 </div>
+            </div>
 
+            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 pb-8 space-y-3">
                 {/* Search Bar */}
                 <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-4">
                     <div className="relative">
@@ -5585,27 +6012,27 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
 
         return (
             <div className="min-h-screen">
-                <div className="max-w-4xl mx-auto px-3 sm:px-4 pb-8 space-y-3">
-                    {/* Sticky Header - stays visible when scrolling */}
-                    <div className="settings-detail-header-safe sticky z-30 -mx-3 sm:-mx-4 bg-white/85 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
-                        <div className="w-full px-3 sm:px-4 py-2.5 sm:py-3 font-[var(--font-family)]">
-                            <div className="flex items-center gap-2 sm:gap-3">
-                                <button
-                                    onClick={() => setActiveSection(null)}
-                                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm touch-target"
-                                >
-                                    <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                                </button>
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <div className={`p-1.5 rounded-lg ${getIconBgColor(currentSection?.color || 'blue')}`}>
-                                        <Icon className={`w-4 h-4 ${getIconColor(currentSection?.color || 'blue')}`} />
-                                    </div>
-                                    <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{currentSection?.label || 'Settings'}</h1>
+                {/* Sticky Header - full-bleed across the detail page */}
+                <div className="settings-detail-header-safe sticky z-30 w-full sm:-mx-4 sm:w-[calc(100%+2rem)] bg-white/85 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200/70 dark:border-gray-800/70 shadow-sm">
+                    <div className="max-w-4xl mx-auto w-full px-3 sm:px-8 py-2.5 sm:py-3 font-[var(--font-family)]">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <button
+                                onClick={() => setActiveSection(null)}
+                                className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm touch-target"
+                            >
+                                <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <div className={`p-1.5 rounded-lg ${getIconBgColor(currentSection?.color || 'blue')}`}>
+                                    <Icon className={`w-4 h-4 ${getIconColor(currentSection?.color || 'blue')}`} />
                                 </div>
+                                <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{currentSection?.label || 'Settings'}</h1>
                             </div>
                         </div>
                     </div>
+                </div>
 
+                <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 pb-8 space-y-3">
                     {renderContent()}
                 </div>
             </div>

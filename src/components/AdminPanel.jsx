@@ -736,7 +736,7 @@ const AdminPanel = ({ setCurrentView, onBack }) => {
   // Password protection screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-3 sm:p-4">
+      <div className="min-h-screen flex items-start justify-center px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-3">
         <div className="w-full max-w-2xl">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* Header */}

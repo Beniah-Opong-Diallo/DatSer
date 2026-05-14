@@ -211,6 +211,14 @@ export const SETTINGS_SEARCH_INDEX = [
         icon: AlertTriangle
     },
     {
+        id: 'guided_form_assistant',
+        section: 'workspace',
+        label: 'Guided Form Assistant',
+        description: 'Highlight the next field in member and attendance forms',
+        keywords: 'guided form assistant highlight next field notes tags auto focus scroll attendance auto present',
+        icon: Zap
+    },
+    {
         id: 'current_month',
         section: 'workspace',
         label: 'Current Month Database',

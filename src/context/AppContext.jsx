@@ -4,6 +4,7 @@ import { toast } from 'react-toastify'
 import { executeSupabaseWrite } from '../utils/supabaseWrite'
 import { useAuth } from './AuthContext'
 import { notify } from '../utils/notify'
+import { normalizeGuidedOrder, readGuidedFormSettings, writeGuidedFormSettings } from '../utils/guidedFormSettings'
 import {
   clearAllOfflineData,
   getOfflineSnapshot,
@@ -554,6 +555,27 @@ export const AppProvider = ({ children }) => {
     })
   }, [])
   const missingInfoPromptEnabled = missingInfoPromptEnabledState
+
+  const [guidedFormSettingsState, setGuidedFormSettingsState] = useState(() => readGuidedFormSettings())
+  const setGuidedFormSetting = useCallback((key, value) => {
+    setGuidedFormSettingsState((currentSettings) => {
+      const resolvedValue = typeof value === 'function' ? value(currentSettings[key]) : value
+      const nextSettings = {
+        ...currentSettings,
+        [key]: key === 'guidedOrder' ? normalizeGuidedOrder(resolvedValue) : resolvedValue
+      }
+      writeGuidedFormSettings(nextSettings)
+      return nextSettings
+    })
+  }, [])
+  const guidedFormSettings = guidedFormSettingsState
+
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'guided-next-pulse-disabled',
+      guidedFormSettingsState?.pulseNextButton === false
+    )
+  }, [guidedFormSettingsState?.pulseNextButton])
 
   // Admin-locked default date forces collaborators to a specific date
   const [lockedDefaultDate, setLockedDefaultDate] = useState(null)
@@ -4910,6 +4932,8 @@ export const AppProvider = ({ children }) => {
     setAutoAllDatesEnabled,
     missingInfoPromptEnabled,
     setMissingInfoPromptEnabled,
+    guidedFormSettings,
+    setGuidedFormSetting,
     isOnline,
     offlineMode,
     setOfflineMode,
@@ -4961,7 +4985,7 @@ export const AppProvider = ({ children }) => {
     toggleMemberBadge, memberHasBadge, setAndSaveAttendanceDate,
     initializeAttendanceDates, getSundaysInMonth, toggleBadgeFilter,
     focusDateSelector, validateMemberData, getPastSundays, getMissingAttendance,
-    autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, isDeveloperBypass,
+    autoAllDatesEnabled, setAutoAllDatesEnabled, missingInfoPromptEnabled, setMissingInfoPromptEnabled, guidedFormSettings, setGuidedFormSetting, isDeveloperBypass,
     isOnline, offlineMode, setOfflineMode, shouldUseOfflineData, isOfflineModeActive, offlineModeStatus,
     offlineCacheMeta, pendingSyncCount, offlinePendingChanges, offlineStatusMessage, isPreparingOffline, isSyncingOffline,
     prepareOfflineData, clearOfflineCacheData, syncOfflineChanges, refreshOfflineStatus,

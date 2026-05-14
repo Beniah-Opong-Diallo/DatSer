@@ -11,9 +11,10 @@ import DatePicker from './DatePicker'
 import CombinedDatePicker from './CombinedDatePicker'
 import TagSelector from './TagSelector'
 import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
+import { GuidedField, useGuidedFormAssistant } from './GuidedFormAssistant'
 
 const MemberModal = ({ isOpen, onClose }) => {
-  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured } = useApp()
+  const { addMember, markAttendance, currentTable, toggleMemberBadge, updateMemberBadges, refreshSearch, forceRefreshMembersSilent, loadAllAttendanceData, loadAllBadgeData, updateMember, isCollaborator, dataOwnerId, isSupabaseConfigured, guidedFormSettings } = useApp()
   const { user, preferences, isDeveloperBypass } = useAuth()
   const { isDarkMode } = useTheme()
   const { selection, success } = useHapticFeedback()
@@ -103,6 +104,19 @@ const MemberModal = ({ isOpen, onClose }) => {
   // State for TagSelector (workspace tags)
   const [workspaceTags, setWorkspaceTags] = useState([])
   const [selectedTagIds, setSelectedTagIds] = useState(new Set())
+  const scrollContainerRef = useRef(null)
+  const guideRefs = {
+    fullName: useRef(null),
+    gender: useRef(null),
+    phone: useRef(null),
+    dob: useRef(null),
+    age: useRef(null),
+    level: useRef(null),
+    attendance: useRef(null),
+    parent: useRef(null),
+    tags: useRef(null),
+    notes: useRef(null)
+  }
 
   // Reset attendance state when modal opens (but not while it stays open) or current table changes
   React.useEffect(() => {
@@ -395,6 +409,33 @@ const MemberModal = ({ isOpen, onClose }) => {
     }
   }
 
+  const phoneDigits = (formData.phone_number || '').replace(/\D/g, '')
+  const guideSteps = React.useMemo(() => ([
+    { id: 'full-name', label: 'Full Name', targetRef: guideRefs.fullName, isComplete: () => Boolean(formData.full_name?.trim()) },
+    { id: 'gender', label: 'Gender', targetRef: guideRefs.gender, isComplete: () => Boolean(formData.gender) },
+    { id: 'phone', label: 'Phone Number', targetRef: guideRefs.phone, isComplete: () => phoneDigits.length === 10 },
+    { id: 'dob', label: 'Date of Birth', targetRef: guideRefs.dob, isComplete: () => Boolean(formData.date_of_birth) },
+    { id: 'age', label: 'Age', targetRef: guideRefs.age, isComplete: () => Boolean(formData.age) },
+    { id: 'level', label: 'Current Level', targetRef: guideRefs.level, isComplete: () => Boolean(formData.current_level) },
+    { id: 'attendance', label: 'Sunday Attendance', targetRef: guideRefs.attendance, isComplete: () => Object.values(sundayAttendance).some(value => value !== null && value !== undefined) },
+    {
+      id: 'parent',
+      label: 'Parent/Guardian Info',
+      targetRef: guideRefs.parent,
+      isComplete: () => Boolean((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim())),
+      onActive: () => setShowParentSection(true)
+    },
+    { id: 'tags', label: 'Tags', targetRef: guideRefs.tags, enabled: guidedFormSettings?.highlightTags && workspaceTags.length > 0, isComplete: () => selectedTagIds.size > 0 },
+    { id: 'notes', label: 'Notes', targetRef: guideRefs.notes, enabled: guidedFormSettings?.highlightNotes, isComplete: () => Boolean(formData.notes?.trim()) }
+  ]), [formData, parentInfo, phoneDigits, selectedTagIds, sundayAttendance, guidedFormSettings, workspaceTags.length])
+
+  const { activeStepId } = useGuidedFormAssistant({
+    steps: guideSteps,
+    settings: guidedFormSettings,
+    enabled: isOpen && guidedFormSettings?.showInAddMember !== false,
+    scrollContainerRef
+  })
+
   if (!isOpen) return null
 
   return (
@@ -448,8 +489,8 @@ const MemberModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Scrollable Form Area */}
-        <div className="overflow-y-auto no-scrollbar flex-1" >
-          <form onSubmit={handleSubmit} noValidate className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+        <div ref={scrollContainerRef} className="overflow-y-auto no-scrollbar flex-1" >
+          <form onSubmit={handleSubmit} noValidate className="p-4 sm:p-6 pb-28 space-y-5 sm:space-y-6">
             {/* Section: Member Information */}
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
@@ -457,7 +498,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                 <span>Basic information</span>
               </div>
               {/* Full Name */}
-              <div>
+              <GuidedField ref={guideRefs.fullName} active={activeStepId === 'full-name'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Full Name *
                 </label>
@@ -478,10 +519,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                 {showErrors && (!formData.full_name || !formData.full_name.trim()) && (
                   <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please enter full name</p>
                 )}
-              </div>
+              </GuidedField>
 
               {/* Gender */}
-              <div>
+              <GuidedField ref={guideRefs.gender} active={activeStepId === 'gender'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Gender *
                 </label>
@@ -515,10 +556,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                 {showErrors && !formData.gender && (
                   <p className="mt-2 text-xs text-red-600 dark:text-red-400">Please select gender to continue</p>
                 )}
-              </div>
+              </GuidedField>
 
               {/* Phone Number */}
-              <div>
+              <GuidedField ref={guideRefs.phone} active={activeStepId === 'phone'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Phone Number
                 </label>
@@ -552,12 +593,12 @@ const MemberModal = ({ isOpen, onClose }) => {
                 {showErrors && ((formData.phone_number || '').replace(/\D/g, '').length !== 10) && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">Phone number must be 10 digits</p>
                 )}
-              </div>
+              </GuidedField>
 
               {/* Date of Birth and Age */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Date of Birth */}
-                <div>
+                <GuidedField ref={guideRefs.dob} active={activeStepId === 'dob'}>
                   <CombinedDatePicker
                     name="date_of_birth"
                     label="Date of Birth"
@@ -566,10 +607,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                     placeholder="Select date"
                     error={showErrors && !formData.date_of_birth && !formData.age}
                   />
-                </div>
+                </GuidedField>
 
                 {/* Age */}
-                <div>
+                <GuidedField ref={guideRefs.age} active={activeStepId === 'age'}>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Age
                   </label>
@@ -589,14 +630,14 @@ const MemberModal = ({ isOpen, onClose }) => {
                       placeholder="Age"
                     />
                   </div>
-                </div>
+                </GuidedField>
               </div>
               {showErrors && (!formData.age || isNaN(parseInt(formData.age))) && (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">Please enter date of birth or age</p>
               )}
 
               {/* Current Level */}
-              <div className="relative">
+              <GuidedField ref={guideRefs.level} active={activeStepId === 'level'} className="relative">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Current Level
                 </label>
@@ -642,10 +683,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                 {showErrors && !formData.current_level && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">Please select current level</p>
                 )}
-              </div>
+              </GuidedField>
 
               {/* Sunday Attendance */}
-              <div>
+              <GuidedField ref={guideRefs.attendance} active={activeStepId === 'attendance'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   {getMonthDisplayName(currentTable)} Sunday Attendance (Optional)
                 </label>
@@ -695,10 +736,10 @@ const MemberModal = ({ isOpen, onClose }) => {
                     )
                   })}
                 </div>
-              </div>
+              </GuidedField>
 
               {/* Collapsible Parent/Guardian Info Section */}
-              <div className={`border rounded-lg overflow-hidden transition-all duration-300 ${showErrors && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim()))
+              <GuidedField ref={guideRefs.parent} active={activeStepId === 'parent'} className={`border rounded-lg overflow-visible transition-all duration-300 ${showErrors && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim()))
                 ? 'border-red-500 ring-4 ring-red-50 dark:ring-red-900/30'
                 : 'border-gray-200 dark:border-gray-600'
                 }`}>
@@ -819,7 +860,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                     </div>
                   </div>
                 )}
-              </div>
+              </GuidedField>
 
               {/* Visitor Toggle */}
               <div className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
@@ -840,7 +881,7 @@ const MemberModal = ({ isOpen, onClose }) => {
 
               {/* Tags - Using TagSelector */}
               {workspaceTags.length > 0 && (
-                <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                <GuidedField ref={guideRefs.tags} active={activeStepId === 'tags'} className="pt-2 border-t border-gray-200 dark:border-gray-600">
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                     <Tag className="w-4 h-4" />
                     Tags (Optional)
@@ -876,11 +917,11 @@ const MemberModal = ({ isOpen, onClose }) => {
                       </button>
                     ))}
                   </div>
-                </div>
+                </GuidedField>
               )}
 
               {/* Notes Section */}
-              <div>
+              <GuidedField ref={guideRefs.notes} active={activeStepId === 'notes'}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <span className="flex items-center gap-1.5">
                     <StickyNote className="w-4 h-4" />
@@ -896,7 +937,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                   placeholder="Add any notes about this member..."
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 border-gray-300 dark:border-gray-600 focus:ring-primary-500 text-sm resize-none"
                 />
-              </div>
+              </GuidedField>
 
               {/* Form Actions */}
               <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex space-x-3">

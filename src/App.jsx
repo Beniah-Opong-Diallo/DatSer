@@ -451,7 +451,7 @@ function AppContent({ isMobile }) {
         </div>
       )}
 
-      <main className={`app-main-safe ${currentView === 'dashboard' ? 'app-main-dashboard-safe' : ''} mx-auto px-0 sm:px-4 pt-0 pb-6 md:py-6 w-full`}>
+      <main className={`app-main-safe ${currentView === 'dashboard' ? 'app-main-dashboard-safe' : ''} ${currentView === 'settings' ? 'app-main-settings-safe' : ''} ${currentView === 'admin' ? 'app-main-admin-safe' : ''} mx-auto px-0 sm:px-4 pt-0 pb-6 md:py-6 w-full`}>
         <OfflineStatusBanner
           onOpenOfflineSettings={() => {
             setCurrentView('settings')

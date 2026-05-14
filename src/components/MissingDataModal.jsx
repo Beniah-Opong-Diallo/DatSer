@@ -7,6 +7,7 @@ import { X, AlertCircle, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify'
 import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
+import { GuidedField, useGuidedFormAssistant } from './GuidedFormAssistant'
 
 const MissingDataModal = ({
     member,
@@ -25,7 +26,7 @@ const MissingDataModal = ({
     console.log('pendingAttendanceAction:', pendingAttendanceAction)
     console.log('selectedAttendanceDate:', selectedAttendanceDate)
     
-    const { updateMember, markAttendance, selectedAttendanceDate: contextAttendanceDate } = useApp()
+    const { updateMember, markAttendance, selectedAttendanceDate: contextAttendanceDate, guidedFormSettings } = useApp()
     const [formData, setFormData] = useState({})
     const [attendanceData, setAttendanceData] = useState({})
     const [isSaving, setIsSaving] = useState(false)
@@ -36,6 +37,16 @@ const MissingDataModal = ({
     const isSaveInFlightRef = useRef(false)
     // Tracks whether we have already initiated closing to block ghost-click re-opens
     const isClosingRef = useRef(false)
+    const scrollContainerRef = useRef(null)
+    const guideRefs = {
+        phone: useRef(null),
+        gender: useRef(null),
+        dob: useRef(null),
+        age: useRef(null),
+        level: useRef(null),
+        parent: useRef(null),
+        attendance: useRef(null)
+    }
     const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
         onDismiss: () => onClose?.()
     })
@@ -48,6 +59,22 @@ const MissingDataModal = ({
     const [showGenderDropdown, setShowGenderDropdown] = useState(false)
     const genderOptions = ['Male', 'Female']
 
+    const getLocalDateKey = (date) => {
+        if (!date) return null
+        if (typeof date === 'string') return date
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+    }
+
+    const getCurrentSundayKey = () => {
+        const today = new Date()
+        const sunday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        sunday.setDate(sunday.getDate() - sunday.getDay())
+        return getLocalDateKey(sunday)
+    }
+
     // Local selection for which missing Sunday should be considered the "selectedAttendanceDate"
     // This lets the admin choose a date from the missingDates dropdown inside the modal.
     const [selectedDateKey, setSelectedDateKey] = useState(null)
@@ -55,6 +82,13 @@ const MissingDataModal = ({
     useEffect(() => {
         // Initialize the selected date key from the prop if available, otherwise pick the first missing date
         if (selectedDateKey) return // Don't override user's manual selection
+
+        const currentSundayKey = getCurrentSundayKey()
+        const hasCurrentSundayMissing = missingDates?.some(date => getLocalDateKey(date) === currentSundayKey)
+        if (guidedFormSettings?.attendanceAutoPresent && pendingAttendanceAction?.present === true && hasCurrentSundayMissing) {
+            setSelectedDateKey(currentSundayKey)
+            return
+        }
         
         if (selectedAttendanceDate) {
             try {
@@ -74,7 +108,7 @@ const MissingDataModal = ({
         } else {
             setSelectedDateKey(null)
         }
-    }, [selectedAttendanceDate, missingDates])
+    }, [selectedAttendanceDate, missingDates, pendingAttendanceAction?.present, guidedFormSettings?.attendanceAutoPresent])
 
     // Initialize form data with member's current values
     useEffect(() => {
@@ -104,15 +138,20 @@ const MissingDataModal = ({
 
         // Initialize attendance data - use consistent date format matching the rest of the app
         const initialAttendance = {}
+        const currentSundayKey = getCurrentSundayKey()
         missingDates.forEach(date => {
             const year = date.getFullYear()
             const month = String(date.getMonth() + 1).padStart(2, '0')
             const day = String(date.getDate()).padStart(2, '0')
             const dateKey = `${year}-${month}-${day}`
-            initialAttendance[dateKey] = null
+            initialAttendance[dateKey] = (
+                guidedFormSettings?.attendanceAutoPresent &&
+                pendingAttendanceAction?.present === true &&
+                dateKey === currentSundayKey
+            ) ? true : null
         })
         setAttendanceData(initialAttendance)
-    }, [member, missingFields, missingDates])
+    }, [member, missingFields, missingDates, pendingAttendanceAction?.present, guidedFormSettings?.attendanceAutoPresent])
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }))
@@ -350,6 +389,62 @@ const MissingDataModal = ({
             isClosingRef.current = false
         }
     }
+
+    const guideSteps = React.useMemo(() => ([
+        missingFields.includes('Phone Number') && {
+            id: 'phone',
+            label: 'Phone Number',
+            targetRef: guideRefs.phone,
+            isComplete: () => Boolean(formData.phoneNumber && formData.phoneNumber.length === 10)
+        },
+        missingFields.includes('Gender') && {
+            id: 'gender',
+            label: 'Gender',
+            targetRef: guideRefs.gender,
+            isComplete: () => Boolean(formData.gender)
+        },
+        missingFields.includes('Date of Birth') && {
+            id: 'dob',
+            label: 'Date of Birth',
+            targetRef: guideRefs.dob,
+            isComplete: () => Boolean(formData.dateOfBirth)
+        },
+        missingFields.includes('Age') && {
+            id: 'age',
+            label: 'Age',
+            targetRef: guideRefs.age,
+            isComplete: () => Boolean(formData.age)
+        },
+        missingFields.includes('Current Level') && {
+            id: 'level',
+            label: 'Current Level',
+            targetRef: guideRefs.level,
+            isComplete: () => Boolean(formData.currentLevel)
+        },
+        (missingFields.includes('Parent Name 1') || missingFields.includes('Parent Phone 1')) && {
+            id: 'parent',
+            label: 'Parent/Guardian Info',
+            targetRef: guideRefs.parent,
+            isComplete: () => Boolean(
+                (!missingFields.includes('Parent Name 1') || formData.parentName1) &&
+                (!missingFields.includes('Parent Phone 1') || (formData.parentPhone1 && formData.parentPhone1.length === 10))
+            )
+        },
+        missingDates.length > 0 && {
+            id: 'attendance',
+            label: 'Sunday Attendance',
+            targetRef: guideRefs.attendance,
+            isComplete: () => Object.values(attendanceData).every(value => value !== null && value !== undefined)
+        }
+    ]), [missingFields, missingDates.length, formData, attendanceData])
+
+    const { activeStepId } = useGuidedFormAssistant({
+        steps: guideSteps,
+        settings: guidedFormSettings,
+        enabled: guidedFormSettings?.showInMissingInfo !== false,
+        scrollContainerRef
+    })
+
     return (
         <div data-testid="missing-data-modal" className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black dark:bg-opacity-70 flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
             {/* Modal sheet: flex-col so header+footer never scroll */}
@@ -406,7 +501,7 @@ const MissingDataModal = ({
                 </div>
 
                 {/* Scrollable content — grows to fill remaining space */}
-                <div className="flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overscroll-contain pb-28" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
                     {saveError && (
                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
@@ -426,7 +521,7 @@ const MissingDataModal = ({
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white">Member Information</h3>
 
                             {missingFields.includes('Phone Number') && (
-                                <div>
+                                <GuidedField ref={guideRefs.phone} active={activeStepId === 'phone'}>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Phone Number * (10 digits)
                                     </label>
@@ -460,11 +555,11 @@ const MissingDataModal = ({
                                     {isFieldInvalid('Phone Number') && !formData.phoneNumber && (
                                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">Phone number is required</p>
                                     )}
-                                </div>
+                                </GuidedField>
                             )}
 
                             {missingFields.includes('Gender') && (
-                                <div>
+                                <GuidedField ref={guideRefs.gender} active={activeStepId === 'gender'}>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Gender *
                                     </label>
@@ -514,14 +609,14 @@ const MissingDataModal = ({
                                     {isFieldInvalid('Gender') && (
                                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">Gender is required</p>
                                     )}
-                                </div>
+                                </GuidedField>
                             )}
 
                             {/* Date of Birth and Age - Side by side */}
                             {(missingFields.includes('Date of Birth') || missingFields.includes('Age')) && (
                                 <div className="grid grid-cols-2 gap-3 items-end">
                                     {missingFields.includes('Date of Birth') && (
-                                        <div>
+                                        <GuidedField ref={guideRefs.dob} active={activeStepId === 'dob'}>
                                             {/* Combined Date Picker - All three in ONE unified dropdown */}
                                             <CombinedDatePicker
                                                 value={formData.dateOfBirth || ''}
@@ -530,11 +625,11 @@ const MissingDataModal = ({
                                                 placeholder="Select date"
                                                 error={isFieldInvalid('Date of Birth') ? 'Date of birth is required' : undefined}
                                             />
-                                        </div>
+                                        </GuidedField>
                                     )}
 
                                     {missingFields.includes('Age') && (
-                                        <div>
+                                        <GuidedField ref={guideRefs.age} active={activeStepId === 'age'}>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                 Age *
                                             </label>
@@ -552,13 +647,13 @@ const MissingDataModal = ({
                                             {isFieldInvalid('Age') && (
                                                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">Age is required</p>
                                             )}
-                                        </div>
+                                        </GuidedField>
                                     )}
                                 </div>
                             )}
 
                             {missingFields.includes('Current Level') && (
-                                <div>
+                                <GuidedField ref={guideRefs.level} active={activeStepId === 'level'}>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Current Level *
                                     </label>
@@ -608,9 +703,11 @@ const MissingDataModal = ({
                                     {isFieldInvalid('Current Level') && (
                                         <p className="text-xs text-red-600 dark:text-red-400 mt-1">Current level is required</p>
                                     )}
-                                </div>
+                                </GuidedField>
                             )}
 
+                            {(missingFields.includes('Parent Name 1') || missingFields.includes('Parent Phone 1')) && (
+                                <GuidedField ref={guideRefs.parent} active={activeStepId === 'parent'} className="space-y-3">
                             {missingFields.includes('Parent Name 1') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -670,12 +767,14 @@ const MissingDataModal = ({
                                     )}
                                 </div>
                             )}
+                                </GuidedField>
+                            )}
                         </div>
                     )}
 
                     {/* Missing Attendance Dates */}
                     {missingDates.length > 0 && (
-                        <div className="space-y-4">
+                        <GuidedField ref={guideRefs.attendance} active={activeStepId === 'attendance'} className="space-y-4">
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white">Past Sunday Attendance</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Please mark attendance for the following past Sundays:
@@ -751,7 +850,7 @@ const MissingDataModal = ({
                                     )
                                 })}
                             </div>
-                        </div>
+                        </GuidedField>
                     )}
                 </div>{/* end scrollable content */}
                 </div>{/* end inner scroll wrapper */}
