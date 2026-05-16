@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { sortGuidedSteps } from '../utils/guidedFormSettings'
 
@@ -84,6 +84,7 @@ export const useGuidedFormAssistant = ({
   onStepChange
 }) => {
   const [manualStepId, setManualStepId] = useState(null)
+  const lastPassiveScrollStepIdRef = useRef(null)
 
   const visibleSteps = useMemo(
     () => sortGuidedSteps(steps, settings).filter(step => step.enabled !== false),
@@ -118,14 +119,12 @@ export const useGuidedFormAssistant = ({
   const goToNextStep = useCallback(() => {
     if (!activeStep) return
     const currentIndex = visibleSteps.findIndex(step => step.id === activeStep.id)
-    const nextStep = visibleSteps
-      .slice(Math.max(currentIndex + 1, 0))
-      .find(step => !isStepComplete(step))
+    const nextStep = visibleSteps[currentIndex + 1]
 
     if (nextStep) {
       goToStep(nextStep)
     } else {
-      setManualStepId(null)
+      setManualStepId(activeStep.id)
     }
   }, [activeStep, goToStep, visibleSteps])
 
@@ -133,6 +132,7 @@ export const useGuidedFormAssistant = ({
   useEffect(() => {
     if (!enabled || !settings?.enabled) {
       setManualStepId(null)
+      lastPassiveScrollStepIdRef.current = null
       return
     }
     
@@ -172,7 +172,8 @@ export const useGuidedFormAssistant = ({
     activeStep.onActive?.()
 
     const target = activeStep.targetRef?.current
-    if (settings?.autoScrollToActiveField) {
+    if (settings?.autoScrollToActiveField && lastPassiveScrollStepIdRef.current !== activeStep.id) {
+      lastPassiveScrollStepIdRef.current = activeStep.id
       window.setTimeout(() => scrollActiveStepIntoView(target, scrollContainerRef?.current), 80)
     }
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
-import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users, StickyNote } from 'lucide-react'
+import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Users, StickyNote, Pencil } from 'lucide-react'
 import { toast } from 'react-toastify'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 import { supabase } from '../lib/supabase'
@@ -230,6 +230,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
+  const [customLevelValue, setCustomLevelValue] = useState('')
   const [overrideMode, setOverrideMode] = useState(false)
   const [showParentSection, setShowParentSection] = useState(false)
   const [parentInfo, setParentInfo] = useState({
@@ -238,6 +239,29 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     parent_name_2: '',
     parent_phone_2: ''
   })
+  const [isClosingSheet, setIsClosingSheet] = useState(false)
+  const closeTimeoutRef = useRef(null)
+  const closeWithAnimation = useCallback(({ skipHaptic = false, viaDrag = false } = {}) => {
+    if (isClosingSheet) return
+    if (!skipHaptic) selection()
+    if (viaDrag) {
+      onClose()
+      return
+    }
+    setIsClosingSheet(true)
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    closeTimeoutRef.current = setTimeout(() => {
+      closeTimeoutRef.current = null
+      onClose()
+      setIsClosingSheet(false)
+    }, 300)
+  }, [isClosingSheet, onClose, selection])
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    }
+  }, [])
   const scrollContainerRef = useRef(null)
   const guideRefs = {
     fullName: useRef(null),
@@ -252,11 +276,45 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     notes: useRef(null)
   }
   const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
-    onDismiss: () => {
-      selection()
-      onClose()
-    }
+    onDismiss: (event) => closeWithAnimation({ skipHaptic: true, viaDrag: event?.viaDrag })
   })
+
+  const getMissingRequiredTarget = () => {
+    const currentPhoneDigits = String(formData.phone_number || '').replace(/\D/g, '')
+    const currentAgeNum = parseInt(formData.age)
+    const hasParentInfo = (parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) ||
+      (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim())
+
+    if (!formData.full_name?.trim()) return guideRefs.fullName
+    if (!formData.gender) return guideRefs.gender
+    if (currentPhoneDigits.length !== 0 && currentPhoneDigits.length !== 10) return guideRefs.phone
+    if (formData.age && (isNaN(currentAgeNum) || currentAgeNum < 1 || currentAgeNum > 120)) return guideRefs.age
+    if (!formData.current_level) return guideRefs.level
+    if (!hasParentInfo) return guideRefs.parent
+    return null
+  }
+
+  const revealMissingRequiredFields = () => {
+    if (overrideMode) return
+
+    const firstMissingTarget = getMissingRequiredTarget()
+    if (!firstMissingTarget) return
+
+    setHasAttemptedSave(true)
+    if (firstMissingTarget === guideRefs.parent) {
+      setShowParentSection(true)
+    }
+
+    requestAnimationFrame(() => {
+      firstMissingTarget.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  const setAttendanceChoice = (date, attendance) => {
+    selection()
+    revealMissingRequiredFields()
+    setSundayAttendance(prev => ({ ...prev, [date]: attendance }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -270,11 +328,20 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     const ageNum = parseInt(formData.age)
     const isAgeValid = !formData.age || (!isNaN(ageNum) && ageNum >= 1 && ageNum <= 120)
 
-    // In override mode, only require name
+    // In override mode, save the user's chosen changes without normal form blocking.
     if (overrideMode) {
       if (!isFullNameValid) {
-        toast.error('Name is required even in override mode')
-        return
+        const hasAttendanceChanges = Object.entries(sundayAttendance).some(([date, attendance]) => {
+          if (attendance === null || attendance === undefined) return false
+          return attendanceData[date]?.[latestMember.id] !== attendance
+        })
+        const hasTagChanges = selectedWorkspaceTagIds.size !== initialWorkspaceTagIds.size ||
+          Array.from(selectedWorkspaceTagIds).some(id => !initialWorkspaceTagIds.has(id))
+
+        if (!hasAttendanceChanges && !hasTagChanges) {
+          toast.error('Choose something to save in override mode')
+          return
+        }
       }
     } else {
       if (!isFullNameValid || !isPhoneValid || !isAgeValid) {
@@ -307,6 +374,9 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         Member: selectedTags.includes('member') ? 'Yes' : null,
         Regular: selectedTags.includes('regular') ? 'Yes' : null,
         Newcomer: selectedTags.includes('newcomer') ? 'Yes' : null
+      }
+      if (overrideMode && !formData.full_name?.trim()) {
+        delete nextMemberPayload.full_name
       }
 
       console.log('[EditMemberModal] nextMemberPayload:', JSON.stringify(nextMemberPayload))
@@ -539,12 +609,21 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     }
   }
 
+  const applyCustomLevel = () => {
+    const nextLevel = customLevelValue.trim().toUpperCase()
+    if (!nextLevel) return
+
+    selection()
+    handleInputChange({ target: { name: 'current_level', value: nextLevel } })
+    setCustomLevelValue('')
+    setIsLevelOpen(false)
+  }
+
   // ESC key to close modal
   useEffect(() => {
     const handleEscKey = (event) => {
       if (event.key === 'Escape' && isOpen) {
-        selection()
-        onClose()
+        closeWithAnimation()
       }
     }
 
@@ -552,7 +631,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     return () => {
       document.removeEventListener('keydown', handleEscKey)
     }
-  }, [isOpen, onClose, selection])
+  }, [isOpen, closeWithAnimation])
 
   const phoneDigits = String(formData.phone_number || '').replace(/\D/g, '')
   const guideSteps = React.useMemo(() => ([
@@ -581,15 +660,15 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
     scrollContainerRef
   })
 
-  if (!isOpen || !member) return null
+  if ((!isOpen && !isClosingSheet) || !member) return null
 
   return (
     <div 
       className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate"
-      onClick={() => { selection(); onClose() }}
+      onClick={() => closeWithAnimation()}
     >
       <div
-        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${overrideMode
+        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col rounded-t-2xl rounded-b-none sm:rounded-xl ${isClosingSheet ? 'filter-exit' : 'filter-enter'} ${overrideMode
         ? 'bg-orange-50 dark:bg-orange-900 ring-orange-300 dark:ring-orange-700'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
         }`}
@@ -598,12 +677,20 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Draggable Header Section (Mobile Only) */}
-        <div 
-          className="sm:hidden flex flex-col items-center flex-shrink-0 cursor-grab active:cursor-grabbing"
-          {...dragHandleProps}
+        <div
+          className={`sm:hidden flex flex-col items-center flex-shrink-0 rounded-t-2xl overflow-hidden transition-colors duration-300 ${overrideMode
+            ? 'bg-orange-100/80 dark:bg-orange-800/80'
+            : 'bg-white dark:bg-gray-800'
+            }`}
         >
-          <div className="pt-3 pb-1">
-            <div className="w-12 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
+          <div
+            className="pt-3 pb-1 w-full flex justify-center cursor-grab active:cursor-grabbing"
+            role="button"
+            aria-label="Drag down to close edit member form"
+            title="Drag down to close"
+            {...dragHandleProps}
+          >
+            <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shadow-sm" />
           </div>
           <div className={`w-full flex items-center justify-between px-4 py-3 border-b transition-all duration-300 ${overrideMode
             ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
@@ -613,7 +700,12 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setOverrideMode(!overrideMode) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  selection()
+                  setHasAttemptedSave(false)
+                  setOverrideMode(!overrideMode)
+                }}
                 className={`px-3 py-1 rounded text-[10px] font-black uppercase border transition-colors ${overrideMode
                   ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
@@ -622,7 +714,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 {overrideMode ? 'Override Active' : 'Override'}
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); selection(); onClose() }}
+                onClick={(e) => { e.stopPropagation(); closeWithAnimation() }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -640,7 +732,11 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setOverrideMode(!overrideMode)}
+              onClick={() => {
+                selection()
+                setHasAttemptedSave(false)
+                setOverrideMode(!overrideMode)
+              }}
               className={`px-3 py-1 rounded text-xs border transition-colors ${overrideMode
                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -649,7 +745,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
               {overrideMode ? 'Override Active' : 'Override'}
             </button>
             <button
-              onClick={() => { selection(); onClose() }}
+              onClick={() => closeWithAnimation()}
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -658,7 +754,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className={`flex flex-col flex-1 min-h-0 ${overrideMode ? 'bg-orange-50 dark:bg-orange-900' : 'bg-white dark:bg-gray-800'}`}>
+        <form onSubmit={handleSubmit} noValidate className={`flex flex-col flex-1 min-h-0 ${overrideMode ? 'bg-orange-50 dark:bg-orange-900' : 'bg-white dark:bg-gray-800'}`}>
           <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pb-28 space-y-4 scrollbar-hide overscroll-contain" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
           {/* Full Name */}
           <GuidedField ref={guideRefs.fullName} active={activeStepId === 'full-name'}>
@@ -673,7 +769,6 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                 value={formData.full_name}
                 onChange={handleInputChange}
                 data-testid="edit-form-full-name"
-                required
                 className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors ${hasAttemptedSave && (!formData.full_name || !formData.full_name.trim())
                   ? 'border-red-500 focus:ring-red-500 bg-red-50 dark:bg-red-900/10'
                   : 'border-gray-300 dark:border-gray-600 focus:ring-primary-500'
@@ -860,6 +955,39 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       {level}
                     </button>
                   ))}
+                  <div className="border-t border-gray-200 dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800/70">
+                    <label className="flex items-center gap-1.5 px-1 pb-1.5 text-[11px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+                      <Pencil className="w-3 h-3" />
+                      Custom level
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customLevelValue}
+                        onChange={(e) => setCustomLevelValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            applyCustomLevel()
+                          }
+                        }}
+                        placeholder="Type level"
+                        data-testid="edit-form-level-custom-input"
+                        className="min-w-0 flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyCustomLevel}
+                        disabled={!customLevelValue.trim()}
+                        data-testid="edit-form-level-custom-add"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-orange-500 text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Add custom current level"
+                        title="Add custom current level"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -909,7 +1037,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       <button
                         type="button"
                         data-testid={`edit-form-attendance-${date}-present`}
-                        onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: true }))}
+                        onClick={() => setAttendanceChoice(date, true)}
                         className={`min-h-[40px] px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === true
                           ? 'bg-green-800 dark:bg-green-700 text-white shadow-xl ring-4 ring-green-300 dark:ring-green-400 border-2 border-green-900 dark:border-green-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-green-50 dark:hover:bg-green-800'
@@ -920,7 +1048,7 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
                       <button
                         type="button"
                         data-testid={`edit-form-attendance-${date}-absent`}
-                        onClick={() => setSundayAttendance(prev => ({ ...prev, [date]: false }))}
+                        onClick={() => setAttendanceChoice(date, false)}
                         className={`min-h-[40px] px-3 py-1 text-xs rounded-lg font-bold transition-all duration-200 ${sundayAttendance[date] === false
                           ? 'bg-red-800 dark:bg-red-700 text-white shadow-xl ring-4 ring-red-300 dark:ring-red-400 border-2 border-red-900 dark:border-red-300 font-extrabold transform scale-110'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500 hover:bg-red-50 dark:hover:bg-red-800'
@@ -1170,14 +1298,14 @@ const EditMemberModal = ({ isOpen, onClose, member, onTagsChange }) => {
           >
             <button
                   type="button"
-                  onClick={() => { selection(); onClose() }}
+                  onClick={() => closeWithAnimation()}
                   className="flex-1 min-h-[48px] px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
                 >
                   Cancel
                 </button>
             <button
               type="submit"
-              disabled={loading || !formData.full_name}
+              disabled={loading || (!overrideMode && !formData.full_name)}
               data-testid="edit-form-submit"
               className={`flex-1 min-h-[48px] px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors btn-press ${overrideMode
                 ? 'bg-orange-600 hover:bg-orange-700'

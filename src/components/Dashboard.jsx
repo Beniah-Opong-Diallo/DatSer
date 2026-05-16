@@ -9,6 +9,7 @@ import TableSkeleton from './TableSkeleton'
 import SelectionToolbar from './SelectionToolbar'
 import { useLongPressSelection } from '../hooks/useLongPressSelection'
 import useHapticFeedback from '../hooks/useHapticFeedback'
+import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
 import { toast } from 'react-toastify'
 
 
@@ -160,6 +161,7 @@ const Dashboard = ({ isAdmin = false }) => {
   const [visitorFilter, setVisitorFilter] = useState(null)
   const [showFilters, setShowFilters] = useState(false)
   const [isClosingFilters, setIsClosingFilters] = useState(false)
+  const filterCloseTimeoutRef = useRef(null)
   const [sortNewestFirst, setSortNewestFirst] = useState(true) // Toggle for Marked tab sort order
 
   // Tag filter state
@@ -173,14 +175,49 @@ const Dashboard = ({ isAdmin = false }) => {
   const actionTimestampsRef = useRef({})
 
   // Handle filter closing with animation
-  const closeFilters = () => {
-    selection()
-    setIsClosingFilters(true)
-    setTimeout(() => {
+  const closeFilters = useCallback(({ skipHaptic = false, viaDrag = false } = {}) => {
+    if (!skipHaptic) selection()
+    if (viaDrag) {
       setShowFilters(false)
       setIsClosingFilters(false)
+      if (filterCloseTimeoutRef.current) {
+        clearTimeout(filterCloseTimeoutRef.current)
+        filterCloseTimeoutRef.current = null
+      }
+      return
+    }
+    setIsClosingFilters(true)
+    if (filterCloseTimeoutRef.current) {
+      clearTimeout(filterCloseTimeoutRef.current)
+    }
+    filterCloseTimeoutRef.current = setTimeout(() => {
+      setShowFilters(false)
+      setIsClosingFilters(false)
+      filterCloseTimeoutRef.current = null
     }, 300)
-  }
+  }, [selection])
+
+  const {
+    dragHandleProps: filterDragHandleProps,
+    sheetStyle: filterSheetStyle,
+    resetDrag: resetFilterDrag
+  } = useBottomSheetDrag({
+    onDismiss: (event) => closeFilters({ skipHaptic: true, viaDrag: event?.viaDrag })
+  })
+
+  useEffect(() => {
+    return () => {
+      if (filterCloseTimeoutRef.current) {
+        clearTimeout(filterCloseTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!showFilters && !isClosingFilters) {
+      resetFilterDrag()
+    }
+  }, [showFilters, isClosingFilters, resetFilterDrag])
 
   // Available filter options
   const levels = ['SHS1', 'SHS2', 'SHS3', 'JHS1', 'JHS2', 'JHS3', 'COMPLETED', 'UNIVERSITY']
@@ -341,42 +378,48 @@ const Dashboard = ({ isAdmin = false }) => {
       const nextWorkspaceTags = tagsData || []
       setWorkspaceTags(nextWorkspaceTags)
 
-      if (!currentTable || !members || members.length === 0) {
+      const isSearching = Boolean(searchTerm.trim())
+      const tagMemberSource = isSearching && Array.isArray(contextFilteredMembers) && contextFilteredMembers.length > 0
+        ? contextFilteredMembers
+        : [
+          ...(Array.isArray(members) ? members : []),
+          ...(Array.isArray(contextFilteredMembers) ? contextFilteredMembers : [])
+        ]
+      const memberIds = Array.from(new Set(tagMemberSource.map(m => m?.id).filter(Boolean)))
+
+      if (!currentTable || memberIds.length === 0) {
         setAllMemberTags({})
         return
       }
 
-      const memberIds = members.map(m => m.id).filter(Boolean)
-      if (memberIds.length === 0) {
-        setAllMemberTags({})
-        return
-      }
-
-      const { data: memberTagsData, error: memberTagsError } = await supabase
-        .from('member_tags')
-        .select('member_id, tag_id')
-        .eq('table_name', currentTable)
-        .in('member_id', memberIds)
-
-      if (memberTagsError) {
-        console.error('Error fetching member tags:', memberTagsError)
-        return
-      }
-
-      const tagById = new Map(nextWorkspaceTags.map(tag => [String(tag.id), tag]))
       const tagDetailsByMember = {}
       const tagIdsByMember = {}
+      const shouldHydrateMemberTags = Boolean(isSearching || hasTagFilters)
 
-      for (const mt of memberTagsData || []) {
-        const memberId = mt.member_id
-        const tagId = mt.tag_id != null ? String(mt.tag_id) : null
-        if (!memberId || !tagId) continue
+      if (!shouldHydrateMemberTags) {
+        setAllMemberTags({})
+        return
+      }
 
-        if (!tagDetailsByMember[memberId]) tagDetailsByMember[memberId] = []
-        if (!tagIdsByMember[memberId]) tagIdsByMember[memberId] = []
+      if (shouldHydrateMemberTags) {
+        const chunkSize = 25
+        for (let i = 0; i < memberIds.length; i += chunkSize) {
+          const chunk = memberIds.slice(i, i + chunkSize)
+          await Promise.all(chunk.map(async (memberId) => {
+            try {
+              const { data, error } = await supabase.rpc('get_member_tags', {
+                p_member_id: memberId,
+                p_table_name: currentTable
+              })
+              if (error) throw error
 
-        tagIdsByMember[memberId].push(tagId)
-        tagDetailsByMember[memberId].push(tagById.get(tagId) || { id: tagId, tag_id: tagId, name: 'Tag' })
+              tagDetailsByMember[memberId] = data || []
+              tagIdsByMember[memberId] = (data || []).map(tag => String(tag.id)).filter(Boolean)
+            } catch (error) {
+              console.error('Error hydrating member tags for filter:', error)
+            }
+          }))
+        }
       }
 
       setMemberTags(prev => {
@@ -390,7 +433,7 @@ const Dashboard = ({ isAdmin = false }) => {
     } catch (error) {
       console.error('Error fetching tags for filter:', error)
     }
-  }, [dataOwnerId, user?.id, currentTable, isDeveloperBypass, isSupabaseConfigured, members])
+  }, [dataOwnerId, user?.id, currentTable, isDeveloperBypass, isSupabaseConfigured, members, contextFilteredMembers, searchTerm, hasTagFilters])
 
   // Fetch workspace tags and member tags for filtering.
   useEffect(() => {
@@ -608,29 +651,14 @@ const Dashboard = ({ isAdmin = false }) => {
       })
     }
 
-    // When searching, use contextFilteredMembers from AppContext which includes serverSearchResults
-    // (cross-table search results). Fall back to searching local members array.
-    if (searchTerm && searchTerm.trim()) {
-      // contextFilteredMembers from AppContext already includes serverSearchResults when available
-      if (contextFilteredMembers && contextFilteredMembers.length > 0) {
-        return [...contextFilteredMembers].sort((a, b) => {
-          const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
-          const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
-          return an.localeCompare(bn)
-        })
-      }
-      // Fallback: search local members array
+    // If AppContext has not produced search results yet, keep a local fallback.
+    // Otherwise search, tag, gender, level, and visitor filters compose above.
+    if (searchTerm && searchTerm.trim() && (!contextFilteredMembers || contextFilteredMembers.length === 0)) {
       const lowerTerm = searchTerm.toLowerCase()
-      return members
-        .filter(member => {
-          const name = (member['full_name'] || member['Full Name'] || '').toLowerCase()
-          return name.includes(lowerTerm)
-        })
-        .sort((a, b) => {
-          const an = (a['full_name'] || a['Full Name'] || '').toLowerCase()
-          const bn = (b['full_name'] || b['Full Name'] || '').toLowerCase()
-          return an.localeCompare(bn)
-        })
+      filteredMembers = filteredMembers.filter(member => {
+        const name = (member['full_name'] || member['Full Name'] || '').toLowerCase()
+        return name.includes(lowerTerm)
+      })
     }
 
     if (dashboardTab === 'edited') {
@@ -2890,8 +2918,21 @@ const Dashboard = ({ isAdmin = false }) => {
             onClick={closeFilters}
           />
           {/* Filter Panel */}
-          <div className={`relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden ${isClosingFilters ? 'filter-exit' : 'filter-enter'
-            }`}>
+          <div
+            className={`relative w-full md:w-[480px] md:max-w-[90vw] bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden ${isClosingFilters ? 'filter-exit' : 'filter-enter'
+              }`}
+            style={filterSheetStyle}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="md:hidden flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
+              role="button"
+              aria-label="Drag down to close filters"
+              title="Drag down to close"
+              {...filterDragHandleProps}
+            >
+              <div className="h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-600 shadow-sm" />
+            </div>
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">

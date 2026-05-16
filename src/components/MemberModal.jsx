@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
-import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Info, Users, StickyNote, Tag } from 'lucide-react'
+import { X, User, Phone, Calendar, BookOpen, ChevronDown, ChevronUp, Info, Users, StickyNote, Tag, Pencil } from 'lucide-react'
 import { toast } from 'react-toastify'
 import useHapticFeedback from '../hooks/useHapticFeedback'
 import { supabase } from '../lib/supabase'
@@ -29,6 +29,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   const [showErrors, setShowErrors] = useState(false)
   const [showParentErrors, setShowParentErrors] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
+  const [customLevelValue, setCustomLevelValue] = useState('')
   const [newlyAddedMemberId, setNewlyAddedMemberId] = useState(null)
   const [formData, setFormData] = useState({
     full_name: '',
@@ -92,7 +93,7 @@ const MemberModal = ({ isOpen, onClose }) => {
   const [sundayAttendance, setSundayAttendance] = useState(() => initializeSundayAttendance())
   const [previousIsOpen, setPreviousIsOpen] = useState(false)
   const [selectedTags, setSelectedTags] = useState([]) // ['member','regular','newcomer']
-  const [showParentInfo, setShowParentInfo] = useState(false)
+  const [showSecondParent, setShowSecondParent] = useState(false)
   const [showParentSection, setShowParentSection] = useState(false)
   const [parentInfo, setParentInfo] = useState({
     parent_name_1: '',
@@ -188,12 +189,70 @@ const MemberModal = ({ isOpen, onClose }) => {
 
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [isOverrideMode, setIsOverrideMode] = useState(false)
-  const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
-    onDismiss: () => {
-      selection()
+  const [isClosingSheet, setIsClosingSheet] = useState(false)
+  const closeTimeoutRef = useRef(null)
+  const closeWithAnimation = useCallback(({ skipHaptic = false, viaDrag = false } = {}) => {
+    if (isClosingSheet) return
+    if (!skipHaptic) selection()
+    if (viaDrag) {
       onClose()
+      return
     }
+    setIsClosingSheet(true)
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    closeTimeoutRef.current = setTimeout(() => {
+      closeTimeoutRef.current = null
+      onClose()
+      setIsClosingSheet(false)
+    }, 300)
+  }, [isClosingSheet, onClose, selection])
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    }
+  }, [])
+
+  const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
+    onDismiss: (event) => closeWithAnimation({ skipHaptic: true, viaDrag: event?.viaDrag })
   })
+
+  const getMissingRequiredTarget = () => {
+    const currentPhoneDigits = (formData.phone_number || '').replace(/\D/g, '')
+    const currentAgeNum = parseInt(formData.age)
+    const hasParentInfo = (parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) ||
+      (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim())
+
+    if (!formData.full_name?.trim()) return guideRefs.fullName
+    if (!formData.gender) return guideRefs.gender
+    if (currentPhoneDigits.length !== 10) return guideRefs.phone
+    if (!formData.age || isNaN(currentAgeNum) || currentAgeNum < 1 || currentAgeNum > 120) return guideRefs.age
+    if (!formData.current_level) return guideRefs.level
+    if (!hasParentInfo) return guideRefs.parent
+    return null
+  }
+
+  const revealMissingRequiredFields = () => {
+    if (isOverrideMode) return
+
+    const firstMissingTarget = getMissingRequiredTarget()
+    if (!firstMissingTarget) return
+
+    setShowErrors(true)
+    if (firstMissingTarget === guideRefs.parent) {
+      setShowParentSection(true)
+    }
+
+    requestAnimationFrame(() => {
+      firstMissingTarget.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  const setAttendanceChoice = (date, attendance) => {
+    selection()
+    revealMissingRequiredFields()
+    setSundayAttendance(prev => ({ ...prev, [date]: attendance }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -365,6 +424,7 @@ const MemberModal = ({ isOpen, onClose }) => {
       setSelectedTags([])
       setSelectedTagIds(new Set())
       setParentInfo({ parent_name_1: '', parent_phone_1: '', parent_name_2: '', parent_phone_2: '' })
+      setShowSecondParent(false)
       setShowErrors(false)
 
     } catch (error) {
@@ -409,6 +469,16 @@ const MemberModal = ({ isOpen, onClose }) => {
     }
   }
 
+  const applyCustomLevel = () => {
+    const nextLevel = customLevelValue.trim().toUpperCase()
+    if (!nextLevel) return
+
+    selection()
+    handleInputChange({ target: { name: 'current_level', value: nextLevel } })
+    setCustomLevelValue('')
+    setIsLevelOpen(false)
+  }
+
   const phoneDigits = (formData.phone_number || '').replace(/\D/g, '')
   const guideSteps = React.useMemo(() => ([
     { id: 'full-name', label: 'Full Name', targetRef: guideRefs.fullName, isComplete: () => Boolean(formData.full_name?.trim()) },
@@ -436,7 +506,7 @@ const MemberModal = ({ isOpen, onClose }) => {
     scrollContainerRef
   })
 
-  if (!isOpen) return null
+  if (!isOpen && !isClosingSheet) return null
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] backdrop-animate">
@@ -444,7 +514,7 @@ const MemberModal = ({ isOpen, onClose }) => {
       <div className="flex justify-center pt-3 pb-1 sm:hidden absolute left-0 right-0" style={{ top: 'calc(10vh)' }}>
       </div>
       <div
-        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
+        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col rounded-t-2xl rounded-b-none sm:rounded-xl ${isClosingSheet ? 'filter-exit' : 'filter-enter'} ${isOverrideMode
         ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
         }`}
@@ -452,12 +522,20 @@ const MemberModal = ({ isOpen, onClose }) => {
         style={sheetStyle}
       >
         {/* Draggable Header Section (Mobile Only) */}
-        <div 
-          className="sm:hidden flex flex-col items-center flex-shrink-0 cursor-grab active:cursor-grabbing"
-          {...dragHandleProps}
+        <div
+          className={`sm:hidden flex flex-col items-center flex-shrink-0 rounded-t-2xl overflow-hidden transition-colors duration-300 ${isOverrideMode
+            ? 'bg-orange-100/80 dark:bg-orange-800/80'
+            : 'bg-white dark:bg-gray-800'
+            }`}
         >
-          <div className="pt-3 pb-1">
-            <div className="w-12 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
+          <div
+            className="pt-3 pb-1 w-full flex justify-center cursor-grab active:cursor-grabbing"
+            role="button"
+            aria-label="Drag down to close add member form"
+            title="Drag down to close"
+            {...dragHandleProps}
+          >
+            <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shadow-sm" />
           </div>
           <div className={`w-full flex items-center justify-between px-4 py-3 border-b transition-all duration-300 ${isOverrideMode
             ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
@@ -467,7 +545,12 @@ const MemberModal = ({ isOpen, onClose }) => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); selection(); setIsOverrideMode(!isOverrideMode) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  selection()
+                  setShowErrors(false)
+                  setIsOverrideMode(!isOverrideMode)
+                }}
                 className={`px-3 py-1 rounded text-[10px] font-black uppercase border transition-colors ${isOverrideMode
                   ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
@@ -476,7 +559,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                 {isOverrideMode ? 'Override Active' : 'Override'}
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); selection(); onClose() }}
+                onClick={(e) => { e.stopPropagation(); closeWithAnimation() }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -494,7 +577,11 @@ const MemberModal = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => { selection(); setIsOverrideMode(!isOverrideMode) }}
+              onClick={() => {
+                selection()
+                setShowErrors(false)
+                setIsOverrideMode(!isOverrideMode)
+              }}
               className={`px-3 py-1 rounded text-xs border transition-colors ${isOverrideMode
                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -503,7 +590,7 @@ const MemberModal = ({ isOpen, onClose }) => {
               {isOverrideMode ? 'Override Active' : 'Override'}
             </button>
             <button
-              onClick={() => { selection(); onClose() }}
+              onClick={() => closeWithAnimation()}
               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
               <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -700,6 +787,39 @@ const MemberModal = ({ isOpen, onClose }) => {
                           {level}
                         </button>
                       ))}
+                      <div className="border-t border-gray-200 dark:border-gray-600 p-2 bg-gray-50 dark:bg-gray-800/70">
+                        <label className="flex items-center gap-1.5 px-1 pb-1.5 text-[11px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+                          <Pencil className="w-3 h-3" />
+                          Custom level
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={customLevelValue}
+                            onChange={(e) => setCustomLevelValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                applyCustomLevel()
+                              }
+                            }}
+                            placeholder="Type level"
+                            data-testid="member-form-level-custom-input"
+                            className="min-w-0 flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={applyCustomLevel}
+                            disabled={!customLevelValue.trim()}
+                            data-testid="member-form-level-custom-add"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-orange-500 text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Add custom current level"
+                            title="Add custom current level"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -729,7 +849,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                         <div className="grid grid-cols-3 gap-2 sm:flex sm:space-x-2">
                           <button
                             type="button"
-                            onClick={() => { selection(); setSundayAttendance(prev => ({ ...prev, [date]: true })) }}
+                            onClick={() => setAttendanceChoice(date, true)}
                             className={`min-h-[40px] px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === true
                               ? 'bg-green-600 text-white shadow-sm'
                               : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
@@ -739,7 +859,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => { selection(); setSundayAttendance(prev => ({ ...prev, [date]: false })) }}
+                            onClick={() => setAttendanceChoice(date, false)}
                             className={`min-h-[40px] px-3 py-1 rounded-lg text-xs font-medium transition-colors ${sundayAttendance[date] === false
                               ? 'bg-red-600 text-white shadow-sm'
                               : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800'
@@ -784,7 +904,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                       ? 'text-red-700 dark:text-red-300'
                       : 'text-gray-700 dark:text-gray-300'
                       }`}>
-                      Parent/Guardian Info {showErrors && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim())) ? '(Required)' : '(Optional)'}
+                      Parent/Guardian Info {showErrors && !((parentInfo.parent_name_1?.trim() || parentInfo.parent_phone_1?.trim()) || (parentInfo.parent_name_2?.trim() || parentInfo.parent_phone_2?.trim())) ? '(Required)' : '(one needed)'}
                     </span>
                   </div>
                   {showParentSection ? (
@@ -805,7 +925,7 @@ const MemberModal = ({ isOpen, onClose }) => {
                     {/* Parent 1 */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Parent/Guardian 1
+                        Parent/Guardian
                       </label>
                       <div className="space-y-2">
                         <div className="relative">
@@ -843,44 +963,53 @@ const MemberModal = ({ isOpen, onClose }) => {
                       </div>
                     </div>
 
-                    {/* Parent 2 */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        Parent/Guardian 2
-                      </label>
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="text"
-                            value={parentInfo.parent_name_2}
-                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_2: e.target.value }))}
-                            placeholder="Name"
-                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
-                          />
-                        </div>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="tel"
-                            value={parentInfo.parent_phone_2}
-                            onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_2: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                            placeholder="Phone Number"
-                            className="w-full pl-10 pr-20 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
-                          />
-                          <div className="absolute inset-y-0 right-0 flex items-center pr-2">
-                            <button
-                              type="button"
-                              onClick={() => setParentInfo(prev => ({ ...prev, parent_phone_2: '0000000000' }))}
-                              className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-300 dark:border-gray-600"
-                              title="Set no phone number"
-                            >
-                              No Phone
-                            </button>
+                    {showSecondParent ? (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Additional Parent/Guardian
+                        </label>
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              value={parentInfo.parent_name_2}
+                              onChange={(e) => setParentInfo(prev => ({ ...prev, parent_name_2: e.target.value }))}
+                              placeholder="Name"
+                              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                            />
+                          </div>
+                          <div className="relative">
+                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="tel"
+                              value={parentInfo.parent_phone_2}
+                              onChange={(e) => setParentInfo(prev => ({ ...prev, parent_phone_2: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                              placeholder="Phone Number"
+                              className="w-full pl-10 pr-20 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500 text-sm"
+                            />
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-2">
+                              <button
+                                type="button"
+                                onClick={() => setParentInfo(prev => ({ ...prev, parent_phone_2: '0000000000' }))}
+                                className="px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500 border border-gray-300 dark:border-gray-600"
+                                title="Set no phone number"
+                              >
+                                No Phone
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { selection(); setShowSecondParent(true) }}
+                        className="w-full rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Add another guardian
+                      </button>
+                    )}
                   </div>
                 )}
               </GuidedField>
@@ -966,7 +1095,7 @@ const MemberModal = ({ isOpen, onClose }) => {
               <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex space-x-3">
                 <button
                   type="button"
-                  onClick={() => { selection(); onClose() }}
+                  onClick={() => closeWithAnimation()}
                   className="flex-1 min-h-[48px] px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 bg-white dark:bg-gray-700 transition-colors btn-press"
                 >
                   Cancel
