@@ -21,6 +21,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { toast } from 'react-toastify'
+import ExportContactsModal from './ExportContactsModal'
 
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -240,6 +241,7 @@ const ExportCenterPage = ({ onBack }) => {
     })
     const [isEditingWhatsAppDraft, setIsEditingWhatsAppDraft] = useState(false)
     const [whatsAppDraft, setWhatsAppDraft] = useState('')
+    const [isExportContactsModalOpen, setIsExportContactsModalOpen] = useState(false)
 
     const allMonthSundays = useMemo(() => {
         const map = {}
@@ -580,14 +582,56 @@ const ExportCenterPage = ({ onBack }) => {
 
         const blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8;' })
         const url = URL.createObjectURL(blob)
+
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+        
+        if (isMobile) {
+            // On mobile, navigating directly to the blob URL often triggers the system's contact handler
+            window.location.href = url
+        } else {
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `contacts_${selectedMonths.length > 1 ? 'multiple_months' : selectedMonths[0] || 'export'}.vcf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+        }
+
+        // Delay revocation to ensure the browser has handled the URL
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
+        toast.success(`Exported ${contactRows.length} contacts`)
+    }, [displayedPreviewData, selectedMonths])
+
+    const downloadCSVContacts = useCallback(() => {
+        const contactRows = displayedPreviewData
+            .map(row => {
+                const name = String(getRowValue(row, 'Full Name') || '').trim()
+                const phone = normalizePhone(getRowValue(row, 'Phone Number'))
+                return { name, phone }
+            })
+            .filter(contact => contact.name && contact.phone && contact.phone !== 'No phone')
+
+        if (contactRows.length === 0) {
+            toast.info('No contacts with phone numbers to export.')
+            return
+        }
+
+        const header = ['Full Name', 'Phone Number']
+        const csvContent = [
+            header.join(','),
+            ...contactRows.map(c => `${csvCell(c.name)},${csvCell(c.phone)}`)
+        ].join('\n')
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.download = `contacts_${selectedMonths.length > 1 ? 'multiple_months' : selectedMonths[0] || 'export'}.vcf`
+        link.download = `contacts_${selectedMonths.length > 1 ? 'multiple_months' : selectedMonths[0] || 'export'}.csv`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
-        toast.success(`Exported ${contactRows.length} contacts`)
+        toast.success(`Exported ${contactRows.length} contacts to CSV`)
     }, [displayedPreviewData, selectedMonths])
 
     const handleExport = useCallback(() => {
@@ -1127,7 +1171,7 @@ const ExportCenterPage = ({ onBack }) => {
                             <Phone className="w-4 h-4" /> Copy Names and Phones
                         </button>
                         <button
-                            onClick={downloadVCardContacts}
+                            onClick={() => setIsExportContactsModalOpen(true)}
                             disabled={displayedPreviewData.length === 0}
                             className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -1333,6 +1377,19 @@ const ExportCenterPage = ({ onBack }) => {
                     </div>
                 </section>
             </div>
+
+            <ExportContactsModal
+                isOpen={isExportContactsModalOpen}
+                onClose={() => setIsExportContactsModalOpen(false)}
+                onExportCSV={downloadCSVContacts}
+                onExportVCard={downloadVCardContacts}
+                contactCount={
+                    displayedPreviewData.filter(row => {
+                        const phone = normalizePhone(getRowValue(row, 'Phone Number'))
+                        return phone && phone !== 'No phone'
+                    }).length
+                }
+            />
         </div>
     )
 }
