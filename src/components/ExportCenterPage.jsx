@@ -13,10 +13,16 @@ import {
     ClipboardList,
     Table2,
     Phone,
-    UserRound,
-    UserCheck,
     MessageCircle,
-    Copy
+    Copy,
+    CheckSquare,
+    Square,
+    Settings,
+    FileText,
+    Layout,
+    ArrowRight,
+    UserCheck,
+    Smartphone
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
@@ -241,7 +247,9 @@ const ExportCenterPage = ({ onBack }) => {
     })
     const [isEditingWhatsAppDraft, setIsEditingWhatsAppDraft] = useState(false)
     const [whatsAppDraft, setWhatsAppDraft] = useState('')
+    const [selectedRows, setSelectedRows] = useState(new Set())
     const [isExportContactsModalOpen, setIsExportContactsModalOpen] = useState(false)
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
 
     const allMonthSundays = useMemo(() => {
         const map = {}
@@ -385,6 +393,7 @@ const ExportCenterPage = ({ onBack }) => {
                 allRows = members.map(member => ({ ...member, _month: currentTable }))
             }
             setPreviewData(allRows)
+            setSelectedRows(new Set(allRows.map(row => `${row.id}-${row._month}`)))
         } catch (err) {
             console.error('Preview fetch error:', err)
             toast.error('Failed to load preview')
@@ -392,6 +401,27 @@ const ExportCenterPage = ({ onBack }) => {
             setLoadingPreview(false)
         }
     }, [currentTable, isSupabaseConfigured, members, selectedMonths, selectedSundays.length])
+
+    const toggleRowSelection = (rowKey) => {
+        setSelectedRows(prev => {
+            const next = new Set(prev)
+            if (next.has(rowKey)) {
+                next.delete(rowKey)
+            } else {
+                next.add(rowKey)
+            }
+            return next
+        })
+    }
+
+    const handleSelectAllRows = () => {
+        const rows = exportMode === 'marked-members' ? markedPreviewData : previewData
+        setSelectedRows(new Set(rows.map(row => `${row.id}-${row._month}`)))
+    }
+
+    const handleClearRowSelection = () => {
+        setSelectedRows(new Set())
+    }
 
     const summary = useMemo(() => {
         const total = previewData.length
@@ -422,16 +452,20 @@ const ExportCenterPage = ({ onBack }) => {
 
     const displayedPreviewData = exportMode === 'marked-members' ? markedPreviewData : previewData
 
+    const selectedPreviewData = useMemo(() => (
+        displayedPreviewData.filter(row => selectedRows.has(`${row.id}-${row._month}`))
+    ), [displayedPreviewData, selectedRows])
+
     const displayedSummary = useMemo(() => ({
-        total: displayedPreviewData.length,
-        boys: displayedPreviewData.filter(row => normalizeGender(getRowValue(row, 'Gender')) === 'Male').length,
-        girls: displayedPreviewData.filter(row => normalizeGender(getRowValue(row, 'Gender')) === 'Female').length
-    }), [displayedPreviewData])
+        total: selectedPreviewData.length,
+        boys: selectedPreviewData.filter(row => normalizeGender(getRowValue(row, 'Gender')) === 'Male').length,
+        girls: selectedPreviewData.filter(row => normalizeGender(getRowValue(row, 'Gender')) === 'Female').length
+    }), [selectedPreviewData])
 
     const reportStats = useMemo(() => {
         let present = 0
         let absent = 0
-        displayedPreviewData.forEach(row => {
+        selectedPreviewData.forEach(row => {
             selectedSundays.forEach(sunday => {
                 const value = resolveAttendanceForDate(row, sunday, attendanceData)
                 if (value === true) present++
@@ -447,7 +481,7 @@ const ExportCenterPage = ({ onBack }) => {
             absent,
             sundays: selectedSundays.length
         }
-    }, [attendanceData, displayedPreviewData, displayedSummary, selectedMonths, selectedSundays])
+    }, [attendanceData, selectedPreviewData, displayedSummary, selectedMonths, selectedSundays])
 
     const allReportHeaderLines = useMemo(() => ({
         month: `Month: ${reportStats.monthLabel}`,
@@ -481,19 +515,19 @@ const ExportCenterPage = ({ onBack }) => {
             '*Members*'
         ]
 
-        displayedPreviewData.forEach((row, index) => {
+        selectedPreviewData.forEach((row, index) => {
             const name = getRowValue(row, 'Full Name') || 'Unknown'
             const phone = normalizePhone(getRowValue(row, 'Phone Number')) || 'No phone'
             const marks = selectedSundays.map(sunday => `${sunday.label}: ${getAttendanceMark(resolveAttendanceForDate(row, sunday, attendanceData))}`).join(', ')
             lines.push(`${index + 1}. ${name} | ${phone} | ${marks || 'No selected Sundays'}`)
         })
 
-        if (displayedPreviewData.length === 0) {
-            lines.push('No members found for this selection.')
+        if (selectedPreviewData.length === 0) {
+            lines.push('No members selected for export.')
         }
 
         return lines.join('\n')
-    }, [attendanceData, displayedPreviewData, selectedSundays, whatsAppSummaryLines])
+    }, [attendanceData, selectedPreviewData, selectedSundays, whatsAppSummaryLines])
 
     const buildWhatsAppPhoneList = useCallback(() => {
         const message = whatsAppMessage.trim()
@@ -502,19 +536,19 @@ const ExportCenterPage = ({ onBack }) => {
             ...whatsAppSummaryLines,
             includeWhatsAppMessage && message ? `Message: ${message}` : '',
             '',
-            ...displayedPreviewData.map((row, index) => {
+            ...selectedPreviewData.map((row, index) => {
                 const name = getRowValue(row, 'Full Name') || 'Unknown'
                 const phone = normalizePhone(getRowValue(row, 'Phone Number')) || 'No phone'
                 return `${index + 1}. ${name} - ${phone}${includeWhatsAppMessage && message ? ` - ${message}` : ''}`
             })
         ].filter(line => line !== '')
 
-        if (displayedPreviewData.length === 0) {
-            lines.push('No members found for this selection.')
+        if (selectedPreviewData.length === 0) {
+            lines.push('No members selected.')
         }
 
         return lines.join('\n')
-    }, [displayedPreviewData, includeWhatsAppMessage, whatsAppMessage, whatsAppSummaryLines])
+    }, [selectedPreviewData, includeWhatsAppMessage, whatsAppMessage, whatsAppSummaryLines])
 
     const generatedWhatsAppDraft = useMemo(() => buildWhatsAppFullReport(), [buildWhatsAppFullReport])
     const generatedPhoneDraft = useMemo(() => buildWhatsAppPhoneList(), [buildWhatsAppPhoneList])
@@ -558,7 +592,7 @@ const ExportCenterPage = ({ onBack }) => {
     }
 
     const downloadVCardContacts = useCallback(() => {
-        const contactRows = displayedPreviewData
+        const contactRows = selectedPreviewData
             .map(row => {
                 const name = String(getRowValue(row, 'Full Name') || '').trim()
                 const phone = normalizePhone(getRowValue(row, 'Phone Number'))
@@ -567,7 +601,7 @@ const ExportCenterPage = ({ onBack }) => {
             .filter(contact => contact.name && contact.phone && contact.phone !== 'No phone')
 
         if (contactRows.length === 0) {
-            toast.info('No contacts with phone numbers to export.')
+            toast.info('No selected contacts with phone numbers to export.')
             return
         }
 
@@ -600,10 +634,10 @@ const ExportCenterPage = ({ onBack }) => {
         // Delay revocation to ensure the browser has handled the URL
         setTimeout(() => URL.revokeObjectURL(url), 10000)
         toast.success(`Exported ${contactRows.length} contacts`)
-    }, [displayedPreviewData, selectedMonths])
+    }, [selectedPreviewData, selectedMonths])
 
     const downloadCSVContacts = useCallback(() => {
-        const contactRows = displayedPreviewData
+        const contactRows = selectedPreviewData
             .map(row => {
                 const name = String(getRowValue(row, 'Full Name') || '').trim()
                 const phone = normalizePhone(getRowValue(row, 'Phone Number'))
@@ -612,7 +646,7 @@ const ExportCenterPage = ({ onBack }) => {
             .filter(contact => contact.name && contact.phone && contact.phone !== 'No phone')
 
         if (contactRows.length === 0) {
-            toast.info('No contacts with phone numbers to export.')
+            toast.info('No selected contacts with phone numbers to export.')
             return
         }
 
@@ -632,13 +666,13 @@ const ExportCenterPage = ({ onBack }) => {
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
         toast.success(`Exported ${contactRows.length} contacts to CSV`)
-    }, [displayedPreviewData, selectedMonths])
+    }, [selectedPreviewData, selectedMonths])
 
     const handleExport = useCallback(() => {
-        const rowsToExport = exportMode === 'marked-members' ? markedPreviewData : previewData
+        const rowsToExport = selectedPreviewData
 
-        if (previewData.length === 0) {
-            toast.info('No data to export. Load preview first.')
+        if (selectedPreviewData.length === 0) {
+            toast.info('No members selected to export.')
             return
         }
         if (selectedSundays.length === 0) {
@@ -702,8 +736,8 @@ const ExportCenterPage = ({ onBack }) => {
     }, [attendanceData, columns, exportMode, markedPreviewData, previewData, reportHeaderLines, selectedMonths, selectedSundays, summary])
 
     const handleExportAttendanceOnly = useCallback(() => {
-        if (previewData.length === 0) {
-            toast.info('No data to export. Load preview first.')
+        if (selectedPreviewData.length === 0) {
+            toast.info('No members selected to export.')
             return
         }
         if (selectedSundays.length === 0) {
@@ -714,7 +748,7 @@ const ExportCenterPage = ({ onBack }) => {
         setIsExporting(true)
         try {
             const attendanceRecords = []
-            previewData.forEach(row => {
+            selectedPreviewData.forEach(row => {
                 const memberName = getRowValue(row, 'Full Name') || 'Unknown'
                 selectedSundays.forEach(sunday => {
                     const value = resolveAttendanceForDate(row, sunday, attendanceData)
@@ -769,613 +803,454 @@ const ExportCenterPage = ({ onBack }) => {
     const allMonthsSelected = selectedMonths.length === (monthlyTables || []).length && (monthlyTables || []).length > 0
 
     return (
-        <div className="min-h-screen bg-slate-100 dark:bg-gray-950 pb-24">
-            <div className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-                <div className="max-w-7xl mx-auto flex items-center gap-3">
-                    <button
-                        onClick={onBack}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        aria-label="Back to settings"
-                    >
-                        <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                    </button>
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                            <FileSpreadsheet className="w-5 h-5 text-orange-600 dark:text-orange-300" />
-                        </div>
+        <div className="min-h-screen bg-transparent pb-24 font-sans selection:bg-orange-100 dark:selection:bg-orange-900/40 p-4 md:p-6 lg:p-8">
+            <div className="bg-white dark:bg-gray-950 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col h-[calc(100vh-100px)]">
+                {/* Simple Navigation Header */}
+                <div className="flex-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={onBack}
+                            className="p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-all active:scale-95"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
-                            <h1 className="text-lg font-semibold text-gray-950 dark:text-white">Export Center</h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Build a clean CSV with only the Sundays you choose.</p>
+                            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">Export Center</h1>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Ready to build</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <div className="hidden sm:flex items-center bg-gray-100 dark:bg-gray-800 rounded-full px-3 py-1.5 gap-3">
+                            <div className="flex items-center gap-1.5">
+                                <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                                <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-tight">{selectedSundays.length} Sundays</span>
+                            </div>
+                            <div className="h-3 w-px bg-gray-300 dark:bg-gray-700" />
+                            <div className="flex items-center gap-1.5">
+                                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-tight">{selectedPreviewData.length} Selected</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-5">
-                <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Months</div>
-                        <div className="text-2xl font-bold text-gray-950 dark:text-white">{selectedMonths.length}</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Sundays</div>
-                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-300">{selectedSundays.length}</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Preview Rows</div>
-                        <div className="text-2xl font-bold text-gray-950 dark:text-white">{previewData.length}</div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Marked Members</div>
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-300">{summary.markedMembers}</div>
-                    </div>
-                </section>
-
-                <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-4 lg:p-5 space-y-4">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div>
-                            <h2 className="font-semibold text-gray-950 dark:text-white flex items-center gap-2">
-                                <FileSpreadsheet className="w-4 h-4 text-orange-500" /> Report Header
-                            </h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                This summary appears at the top of exports and WhatsApp copies.
-                            </p>
-                        </div>
-                        <div className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                            <span>P = Present</span>
-                            <span>A = Absent</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3 col-span-2">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Month</div>
-                            <div className="text-sm font-bold text-gray-950 dark:text-white truncate">{reportStats.monthLabel}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Total</div>
-                            <div className="text-xl font-bold text-gray-950 dark:text-white">{reportStats.total}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Female</div>
-                            <div className="text-xl font-bold text-pink-600 dark:text-pink-300">{reportStats.female}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Male</div>
-                            <div className="text-xl font-bold text-blue-600 dark:text-blue-300">{reportStats.male}</div>
-                        </div>
-                        <div className="rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 p-3">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Absent</div>
-                            <div className="text-xl font-bold text-red-600 dark:text-red-300">{reportStats.absent}</div>
-                        </div>
-                    </div>
-
-                    <label className="block">
-                        <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Editable note</span>
-                        <textarea
-                            value={reportNote}
-                            onChange={(event) => setReportNote(event.target.value)}
-                            rows={3}
-                            className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            placeholder="Add a note for this export"
-                        />
-                    </label>
-                </section>
-
-                <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <div className="p-4 lg:p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
-                        <div>
-                            <h2 className="font-semibold text-gray-950 dark:text-white flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-orange-500" /> Months and Sundays
-                            </h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select the exact Sundays to show in preview and export.</p>
-                        </div>
-                        <button
-                            onClick={handleSelectAllMonths}
-                            className="shrink-0 text-sm px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
-                        >
-                            {allMonthsSelected ? 'Clear All' : 'Select All Months'}
-                        </button>
-                    </div>
-
-                    <div className="p-4 lg:p-5 space-y-4 max-h-[360px] overflow-y-auto pr-2">
-                        {years.map(year => (
-                            <div key={year} className="space-y-3">
-                                <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">{year}</div>
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                                    {(monthsByYear[year] || []).map(table => {
-                                        const selected = selectedMonths.includes(table)
-                                        const sundays = allMonthSundays[table] || []
-                                        const selectedCount = sundays.filter(sunday => selectedDateKeys.includes(sunday.dateKey)).length
-                                        const allSundaysSelected = selectedCount === sundays.length && sundays.length > 0
-
-                                        return (
-                                            <div
-                                                key={table}
-                                                className={`rounded-lg border p-3 transition-colors ${selected
-                                                    ? 'border-orange-300 bg-orange-50/70 dark:border-orange-700 dark:bg-orange-950/20'
-                                                    : 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/40'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center justify-between gap-3 mb-3">
-                                                    <button
-                                                        onClick={() => toggleMonth(table)}
-                                                        className={`min-w-0 flex items-center gap-2 text-left font-semibold ${selected ? 'text-orange-800 dark:text-orange-200' : 'text-gray-900 dark:text-gray-100'}`}
-                                                    >
-                                                        <span className={`h-5 w-5 rounded border flex items-center justify-center ${selected ? 'bg-orange-600 border-orange-600 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                                                            {selected && <Check className="w-3.5 h-3.5" />}
-                                                        </span>
-                                                        <span className="truncate">{formatTableName(table)}</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setMonthSundaySelection(table, !allSundaysSelected)}
-                                                        className="text-xs font-semibold px-2 py-1 rounded bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-300"
-                                                    >
-                                                        {allSundaysSelected ? 'Clear Sundays' : 'All Sundays'}
-                                                    </button>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                    {sundays.map(sunday => {
-                                                        const isSelected = selectedDateKeys.includes(sunday.dateKey)
-                                                        return (
-                                                            <button
-                                                                key={sunday.dateKey}
-                                                                onClick={() => toggleSunday(table, sunday.dateKey)}
-                                                                className={`px-3 py-2 rounded-lg border text-left transition-colors ${isSelected
-                                                                    ? 'bg-orange-600 border-orange-600 text-white'
-                                                                    : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-orange-300'
-                                                                    }`}
-                                                            >
-                                                                <span className="block text-[11px] font-semibold opacity-80">{sunday.weekdayLabel}</span>
-                                                                <span className="block text-sm font-bold">{sunday.label}</span>
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
-                                                <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-2">{selectedCount} of {sundays.length} Sundays selected</div>
-                                            </div>
-                                        )
-                                    })}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-7 space-y-6">
+                    {/* STEP 1: SERVICE DATES */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="lg:col-span-8 space-y-6">
+                        <section className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                            <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/30">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+                                        <Calendar className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                    </div>
+                                    <h2 className="font-bold text-gray-900 dark:text-white">Service Dates</h2>
                                 </div>
-                            </div>
-                        ))}
-                        {years.length === 0 && (
-                            <p className="text-gray-400 text-sm">No months available</p>
-                        )}
-                    </div>
-                </section>
-
-                <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-4 lg:p-5">
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                        <div>
-                            <h2 className="font-semibold text-gray-950 dark:text-white flex items-center gap-2">
-                                <GripVertical className="w-4 h-4 text-gray-400" /> Column Order
-                            </h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Drag to reorder. Remove fields you do not want in the standard export.</p>
-                        </div>
-                        <button
-                            onClick={() => setColumns(defaultColumns)}
-                            className="text-sm px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
-                        >
-                            Reset
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-2">
-                        {columns.map((col, idx) => (
-                            <div
-                                key={col}
-                                draggable
-                                onDragStart={() => handleDragStart(idx)}
-                                onDragOver={handleDragOver}
-                                onDrop={() => handleDrop(idx)}
-                                className={`flex items-center gap-2 px-3 py-3 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 cursor-grab select-none ${draggedIdx === idx ? 'opacity-50' : ''}`}
-                            >
-                                <GripVertical className="w-4 h-4 text-gray-400" />
-                                <span className="flex-1 text-sm text-gray-800 dark:text-gray-100">{col}</span>
                                 <button
-                                    onClick={(event) => {
-                                        event.stopPropagation()
-                                        setColumns(prev => prev.filter((_, i) => i !== idx))
-                                    }}
-                                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                                    aria-label={`Remove ${col}`}
+                                    onClick={handleSelectAllMonths}
+                                    className="text-xs font-bold px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-orange-500 transition-all active:scale-95"
                                 >
-                                    <X className="w-4 h-4 text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
+                                    {allMonthsSelected ? 'Clear All' : 'Select All'}
                                 </button>
                             </div>
-                        ))}
-                    </div>
-                </section>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.35fr] gap-3">
-                    <button
-                        onClick={fetchPreview}
-                        disabled={selectedMonths.length === 0 || selectedSundays.length === 0 || loadingPreview}
-                        className="flex items-center justify-center gap-2 py-4 rounded-lg bg-gray-950 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-gray-950 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loadingPreview ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
-                        {loadingPreview ? 'Loading Preview...' : 'Preview Data'}
-                    </button>
-                    <div className="grid grid-cols-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1">
+                            <div className="p-5 space-y-6 max-h-[480px] overflow-y-auto custom-scrollbar">
+                                {years.map(year => (
+                                    <div key={year} className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">{year}</span>
+                                            <div className="h-px flex-1 bg-gray-100 dark:bg-gray-800" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {(monthsByYear[year] || []).map(table => {
+                                                const selected = selectedMonths.includes(table)
+                                                const sundays = allMonthSundays[table] || []
+                                                const selectedCount = sundays.filter(sunday => selectedDateKeys.includes(sunday.dateKey)).length
+                                                const allSundaysSelected = selectedCount === sundays.length && sundays.length > 0
+
+                                                return (
+                                                    <div
+                                                        key={table}
+                                                        className={`rounded-2xl border p-4 transition-all duration-300 ${selected
+                                                            ? 'border-orange-200 bg-orange-50/30 dark:border-orange-900/30 dark:bg-orange-950/10'
+                                                            : 'border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-700'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <button
+                                                                onClick={() => toggleMonth(table)}
+                                                                className="flex items-center gap-3 group"
+                                                            >
+                                                                <div className={`h-5 w-5 rounded border flex items-center justify-center transition-all ${selected ? 'bg-orange-600 border-orange-600 text-white scale-110' : 'border-gray-300 dark:border-gray-600 group-hover:border-orange-400'}`}>
+                                                                    {selected && <Check className="w-3 h-3" />}
+                                                                </div>
+                                                                <span className={`font-bold text-sm ${selected ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>{formatTableName(table)}</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setMonthSundaySelection(table, !allSundaysSelected)}
+                                                                className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${allSundaysSelected ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40' : 'text-gray-400 hover:text-orange-500'}`}
+                                                            >
+                                                                {allSundaysSelected ? 'All Selected' : 'Select All'}
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {sundays.map(sunday => {
+                                                                const isSelected = selectedDateKeys.includes(sunday.dateKey)
+                                                                return (
+                                                                    <button
+                                                                        key={sunday.dateKey}
+                                                                        onClick={() => toggleSunday(table, sunday.dateKey)}
+                                                                        className={`px-3 py-2 rounded-xl text-left border transition-all active:scale-95 ${isSelected
+                                                                            ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-600/20'
+                                                                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-orange-300'
+                                                                            }`}
+                                                                    >
+                                                                        <span className="block text-[9px] font-black uppercase opacity-60 leading-none mb-1">{sunday.weekdayLabel}</span>
+                                                                        <span className="block text-xs font-bold leading-none">{sunday.label}</span>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className="lg:col-span-4 space-y-5">
+                        {/* QUICK STATS */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-0.5">Total</p>
+                                <p className="text-xl font-black text-gray-900 dark:text-white">{reportStats.total}</p>
+                            </div>
+                            <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-0.5">Present</p>
+                                <p className="text-xl font-black text-green-600">{reportStats.present}</p>
+                            </div>
+                        </div>
+
+                        {/* EXPORT MODE */}
+                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-1.5 flex flex-col">
+                            {[
+                                { id: 'standard', label: 'All Members', icon: Users, desc: 'Full member list' },
+                                { id: 'marked-members', label: 'Marked Only', icon: UserCheck, desc: 'Only P/A marks' },
+                                { id: 'attendance-only', label: 'Attendance Log', icon: ClipboardList, desc: 'Simplified log' }
+                            ].map(mode => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => setExportMode(mode.id)}
+                                    className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${exportMode === mode.id 
+                                        ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950 shadow-lg' 
+                                        : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500'}`}
+                                >
+                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${exportMode === mode.id ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                        <mode.icon className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-xs font-bold">{mode.label}</p>
+                                        <p className="text-[9px] opacity-60">{mode.desc}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </section>
+
+                        {/* ADVANCED TOGGLE */}
                         <button
-                            onClick={() => setExportMode('standard')}
-                            className={`flex items-center justify-center gap-2 py-3 px-3 rounded-md font-semibold transition-colors ${exportMode === 'standard'
-                                ? 'bg-orange-600 text-white'
-                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                }`}
+                            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                            className="w-full flex items-center justify-between p-3.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 transition-all font-bold text-xs"
                         >
-                            <Table2 className="w-4 h-4" /> All Members
+                            <div className="flex items-center gap-2">
+                                <Settings className="w-3.5 h-3.5" />
+                                <span>Advanced Options</span>
+                            </div>
+                            <ArrowRight className={`w-3.5 h-3.5 transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
                         </button>
+
+                        {showAdvancedSettings && (
+                            <div className="space-y-4 animate-in slide-in-from-top duration-300">
+                                <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 space-y-4 shadow-xl">
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-black uppercase text-gray-400">Export Note</p>
+                                        <textarea
+                                            value={reportNote}
+                                            onChange={(e) => setReportNote(e.target.value)}
+                                            rows={2}
+                                            className="w-full rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-2.5 text-[11px] focus:ring-2 focus:ring-orange-500 outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[9px] font-black uppercase text-gray-400">Visible Columns</p>
+                                            <button onClick={() => setColumns(defaultColumns)} className="text-[9px] font-bold text-orange-600 uppercase">Reset</button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {columns.map((col, idx) => (
+                                                <div key={col} className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[9px] font-bold text-gray-600 dark:text-gray-300">
+                                                    <span>{col}</span>
+                                                    <button onClick={() => setColumns(prev => prev.filter((_, i) => i !== idx))}><X className="w-2.5 h-2.5 text-red-500" /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        )}
+
                         <button
-                            onClick={() => setExportMode('marked-members')}
-                            className={`flex items-center justify-center gap-2 py-3 px-3 rounded-md font-semibold transition-colors ${exportMode === 'marked-members'
-                                ? 'bg-green-600 text-white'
-                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                }`}
+                            onClick={fetchPreview}
+                            disabled={selectedMonths.length === 0 || selectedSundays.length === 0 || loadingPreview}
+                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black text-sm shadow-lg shadow-orange-600/20 transition-all active:scale-95 disabled:opacity-50"
                         >
-                            <UserCheck className="w-4 h-4" /> Marked
-                        </button>
-                        <button
-                            onClick={() => setExportMode('attendance-only')}
-                            className={`flex items-center justify-center gap-2 py-3 px-3 rounded-md font-semibold transition-colors ${exportMode === 'attendance-only'
-                                ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950'
-                                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                }`}
-                        >
-                            <ClipboardList className="w-4 h-4" /> Log
+                            {loadingPreview ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                            {loadingPreview ? 'Fetching...' : 'Preview & Load'}
                         </button>
                     </div>
                 </div>
 
-                <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-4 lg:p-5 space-y-4">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div>
-                            <h2 className="font-semibold text-gray-950 dark:text-white flex items-center gap-2">
-                                <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp Format
-                            </h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Copy a clean message instead of downloading a file. It uses the current preview mode.
-                            </p>
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Copy source: {exportMode === 'marked-members' ? 'Marked members' : exportMode === 'attendance-only' ? 'All previewed members' : 'All members'}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-4">
-                        <div className="space-y-4">
-                            <div>
-                                <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Summary in copied text</span>
-                                <div className="grid grid-cols-3 rounded-lg bg-gray-100 dark:bg-gray-800 p-1">
-                                    {[
-                                        ['all', 'All'],
-                                        ['choose', 'Pick'],
-                                        ['none', 'None']
-                                    ].map(([value, label]) => (
-                                        <button
-                                            key={value}
-                                            onClick={() => setSummaryMode(value)}
-                                            className={`rounded-md px-3 py-2 text-sm font-semibold ${summaryMode === value
-                                                ? 'bg-white dark:bg-gray-950 text-gray-950 dark:text-white shadow-sm'
-                                                : 'text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-900/60'
-                                                }`}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
+                {showPreview && (
+                    <div className="space-y-5 animate-in fade-in slide-in-from-bottom duration-500">
+                        {/* STEP 2: WHATSAPP DRAWER */}
+                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                            <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-green-50/20 dark:bg-green-900/10">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                                        <MessageCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                    </div>
+                                    <h2 className="font-bold text-sm text-gray-900 dark:text-white">WhatsApp & Copy</h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => copyToClipboard(activeWhatsAppText, 'Report copied')}
+                                        className="text-[10px] font-black uppercase px-3 py-1.5 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-md shadow-green-600/20 flex items-center gap-1.5"
+                                    >
+                                        <Copy className="w-3 h-3" /> Copy Report
+                                    </button>
                                 </div>
                             </div>
-
-                            {summaryMode === 'choose' && (
-                                <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 dark:border-gray-800 p-3 max-h-40 overflow-y-auto">
-                                    {[
-                                        ['month', 'Month'],
-                                        ['total', 'Total'],
-                                        ['male', 'Male'],
-                                        ['female', 'Female'],
-                                        ['present', 'Present'],
-                                        ['absent', 'Absent'],
-                                        ['sundays', 'Sundays'],
-                                        ['legend', 'Legend'],
-                                        ['note', 'Note']
-                                    ].map(([key, label]) => (
-                                        <label key={key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                            
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-4">
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl space-y-3">
+                                        <p className="text-[10px] font-black uppercase text-gray-400">Settings</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['month', 'total', 'present', 'absent'].map(key => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => setSummaryFields(p => ({ ...p, [key]: !p[key] }))}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${summaryFields[key] ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}
+                                                >
+                                                    {key.charAt(0).toUpperCase() + key.slice(1)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <label className="flex items-center gap-2 mt-2">
                                             <input
                                                 type="checkbox"
-                                                checked={summaryFields[key]}
-                                                onChange={(event) => setSummaryFields(prev => ({ ...prev, [key]: event.target.checked }))}
-                                                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                                checked={includeWhatsAppMessage}
+                                                onChange={(e) => setIncludeWhatsAppMessage(e.checked)}
+                                                className="h-4 w-4 rounded-md border-gray-300 text-green-600 focus:ring-green-500"
                                             />
-                                            {label}
+                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-tight">Include message</span>
                                         </label>
-                                    ))}
-                                </div>
-                            )}
-
-                            <label className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-sm text-gray-700 dark:text-gray-200">
-                                <input
-                                    type="checkbox"
-                                    checked={includeWhatsAppMessage}
-                                    onChange={(event) => setIncludeWhatsAppMessage(event.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                                />
-                                Add short message to names and phone list
-                            </label>
-
-                            {includeWhatsAppMessage && (
-                                <label className="block">
-                                    <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Short message for phone list</span>
-                                    <input
-                                        value={whatsAppMessage}
-                                        onChange={(event) => setWhatsAppMessage(event.target.value)}
-                                        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                        placeholder="Type the short WhatsApp message"
-                                    />
-                                </label>
-                            )}
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Full report preview</span>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleStartEditWhatsAppDraft}
-                                        className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
-                                    >
-                                        Edit
-                                    </button>
-                                    {isEditingWhatsAppDraft && (
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
                                         <button
-                                            onClick={handleResetWhatsAppDraft}
-                                            className="rounded-md bg-orange-50 dark:bg-orange-950/30 px-2 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40"
+                                            onClick={() => copyToClipboard(buildWhatsAppPhoneList(), 'Phones copied')}
+                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all font-bold text-xs"
                                         >
-                                            Reset
+                                            <Phone className="w-4 h-4" /> Copy Phones
                                         </button>
-                                    )}
+                                        <button
+                                            onClick={() => setIsExportContactsModalOpen(true)}
+                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all font-bold text-xs shadow-lg shadow-orange-600/20"
+                                        >
+                                            <Smartphone className="w-4 h-4" /> Export Phone
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div className="relative">
+                                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Message Preview</p>
+                                    <textarea
+                                        value={activeWhatsAppText}
+                                        readOnly
+                                        className="w-full h-40 bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 text-xs font-mono text-gray-700 dark:text-gray-300 border-none outline-none resize-none"
+                                    />
                                 </div>
                             </div>
-                            <textarea
-                                value={activeWhatsAppText}
-                                onChange={(event) => {
-                                    setIsEditingWhatsAppDraft(true)
-                                    setWhatsAppDraft(event.target.value)
-                                }}
-                                rows={10}
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 px-3 py-2 font-mono text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                placeholder="Preview appears after selecting months and loading data"
-                            />
-                            <div>
-                                <span className="mb-2 block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Names and phones preview</span>
-                                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 px-3 py-2 font-mono text-xs text-gray-900 dark:text-white">
-                                    {generatedPhoneDraft}
-                                </pre>
-                            </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <button
-                            onClick={() => copyToClipboard(activeWhatsAppText, 'Copied WhatsApp report')}
-                            disabled={displayedPreviewData.length === 0}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Copy className="w-4 h-4" /> Copy Full WhatsApp Report
-                        </button>
-                        <button
-                            onClick={() => copyToClipboard(buildWhatsAppPhoneList(), 'Copied names and phone numbers')}
-                            disabled={displayedPreviewData.length === 0}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200"
-                        >
-                            <Phone className="w-4 h-4" /> Copy Names and Phones
-                        </button>
-                        <button
-                            onClick={() => setIsExportContactsModalOpen(true)}
-                            disabled={displayedPreviewData.length === 0}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Download className="w-4 h-4" /> Export Contacts
-                        </button>
-                    </div>
-                </section>
-
-                {showPreview && (
-                    <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
-                        <div className="p-4 lg:p-5 border-b border-gray-100 dark:border-gray-800 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                            <div>
-                                <h2 className="font-semibold text-gray-950 dark:text-white flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-green-500" /> Export Preview
-                                </h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {exportMode === 'marked-members'
-                                        ? 'Showing only members with at least one Present or Absent mark in the selected Sundays.'
-                                        : 'Gender, level, phone numbers, and selected Sundays are shown exactly as the CSV will export.'}
-                                </p>
-                            </div>
-                            <div className="flex rounded-lg bg-gray-100 dark:bg-gray-800 p-1">
-                                <button
-                                    onClick={() => setPreviewMode('standard')}
-                                    className={`px-3 py-2 rounded-md text-sm font-semibold ${previewMode === 'standard' ? 'bg-white dark:bg-gray-950 text-gray-950 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'}`}
-                                >
-                                    Standard View
-                                </button>
-                                <button
-                                    onClick={() => setPreviewMode('attendance')}
-                                    className={`px-3 py-2 rounded-md text-sm font-semibold ${previewMode === 'attendance' ? 'bg-white dark:bg-gray-950 text-gray-950 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'}`}
-                                >
-                                    Attendance View
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4 lg:p-5 bg-gray-50 dark:bg-gray-950/40 border-b border-gray-100 dark:border-gray-800">
-                            <div className="rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Previewed</div>
-                                <div className="text-xl font-bold text-gray-950 dark:text-white">{displayedSummary.total}</div>
-                            </div>
-                            <div className="rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Male</div>
-                                <div className="text-xl font-bold text-gray-950 dark:text-white">{displayedSummary.boys}</div>
-                            </div>
-                            <div className="rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Female</div>
-                                <div className="text-xl font-bold text-gray-950 dark:text-white">{displayedSummary.girls}</div>
-                            </div>
-                            <div className="rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3">
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Marked Members</div>
-                                <div className="text-xl font-bold text-green-600 dark:text-green-300">{summary.markedMembers}</div>
-                            </div>
-                            <div className="rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 col-span-2 lg:col-span-1">
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Format Fixes</div>
-                                <div className="flex items-center gap-3 mt-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                    <span className="flex items-center gap-1"><UserRound className="w-3.5 h-3.5" /> M/F</span>
-                                    <span>ABC</span>
-                                    <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> 0</span>
+                        {/* STEP 3: PREVIEW TABLE */}
+                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                            <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                                        <Layout className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <h2 className="font-bold text-sm text-gray-900 dark:text-white">Detailed Preview</h2>
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => setPreviewMode('standard')}
+                                        className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${previewMode === 'standard' ? 'bg-white dark:bg-gray-900 text-gray-950 dark:text-white shadow-sm' : 'text-gray-500'}`}
+                                    >
+                                        Standard
+                                    </button>
+                                    <button
+                                        onClick={() => setPreviewMode('attendance')}
+                                        className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${previewMode === 'attendance' ? 'bg-white dark:bg-gray-900 text-gray-950 dark:text-white shadow-sm' : 'text-gray-500'}`}
+                                    >
+                                        Attendance
+                                    </button>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="overflow-x-auto max-h-[620px]">
-                            <table className="min-w-full text-sm">
-                                <thead className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800">
-                                    <tr>
-                                        {previewMode === 'standard' ? (
-                                            <>
-                                                {columns.map(col => (
-                                                    <th key={col} className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">{col}</th>
-                                                ))}
-                                                <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">Month</th>
-                                                {selectedSundays.map(sunday => (
-                                                    <th key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                                        {formatTableName(sunday.table)} {sunday.label}
-                                                    </th>
-                                                ))}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">Full Name</th>
-                                                <th className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">Month</th>
-                                                {selectedSundays.map(sunday => (
-                                                    <th key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 text-left text-xs font-bold uppercase text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                                        {sunday.label}
-                                                    </th>
-                                                ))}
-                                            </>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                                    {displayedPreviewData.slice(0, 100).map((row, index) => (
-                                        <tr key={`${row.id || index}-${row._month || ''}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                            <div className="bg-gray-50/50 dark:bg-gray-800/20 px-4 py-2.5 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+                                <div className="flex gap-3">
+                                    <button onClick={handleSelectAllRows} className="text-[9px] font-black uppercase text-orange-600 hover:text-orange-700 transition-all">Select All</button>
+                                    <button onClick={handleClearRowSelection} className="text-[9px] font-black uppercase text-gray-400 hover:text-gray-600 transition-all">Deselect</button>
+                                </div>
+                                <p className="text-[9px] font-bold text-gray-500 uppercase">{selectedPreviewData.length} rows selected</p>
+                            </div>
+
+                            <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
+                                <table className="min-w-full text-[11px]">
+                                    <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+                                        <tr>
+                                            <th className="px-4 py-3 w-10 sticky left-0 z-20 bg-white dark:bg-gray-900" />
                                             {previewMode === 'standard' ? (
                                                 <>
                                                     {columns.map(col => (
-                                                        <td key={col} className="px-4 py-3 text-gray-800 dark:text-gray-100 whitespace-nowrap">
-                                                            {normalizeExportCell(col, getRowValue(row, col)) || '-'}
-                                                        </td>
+                                                        <th key={col} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400">{col}</th>
                                                     ))}
-                                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatTableName(row._month)}</td>
-                                                    {selectedSundays.map(sunday => {
-                                                        const mark = getAttendanceMark(resolveAttendanceForDate(row, sunday, attendanceData))
-                                                        return (
-                                                            <td key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 whitespace-nowrap">
-                                                                <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-bold ${mark === 'P'
-                                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                                    : mark === 'A'
-                                                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                                                        : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
-                                                                    }`}>
-                                                                    {mark}
-                                                                </span>
-                                                            </td>
-                                                        )
-                                                    })}
+                                                    <th className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400">Month</th>
+                                                    {selectedSundays.map(sunday => (
+                                                        <th key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap">
+                                                            {sunday.label}
+                                                        </th>
+                                                    ))}
                                                 </>
                                             ) : (
                                                 <>
-                                                    <td className="px-4 py-3 text-gray-900 dark:text-white whitespace-nowrap font-semibold">{getRowValue(row, 'Full Name') || 'Unknown'}</td>
-                                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatTableName(row._month)}</td>
-                                                    {selectedSundays.map(sunday => {
-                                                        const mark = getAttendanceMark(resolveAttendanceForDate(row, sunday, attendanceData))
-                                                        return (
-                                                            <td key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 whitespace-nowrap">
-                                                                <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-bold ${mark === 'P'
-                                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                                    : mark === 'A'
-                                                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                                                        : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
-                                                                    }`}>
-                                                                    {mark}
-                                                                </span>
-                                                            </td>
-                                                        )
-                                                    })}
+                                                    <th className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400">Full Name</th>
+                                                    <th className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400">Month</th>
+                                                    {selectedSundays.map(sunday => (
+                                                        <th key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap">
+                                                            {sunday.label}
+                                                        </th>
+                                                    ))}
                                                 </>
                                             )}
                                         </tr>
-                                    ))}
-                                    {displayedPreviewData.length > 100 && (
-                                        <tr>
-                                            <td colSpan={previewMode === 'standard' ? columns.length + selectedSundays.length + 1 : selectedSundays.length + 2} className="px-4 py-4 text-center text-gray-400 bg-gray-50 dark:bg-gray-800/50">
-                                                And {displayedPreviewData.length - 100} more rows. The CSV includes every row in this mode.
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedPreviewData.length === 0 && (
-                                        <tr>
-                                            <td colSpan={previewMode === 'standard' ? columns.length + selectedSundays.length + 1 : selectedSundays.length + 2} className="px-4 py-8 text-center text-gray-400">
-                                                {exportMode === 'marked-members'
-                                                    ? 'No selected members have Present or Absent marks yet.'
-                                                    : 'No preview data yet.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                                        {displayedPreviewData.slice(0, 100).map((row, index) => {
+                                            const rowKey = `${row.id}-${row._month}`
+                                            const isSelected = selectedRows.has(rowKey)
+                                            return (
+                                                <tr
+                                                    key={`${row.id || index}-${row._month || ''}`}
+                                                    onClick={() => toggleRowSelection(rowKey)}
+                                                    className={`group cursor-pointer transition-all ${isSelected ? 'bg-orange-50/20 dark:bg-orange-950/5' : 'hover:bg-gray-50/50 dark:hover:bg-gray-800/30'}`}
+                                                >
+                                                    <td className="px-4 py-3 sticky left-0 z-10 bg-inherit text-center">
+                                                        <div className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-orange-600 border-orange-600 text-white scale-110' : 'border-gray-200 dark:border-gray-700 group-hover:border-orange-300'}`}>
+                                                            {isSelected && <CheckSquare className="w-2.5 h-2.5" />}
+                                                        </div>
+                                                    </td>
+                                                    {previewMode === 'standard' ? (
+                                                        <>
+                                                            {columns.map(col => (
+                                                                <td key={col} className={`px-4 py-3 whitespace-nowrap font-medium ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>
+                                                                    {normalizeExportCell(col, getRowValue(row, col)) || '-'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="px-4 py-3 text-gray-400 font-bold whitespace-nowrap">{formatTableName(row._month)}</td>
+                                                            {selectedSundays.map(sunday => {
+                                                                const mark = getAttendanceMark(resolveAttendanceForDate(row, sunday, attendanceData))
+                                                                return (
+                                                                    <td key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 whitespace-nowrap">
+                                                                        <div className={`h-5 w-8 flex items-center justify-center rounded-md text-[9px] font-black ${mark === 'P'
+                                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                            : mark === 'A'
+                                                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                                                : 'bg-gray-50 text-gray-300 dark:bg-gray-800 dark:text-gray-600'
+                                                                            }`}>
+                                                                            {mark}
+                                                                        </div>
+                                                                    </td>
+                                                                )
+                                                            })}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <td className={`px-4 py-3 whitespace-nowrap font-bold ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>{getRowValue(row, 'Full Name') || 'Unknown'}</td>
+                                                            <td className="px-4 py-3 text-gray-400 font-bold whitespace-nowrap">{formatTableName(row._month)}</td>
+                                                            {selectedSundays.map(sunday => {
+                                                                const mark = getAttendanceMark(resolveAttendanceForDate(row, sunday, attendanceData))
+                                                                return (
+                                                                    <td key={`${sunday.table}-${sunday.dateKey}`} className="px-4 py-3 whitespace-nowrap">
+                                                                        <div className={`h-5 w-8 flex items-center justify-center rounded-md text-[9px] font-black ${mark === 'P'
+                                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                            : mark === 'A'
+                                                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                                                : 'bg-gray-50 text-gray-300 dark:bg-gray-800 dark:text-gray-600'
+                                                                            }`}>
+                                                                            {mark}
+                                                                        </div>
+                                                                    </td>
+                                                                )
+                                                            })}
+                                                        </>
+                                                    )}
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                        {/* FINAL ACTION BAR */}
+                        <div className="bg-white dark:bg-gray-900 p-5 rounded-[1.75rem] border border-gray-200 dark:border-gray-800 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
+                            <div className="text-center md:text-left">
+                                <h3 className="text-base font-black text-gray-900 dark:text-white leading-none mb-1">Final Export</h3>
+                                <p className="text-[10px] text-gray-500 font-medium">Ready to download the {exportMode.replace('-', ' ')} file.</p>
+                            </div>
+                            
+                            <div className="flex flex-col sm:flex-row gap-3.5 w-full md:w-auto">
+                                <div className="text-center sm:text-right flex flex-col justify-center px-3">
+                                    <span className="text-[9px] font-black uppercase text-orange-600">{selectedPreviewData.length} Rows</span>
+                                    <span className="text-[8px] font-bold text-gray-400 uppercase">{selectedSundays.length} Sundays</span>
+                                </div>
+                                <button
+                                    onClick={exportMode === 'attendance-only' ? handleExportAttendanceOnly : handleExport}
+                                    disabled={previewData.length === 0 || selectedSundays.length === 0 || isExporting}
+                                    className={`flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl text-white font-black text-base shadow-xl transition-all active:scale-95 disabled:opacity-50 ${exportMode === 'standard'
+                                        ? 'bg-gray-950 dark:bg-white dark:text-gray-950 shadow-black/10'
+                                        : 'bg-green-700 shadow-green-700/10'
+                                        }`}
+                                >
+                                    {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                                    <span>Download CSV</span>
+                                </button>
+                            </div>
                         </div>
-                    </section>
+                    </div>
                 )}
-
-                <section className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-4 lg:p-5 space-y-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-                        <div>
-                            <h2 className="font-semibold text-gray-950 dark:text-white">Ready to Export</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {exportMode === 'standard' && `All Members CSV includes every loaded member plus ${selectedSundays.length || 0} selected Sunday attendance columns.`}
-                                {exportMode === 'marked-members' && `Marked Members CSV includes only the ${summary.markedMembers} member${summary.markedMembers === 1 ? '' : 's'} with at least one Present or Absent mark.`}
-                                {exportMode === 'attendance-only' && 'Attendance Log CSV includes one row per marked Present or Absent record for the selected Sundays.'}
-                            </p>
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {selectedSundays.length} of {totalAvailableSundays} selected Sundays
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={exportMode === 'attendance-only' ? handleExportAttendanceOnly : handleExport}
-                        disabled={previewData.length === 0 || selectedSundays.length === 0 || isExporting}
-                        className={`w-full flex items-center justify-center gap-2 py-4 rounded-lg text-white text-base font-bold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${exportMode === 'standard'
-                            ? 'bg-orange-600 hover:bg-orange-700'
-                            : exportMode === 'marked-members'
-                                ? 'bg-green-700 hover:bg-green-800'
-                                : 'bg-gray-950 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 dark:text-gray-950'
-                            }`}
-                    >
-                        {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                        {isExporting ? 'Exporting...' : `Export ${exportMode === 'standard'
-                            ? 'All Members CSV'
-                            : exportMode === 'marked-members'
-                                ? 'Marked Members CSV'
-                                : 'Attendance Log'}`}
-                    </button>
-
-                    <div className="rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/20 p-3">
-                        <p className="text-xs text-orange-700 dark:text-orange-300 text-center">
-                            This export keeps your data in the database. To free up storage space, use <strong>Archive Month</strong> in Settings, Data Management.
-                        </p>
-                    </div>
-                </section>
             </div>
 
             <ExportContactsModal
@@ -1384,12 +1259,13 @@ const ExportCenterPage = ({ onBack }) => {
                 onExportCSV={downloadCSVContacts}
                 onExportVCard={downloadVCardContacts}
                 contactCount={
-                    displayedPreviewData.filter(row => {
+                    selectedPreviewData.filter(row => {
                         const phone = normalizePhone(getRowValue(row, 'Phone Number'))
                         return phone && phone !== 'No phone'
                     }).length
                 }
             />
+            </div>
         </div>
     )
 }
