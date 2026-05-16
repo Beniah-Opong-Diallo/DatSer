@@ -5,7 +5,8 @@ const DISMISS_VELOCITY = 0.7
 
 const isMobileSheet = () => {
   if (typeof window === 'undefined') return false
-  return window.matchMedia('(max-width: 767px)').matches
+  // Increased threshold to 1024px to cover more tablets and large phones
+  return window.matchMedia('(max-width: 1024px)').matches
 }
 
 const useBottomSheetDrag = ({ onDismiss, enabled = true, dismissDistance = DISMISS_DISTANCE } = {}) => {
@@ -75,11 +76,13 @@ const useBottomSheetDrag = ({ onDismiss, enabled = true, dismissDistance = DISMI
       onPointerDown: handlePointerDown,
       onPointerMove: handlePointerMove,
       onPointerUp: handlePointerUp,
-      onPointerCancel: handlePointerCancel
+      onPointerCancel: handlePointerCancel,
+      style: { touchAction: 'none' } // Essential for preventing browser scroll interference
     },
     sheetStyle: {
       transform: `translateY(${dragY}px)`,
-      transition: isDragging ? 'none' : 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)'
+      transition: isDragging ? 'none' : 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+      willChange: 'transform'
     },
     isDragging
   }

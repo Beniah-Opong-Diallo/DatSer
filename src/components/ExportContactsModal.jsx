@@ -13,9 +13,15 @@ import {
     Apple,
     Smartphone as AndroidIcon
 } from 'lucide-react'
+import useHapticFeedback from '../hooks/useHapticFeedback'
+import useBottomSheetDrag from '../hooks/useBottomSheetDrag'
 
 const ExportContactsModal = ({ isOpen, onClose, onExportCSV, onExportVCard, contactCount }) => {
     const [activeTab, setActiveTab] = useState('options') // 'options' or 'help'
+    const { selection } = useHapticFeedback()
+    const { dragHandleProps, sheetStyle } = useBottomSheetDrag({
+        onDismiss: onClose
+    })
 
     if (!isOpen) return null
 
@@ -28,10 +34,20 @@ const ExportContactsModal = ({ isOpen, onClose, onExportCSV, onExportVCard, cont
             />
 
             {/* Modal Container */}
-            <div className="relative w-full max-w-[420px] bg-white dark:bg-gray-950 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-300 border border-gray-100 dark:border-gray-800 flex flex-col">
+            <div 
+                className="relative w-full max-w-[420px] bg-white dark:bg-gray-950 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 border border-gray-100 dark:border-gray-800 flex flex-col"
+                style={sheetStyle}
+            >
+                {/* Drag Handle Zone (Mobile Only) */}
+                <div 
+                    className="sm:hidden w-full flex justify-center py-3 cursor-grab active:cursor-grabbing flex-none"
+                    {...dragHandleProps}
+                >
+                    <div className="w-12 h-1.5 rounded-full bg-gray-200 dark:bg-gray-800" />
+                </div>
                 
                 {/* Header Section */}
-                <div className="relative p-6 pb-2 text-center overflow-hidden">
+                <div className="relative p-6 pt-2 pb-2 text-center overflow-hidden">
                     {/* Background Glow */}
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-orange-500/10 blur-[60px] rounded-full pointer-events-none" />
                     
@@ -79,9 +95,6 @@ const ExportContactsModal = ({ isOpen, onClose, onExportCSV, onExportVCard, cont
                             <button
                                 onClick={() => {
                                     onExportVCard()
-                                    // Keep modal open to show success or next steps? 
-                                    // User said "open the call or settings app", usually VCF triggers browser download or intent.
-                                    // We will close it after a brief delay or immediately.
                                     onClose()
                                 }}
                                 className="w-full group flex items-start gap-4 p-5 rounded-xl border border-orange-100 dark:border-orange-900/20 bg-orange-50/20 dark:bg-orange-900/5 hover:border-orange-500 dark:hover:border-orange-500 hover:bg-white dark:hover:bg-gray-900 transition-all text-left shadow-sm hover:shadow-xl hover:shadow-orange-500/10"

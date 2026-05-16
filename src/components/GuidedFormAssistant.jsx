@@ -92,13 +92,16 @@ export const useGuidedFormAssistant = ({
 
   const activeStep = useMemo(() => {
     if (!enabled || !settings?.enabled) return null
-    const manualNext = settings?.manualNextAfterTyping === true
+    
+    // If we have a manual step selection, always prioritize it
     if (manualStepId) {
       const manualStep = visibleSteps.find(step => step.id === manualStepId)
-      if (manualStep && (manualNext || !isStepComplete(manualStep))) return manualStep
+      if (manualStep) return manualStep
     }
+    
+    // Fallback: only find the first incomplete step if no manual step is set
     return findFirstIncompleteStep(visibleSteps)
-  }, [enabled, manualStepId, settings?.enabled, settings?.manualNextAfterTyping, visibleSteps])
+  }, [enabled, manualStepId, settings?.enabled, visibleSteps])
 
   const goToStep = useCallback((step) => {
     if (!step) return
@@ -126,28 +129,37 @@ export const useGuidedFormAssistant = ({
     }
   }, [activeStep, goToStep, visibleSteps])
 
-  useEffect(() => {
-    if (!activeStep || !manualStepId) return
-    if (settings?.manualNextAfterTyping === true) return
-    if (activeStep.id !== manualStepId) setManualStepId(null)
-  }, [activeStep, manualStepId, settings?.manualNextAfterTyping])
-
+  // Initialize the first step if nothing is selected
   useEffect(() => {
     if (!enabled || !settings?.enabled) {
       setManualStepId(null)
       return
     }
-    if (settings?.manualNextAfterTyping !== true) return
-    setManualStepId((currentId) => {
-      if (currentId && visibleSteps.some(step => step.id === currentId)) return currentId
-      return findFirstIncompleteStep(visibleSteps)?.id || null
-    })
-  }, [enabled, settings?.enabled, settings?.manualNextAfterTyping, visibleSteps])
+    
+    if (!manualStepId) {
+      const firstIncomplete = findFirstIncompleteStep(visibleSteps)
+      if (firstIncomplete) setManualStepId(firstIncomplete.id)
+    }
+  }, [enabled, settings?.enabled, visibleSteps, manualStepId])
 
   useEffect(() => {
     if (!enabled || !settings?.enabled) return undefined
+    
+    const handleKeyDown = (e) => {
+      // If Enter is pressed and we're in an input/textarea, go to next
+      if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+        // Prevent form submission if it's just a regular enter
+        e.preventDefault()
+        goToNextStep()
+      }
+    }
+
     window.addEventListener('datser-guided-form-next', goToNextStep)
-    return () => window.removeEventListener('datser-guided-form-next', goToNextStep)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('datser-guided-form-next', goToNextStep)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [enabled, goToNextStep, settings?.enabled])
 
   useEffect(() => {

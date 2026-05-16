@@ -444,25 +444,49 @@ const MemberModal = ({ isOpen, onClose }) => {
       <div className="flex justify-center pt-3 pb-1 sm:hidden absolute left-0 right-0" style={{ top: 'calc(10vh)' }}>
       </div>
       <div
-        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col transition-all duration-300 animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
+        className={`mobile-bottom-sheet shadow-2xl ring-1 w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col animate-scale-in rounded-t-2xl rounded-b-none sm:rounded-xl ${isOverrideMode
         ? 'bg-orange-50/90 dark:bg-orange-900/40 backdrop-blur-md ring-orange-300 dark:ring-orange-700'
         : 'bg-white dark:bg-gray-800 ring-gray-200 dark:ring-gray-700'
         }`}
         data-testid="add-member-modal"
         style={sheetStyle}
       >
-        {/* Drag handle - visible on mobile */}
-        <div
-          className="mobile-sheet-drag-zone flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"
-          role="button"
-          tabIndex={0}
-          aria-label="Drag down to close"
+        {/* Draggable Header Section (Mobile Only) */}
+        <div 
+          className="sm:hidden flex flex-col items-center flex-shrink-0 cursor-grab active:cursor-grabbing"
           {...dragHandleProps}
         >
-          <div className="mobile-sheet-drag-handle w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+          <div className="pt-3 pb-1">
+            <div className="w-12 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
+          </div>
+          <div className={`w-full flex items-center justify-between px-4 py-3 border-b transition-all duration-300 ${isOverrideMode
+            ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
+            : 'border-gray-200 dark:border-gray-700'
+            }`}>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Add New Member</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); selection(); setIsOverrideMode(!isOverrideMode) }}
+                className={`px-3 py-1 rounded text-[10px] font-black uppercase border transition-colors ${isOverrideMode
+                  ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                  }`}
+              >
+                {isOverrideMode ? 'Override Active' : 'Override'}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); selection(); onClose() }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+          </div>
         </div>
-        {/* Header */}
-        <div className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-2xl sm:rounded-t-xl ${isOverrideMode
+
+        {/* Static Header (Desktop Only) */}
+        <div className={`hidden sm:flex items-center justify-between px-6 py-4 border-b flex-shrink-0 transition-all duration-300 rounded-t-xl ${isOverrideMode
           ? 'bg-orange-100/80 dark:bg-orange-800/80 border-orange-200 dark:border-orange-700'
           : 'border-gray-200 dark:border-gray-700'
           }`}>
@@ -475,7 +499,6 @@ const MemberModal = ({ isOpen, onClose }) => {
                 ? 'bg-orange-200 dark:bg-orange-700 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-600 font-medium'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
-              title="Toggle Override Mode (Bypass Validation)"
             >
               {isOverrideMode ? 'Override Active' : 'Override'}
             </button>
