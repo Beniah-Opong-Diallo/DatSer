@@ -804,7 +804,7 @@ const ExportCenterPage = ({ onBack }) => {
 
     return (
         <div className="min-h-screen bg-transparent pb-24 font-sans selection:bg-orange-100 dark:selection:bg-orange-900/40 p-4 md:p-6 lg:p-8">
-            <div className="bg-white dark:bg-gray-950 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col h-[calc(100vh-100px)]">
+            <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col h-[calc(100vh-100px)]">
                 {/* Simple Navigation Header */}
                 <div className="flex-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -844,7 +844,7 @@ const ExportCenterPage = ({ onBack }) => {
                     {/* STEP 1: SERVICE DATES */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div className="lg:col-span-8 space-y-6">
-                        <section className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                             <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/30">
                                 <div className="flex items-center gap-3">
                                     <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
@@ -877,7 +877,7 @@ const ExportCenterPage = ({ onBack }) => {
                                                 return (
                                                     <div
                                                         key={table}
-                                                        className={`rounded-2xl border p-4 transition-all duration-300 ${selected
+                                                        className={`rounded-xl border p-4 transition-all duration-300 ${selected
                                                             ? 'border-orange-200 bg-orange-50/30 dark:border-orange-900/30 dark:bg-orange-950/10'
                                                             : 'border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-700'
                                                             }`}
@@ -931,18 +931,18 @@ const ExportCenterPage = ({ onBack }) => {
                     <div className="lg:col-span-4 space-y-5">
                         {/* QUICK STATS */}
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                            <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
                                 <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-0.5">Total</p>
                                 <p className="text-xl font-black text-gray-900 dark:text-white">{reportStats.total}</p>
                             </div>
-                            <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                            <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
                                 <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-0.5">Present</p>
                                 <p className="text-xl font-black text-green-600">{reportStats.present}</p>
                             </div>
                         </div>
 
                         {/* EXPORT MODE */}
-                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-1.5 flex flex-col">
+                        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1.5 flex flex-col">
                             {[
                                 { id: 'standard', label: 'All Members', icon: Users, desc: 'Full member list' },
                                 { id: 'marked-members', label: 'Marked Only', icon: UserCheck, desc: 'Only P/A marks' },
@@ -980,7 +980,7 @@ const ExportCenterPage = ({ onBack }) => {
 
                         {showAdvancedSettings && (
                             <div className="space-y-4 animate-in slide-in-from-top duration-300">
-                                <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 space-y-4 shadow-xl">
+                                <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-4 shadow-xl">
                                     <div className="space-y-2">
                                         <p className="text-[9px] font-black uppercase text-gray-400">Export Note</p>
                                         <textarea
@@ -1011,7 +1011,7 @@ const ExportCenterPage = ({ onBack }) => {
                         <button
                             onClick={fetchPreview}
                             disabled={selectedMonths.length === 0 || selectedSundays.length === 0 || loadingPreview}
-                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black text-sm shadow-lg shadow-orange-600/20 transition-all active:scale-95 disabled:opacity-50"
+                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-black text-sm shadow-lg shadow-orange-600/20 transition-all active:scale-95 disabled:opacity-50"
                         >
                             {loadingPreview ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
                             {loadingPreview ? 'Fetching...' : 'Preview & Load'}
@@ -1022,7 +1022,7 @@ const ExportCenterPage = ({ onBack }) => {
                 {showPreview && (
                     <div className="space-y-5 animate-in fade-in slide-in-from-bottom duration-500">
                         {/* STEP 2: WHATSAPP DRAWER */}
-                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-green-50/20 dark:bg-green-900/10">
                                 <div className="flex items-center gap-2.5">
                                     <div className="h-7 w-7 rounded-lg bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
@@ -1042,7 +1042,7 @@ const ExportCenterPage = ({ onBack }) => {
                             
                             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-4">
-                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl space-y-3">
+                                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl space-y-3">
                                         <p className="text-[10px] font-black uppercase text-gray-400">Settings</p>
                                         <div className="flex flex-wrap gap-2">
                                             {['month', 'total', 'present', 'absent'].map(key => (
@@ -1069,13 +1069,13 @@ const ExportCenterPage = ({ onBack }) => {
                                     <div className="flex gap-3">
                                         <button
                                             onClick={() => copyToClipboard(buildWhatsAppPhoneList(), 'Phones copied')}
-                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all font-bold text-xs"
+                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-gray-900 text-white rounded-xl hover:bg-black transition-all font-bold text-xs"
                                         >
                                             <Phone className="w-4 h-4" /> Copy Phones
                                         </button>
                                         <button
                                             onClick={() => setIsExportContactsModalOpen(true)}
-                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all font-bold text-xs shadow-lg shadow-orange-600/20"
+                                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-all font-bold text-xs shadow-lg shadow-orange-600/20"
                                         >
                                             <Smartphone className="w-4 h-4" /> Export Phone
                                         </button>
@@ -1087,14 +1087,14 @@ const ExportCenterPage = ({ onBack }) => {
                                     <textarea
                                         value={activeWhatsAppText}
                                         readOnly
-                                        className="w-full h-40 bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-4 text-xs font-mono text-gray-700 dark:text-gray-300 border-none outline-none resize-none"
+                                        className="w-full h-40 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 text-xs font-mono text-gray-700 dark:text-gray-300 border-none outline-none resize-none"
                                     />
                                 </div>
                             </div>
                         </section>
 
                         {/* STEP 3: PREVIEW TABLE */}
-                        <section className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
                                     <div className="h-7 w-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
@@ -1225,7 +1225,7 @@ const ExportCenterPage = ({ onBack }) => {
                         </section>
 
                         {/* FINAL ACTION BAR */}
-                        <div className="bg-white dark:bg-gray-900 p-5 rounded-[1.75rem] border border-gray-200 dark:border-gray-800 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
+                        <div className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
                             <div className="text-center md:text-left">
                                 <h3 className="text-base font-black text-gray-900 dark:text-white leading-none mb-1">Final Export</h3>
                                 <p className="text-[10px] text-gray-500 font-medium">Ready to download the {exportMode.replace('-', ' ')} file.</p>
