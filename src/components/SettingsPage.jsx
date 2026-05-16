@@ -4249,59 +4249,111 @@ const SettingsPage = ({ onBack, navigateToSection, onCreateMonth, onOpenAddMembe
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Appearance</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Customize how Datser looks</p>
             </div>
+            {/* Theme Selection Section */}
+            <div className="space-y-6">
+                <div>
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4">Theme Configuration</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* System Mode Card */}
+                        <button
+                            onClick={() => { selection(); setThemeMode('system') }}
+                            className={`group relative flex flex-col items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 ${themeMode === 'system'
+                                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 shadow-xl shadow-orange-500/10'
+                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg'
+                                }`}
+                        >
+                            {/* Visual Preview */}
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-inner bg-gray-100">
+                                <div className="absolute inset-0 flex">
+                                    <div className="flex-1 bg-white" />
+                                    <div className="flex-1 bg-gray-950" />
+                                </div>
+                                {/* Mini UI elements */}
+                                <div className="absolute top-2 left-2 right-2 h-3 rounded-md bg-gray-200/50 backdrop-blur-sm" />
+                                <div className="absolute top-6 left-2 w-8 h-2 rounded bg-orange-500/60" />
+                                <div className="absolute top-6 right-2 w-4 h-2 rounded bg-gray-400/40" />
+                            </div>
 
+                            <div className="flex flex-col items-center text-center">
+                                <div className={`p-2 rounded-lg mb-1 transition-colors ${themeMode === 'system' ? 'text-orange-600' : 'text-gray-400'}`}>
+                                    <Monitor className="w-5 h-5" />
+                                </div>
+                                <span className={`text-sm font-black ${themeMode === 'system' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>System</span>
+                                <p className="text-[10px] text-gray-400 font-medium mt-0.5 tracking-tight">Syncs with device</p>
+                            </div>
 
-            {/* Theme Selection */}
-            <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</h4>
-                <div className="grid grid-cols-3 gap-3 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] grid-animate">
-                    {/* System Mode (Custom Slash) */}
-                    <button
-                        data-setting-id="theme_auto"
-                        tabIndex={-1}
-                        onClick={() => setThemeMode('system')}
-                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${getSettingTargetClass('theme_auto')} ${themeMode === 'system'
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
-                            }`}
-                    >
-                        <div
-                            className="w-16 h-16 rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
-                            style={{
-                                background: 'linear-gradient(135deg, #ffffff 50%, #111827 50%)'
-                            }}
-                        />
-                        <span className={`text-sm font-medium ${themeMode === 'system' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'}`}>System mode</span>
-                    </button>
+                            {/* Active Checkmark */}
+                            {themeMode === 'system' && (
+                                <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white dark:border-gray-900">
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                            )}
+                        </button>
 
-                    {/* Dark Mode (Black) */}
-                    <button
-                        data-setting-id="theme_dark"
-                        tabIndex={-1}
-                        onClick={() => setThemeMode('dark')}
-                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${getSettingTargetClass('theme_dark')} ${themeMode === 'dark'
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
-                            }`}
-                    >
-                        <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-700 shadow-sm" />
-                        <span className={`text-sm font-medium ${themeMode === 'dark' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'}`}>Dark mode</span>
-                    </button>
+                        {/* Dark Mode Card */}
+                        <button
+                            onClick={() => { selection(); setThemeMode('dark') }}
+                            className={`group relative flex flex-col items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 ${themeMode === 'dark'
+                                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 shadow-xl shadow-orange-500/10'
+                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg'
+                                }`}
+                        >
+                            {/* Visual Preview */}
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-gray-700 shadow-inner bg-gray-950">
+                                {/* Mini UI elements */}
+                                <div className="absolute top-2 left-2 right-2 h-3 rounded-md bg-gray-800/80" />
+                                <div className="absolute top-6 left-2 w-8 h-2 rounded bg-orange-600/60" />
+                                <div className="absolute top-6 right-2 w-4 h-2 rounded bg-gray-700/40" />
+                            </div>
 
-                    {/* Light Mode (White) */}
-                    <button
-                        data-setting-id="theme_light"
-                        tabIndex={-1}
-                        onClick={() => setThemeMode('light')}
-                        className={`group p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3 ${getSettingTargetClass('theme_light')} ${themeMode === 'light'
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
-                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
-                            }`}
-                    >
-                        <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm" />
-                        <span className={`text-sm font-medium ${themeMode === 'light' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'}`}>Light mode</span>
-                    </button>
+                            <div className="flex flex-col items-center text-center">
+                                <div className={`p-2 rounded-lg mb-1 transition-colors ${themeMode === 'dark' ? 'text-orange-600' : 'text-gray-400'}`}>
+                                    <Moon className="w-5 h-5" />
+                                </div>
+                                <span className={`text-sm font-black ${themeMode === 'dark' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Dark Mode</span>
+                                <p className="text-[10px] text-gray-400 font-medium mt-0.5 tracking-tight">Easy on eyes</p>
+                            </div>
 
+                            {/* Active Checkmark */}
+                            {themeMode === 'dark' && (
+                                <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white dark:border-gray-900">
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                            )}
+                        </button>
+
+                        {/* Light Mode Card */}
+                        <button
+                            onClick={() => { selection(); setThemeMode('light') }}
+                            className={`group relative flex flex-col items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300 ${themeMode === 'light'
+                                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-900/10 shadow-xl shadow-orange-500/10'
+                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-lg'
+                                }`}
+                        >
+                            {/* Visual Preview */}
+                            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-gray-200 shadow-inner bg-white">
+                                {/* Mini UI elements */}
+                                <div className="absolute top-2 left-2 right-2 h-3 rounded-md bg-gray-100" />
+                                <div className="absolute top-6 left-2 w-8 h-2 rounded bg-orange-500/40" />
+                                <div className="absolute top-6 right-2 w-4 h-2 rounded bg-gray-200" />
+                            </div>
+
+                            <div className="flex flex-col items-center text-center">
+                                <div className={`p-2 rounded-lg mb-1 transition-colors ${themeMode === 'light' ? 'text-orange-600' : 'text-gray-400'}`}>
+                                    <Sun className="w-5 h-5" />
+                                </div>
+                                <span className={`text-sm font-black ${themeMode === 'light' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Light Mode</span>
+                                <p className="text-[10px] text-gray-400 font-medium mt-0.5 tracking-tight">Bright and clear</p>
+                            </div>
+
+                            {/* Active Checkmark */}
+                            {themeMode === 'light' && (
+                                <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white dark:border-gray-900">
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
 
